@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+  Backup/migration rules for API 31+. Corresponds to PLAN §3.5 **R3 (keys not included in cloud backups)**
+  and the "no cross-device" aspect of **R1**.
+
+  The two channels must be declared separately; this is the reason API 31 introduced `data-extraction-rules`:
+
+  - `cloud-backup` —— uploaded to the cloud (Google One backup). Keys must be excluded = R3.
+  - `device-transfer` —— direct device-to-device transfer during phone migration. Also excluded: R1 requires keys not to cross devices,
+    and direct transfer also constitutes cross-device transfer.
+
+  Both channels must be specified. Specifying only `cloud-backup` would miss the direct device-to-device transfer —— which is exactly the scenario users are most likely to encounter.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="dnote-keys.xml" />
+        <exclude domain="sharedpref" path="dnote-secrets.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="dnote-keys.xml" />
+        <exclude domain="sharedpref" path="dnote-secrets.xml" />
+    </device-transfer>
+</data-extraction-rules>

@@ -1,0 +1,46 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Generated locally / machine-specific, not tracked
+/.idea/
+.kotlin/
+
+# Release signing: keystores and passphrases always live outside the repository
+# (~/keys/ by default). These rules are a backstop, so that a copy taken into the
+# working tree for convenience still never gets committed.
+*.jks
+*.keystore
+keystore.properties
+
+# macOS resource forks (metadata files that rsync/tar drags over from a Mac, not source)
+._*
+
+# Local-only and internal material. Anchor these to the repository root: a bare
+# `resources/` would also swallow Sources/Resources/.
+.claude/
+/docs/
+/resources/
+/reference/
+/audio_clips/
+/config.json
+
+# Internal development notes, not published with the source
+CLAUDE.md
+PLAN.md
+release-signing.md
+
+# External verification harness, not published with the source
+/verification/

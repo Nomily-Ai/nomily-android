@@ -1,0 +1,522 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Interface text correction. Naming: region_prefix_item (recordings_device).
+-->
+<resources>
+    <string name="app_name">Nomily AI</string>
+
+    <!-- recordings.* -->
+    <string name="recordings_clip_count_one">%1$d clip · %2$s</string>
+    <string name="recordings_clip_count_other">%1$d clips · %2$s</string>
+    <string name="recordings_device">Device</string>
+    <string name="recordings_library">Library</string>
+    <string name="recordings_no_clips">No clips yet</string>
+    <string name="recordings_no_clips_message">Download a recording from the Device tab to add it to your library.</string>
+    <string name="recordings_no_device">No device connected</string>
+    <string name="recordings_no_device_message">Tap the pill above to scan for your D·NOTE.</string>
+    <!-- scanner.* -->
+    <string name="scanner_bluetooth_unavailable">Bluetooth unavailable</string>
+    <string name="scanner_connection_failed">Connection failed</string>
+    <string name="scanner_looking_for_devices">Looking for D·NOTE devices…</string>
+    <string name="scanner_looking_message">Make sure your D·NOTE is powered on and within a few metres.</string>
+    <string name="scanner_scan">Scan</string>
+    <string name="scanner_scan_again">Scan again</string>
+    <!-- encryption.* -->
+    <string name="encryption_sheet_title_set">Set passphrase</string>
+    <string name="encryption_sheet_title_verify">Verify passphrase</string>
+    <string name="encryption_field_passphrase">Passphrase</string>
+    <string name="encryption_action_save">Save</string>
+    <string name="encryption_action_cancel">Cancel</string>
+    <string name="encryption_section_footer">Derived via Argon2id with the device serial as salt. Stored in the Android Keystore, scoped to this device. Losing the passphrase makes encrypted recordings unrecoverable. Cross-phone recovery: enter the same passphrase on the new phone.</string>
+    <string name="encryption_progress_deriving">Deriving key…</string>
+    <string name="encryption_progress_downloading">Downloading probe…</string>
+    <string name="encryption_progress_working">Working…</string>
+    <string name="encryption_progress_probe_subtitle">Recording a short probe to verify the passphrase. The probe is auto-deleted.</string>
+    <string name="encryption_progress_recording">Recording a short probe clip…</string>
+    <string name="encryption_progress_stopping">Stopping recording…</string>
+    <string name="encryption_download_key_missing">%s: this recording is encrypted, but no passphrase is set on this phone. Open Settings → Encryption passphrase → Verify device passphrase… to unlock it.</string>
+    <string name="encryption_download_wrong_key">%1$@: couldn\'t decrypt — the passphrase doesn\'t match this recording. Open Settings → Encryption passphrase, clear the current one, and set the correct passphrase. (Details: %2$@)</string>
+    <!-- clip_detail.* -->
+    <string name="clip_detail_view_full_transcript">View Full Transcript</string>
+    <string name="clip_detail_speaker">Speaker %s</string>
+    <string name="clip_detail_transcript">Transcript</string>
+    <string name="clip_detail_summary">Summary</string>
+    <string name="clip_detail_transcribe_first">Transcribe first to enable summarization.</string>
+    <string name="clip_detail_transcribe">Transcribe</string>
+    <string name="clip_detail_retranscribe">Re-transcribe?</string>
+    <string name="clip_detail_retranscribe_message">This will replace the existing transcript.</string>
+    <string name="clip_detail_export">Export</string>
+    <string name="clip_detail_export_as_m4a">Export as M4A (AAC)</string>
+    <string name="clip_detail_exporting">Exporting…</string>
+    <string name="clip_detail_delete_audio">Delete Audio</string>
+    <string name="clip_detail_delete_audio_message">Deletes only the audio file. The transcript and summary are kept. This can\'t be undone.</string>
+    <string name="clip_detail_delete_transcript">Delete Transcript</string>
+    <string name="clip_detail_delete_transcript_message">Deletes the transcript and its translation. The audio and summary are kept. This can\'t be undone.</string>
+    <string name="clip_detail_delete_summary">Delete Summary</string>
+    <string name="clip_detail_delete_summary_message">Deletes the summary and its translation. The audio and transcript are kept. This can\'t be undone.</string>
+    <string name="clip_detail_delete_independent_footer">Audio, transcript and summary are deleted independently — removing one leaves the others untouched.</string>
+    <!-- settings.* / tab.* -->
+    <string name="tab_settings">Settings</string>
+    <string name="settings_asr_providers">ASR Providers</string>
+    <string name="settings_llm_providers">LLM Providers</string>
+    <string name="settings_recordings">Recordings &amp; Transfer</string>
+    <string name="settings_devices_library">Devices &amp; Library</string>
+    <string name="settings_about">About</string>
+    <string name="settings_version">Version</string>
+    <!-- asr.* -->
+    <string name="asr_transcription">Transcription</string>
+    <string name="asr_active_provider">Active Provider</string>
+    <string name="asr_auto_transcribe_after_download">Auto-transcribe after download</string>
+    <string name="asr_auto_transcribe_min">Min duration: %ds</string>
+    <string name="asr_auto_transcribe_footer">Transcription runs after each download. Clips shorter than the minimum duration are skipped. Another provider is used as fallback when configured.</string>
+    <string name="asr_local_vad">Strip silence before upload</string>
+    <string name="asr_local_vad_footer">Voice activity detection runs on-device and removes silent stretches before sending audio to the transcription provider. Cuts upload size and ASR cost.</string>
+    <string name="asr_azure_speech">Azure Speech</string>
+    <string name="asr_azure_purpose_footer">Azure Speech powers transcription, live transcription and live translation. It uses your own Azure key; audio is sent to Microsoft for processing and may incur charges. It does not generate AI summaries — those use the LLM service you configure separately.</string>
+    <string name="asr_local_server">Local ASR Server</string>
+    <string name="asr_subscription_key">Subscription key</string>
+    <string name="asr_region">Region</string>
+    <string name="asr_key_required">Enter your subscription key</string>
+    <string name="asr_region_required">Enter the service region</string>
+    <string name="asr_host">Host</string>
+    <string name="asr_port">Port</string>
+    <string name="asr_azure">Azure</string>
+    <string name="asr_local_server_label">Local server</string>
+    <string name="asr_transcript_empty">No speech detected in this clip, so there\'s nothing to transcribe. Try a longer or clearer recording.</string>
+    <string name="asr_last_verify_failed">Last verification failed — verify again</string>
+    <string name="asr_status_verified">Verified and ready to use</string>
+    <string name="asr_status_verifying">Testing connection…</string>
+    <string name="asr_status_unverified">Saved, not verified yet</string>
+    <string name="asr_autosave_note">Changes are saved automatically. Saved is not the same as working — tap the check button to verify the credentials.</string>
+    <string name="asr_leave_title">Leave without verifying?</string>
+    <string name="asr_leave_anyway">Leave</string>
+    <string name="asr_leave_incomplete_message">Some required fields are still empty, so this service can\'t be used for transcription.</string>
+    <string name="asr_leave_unverified_message">These credentials haven\'t passed verification, so transcription may still fail. Tap the check button to test them first.</string>
+    <string name="asr_host_required">Enter the server host</string>
+    <string name="asr_port_invalid">Port must be between 1 and 65535</string>
+    <string name="encryption_first_bind_note">This Nomi\'s firmware encrypts everything it records, so a passphrase is required. It is never stored and cannot be recovered — write it down. The app won\'t start a recording until it is set.</string>
+    <string name="dnote_error_passphrase_setup_incomplete">Set the encryption passphrase before recording — this Nomi encrypts everything it records, and clips made without the passphrase can\'t be opened on this phone.</string>
+    <string name="fast_transfer_ap_still_on">The device still reports its hotspot as on. If the next fast transfer can\'t join, turn the device off and on again.</string>
+    <string name="live_attach_no_upload">Nomi is recording, but this recording was started with the device button before the app connected, so it isn\'t sending audio. Stop the recording on the device, then start live from the app.</string>
+    <string name="dnote_error_stream_no_audio">Nomi isn\'t sending audio for this recording. Stop the recording on the device, then start live from the app.</string>
+    <string name="wifi_error_not_connected">Not connected to the device\'s Wi-Fi hotspot.</string>
+    <string name="wifi_error_timeout">Wi-Fi transfer timed out — no data from the device.</string>
+    <string name="wifi_error_malformed">The device sent a response the app couldn\'t read.</string>
+    <string name="hotspot_error_join_failed">Couldn\'t join the device\'s Wi-Fi hotspot. Tap Retry — the app will restart the hotspot and try again.</string>
+    <!-- llm.* -->
+    <string name="llm_active_provider_footer">The primary provider is used for summarization and other LLM tasks.</string>
+    <string name="llm_api_key">API Key</string>
+    <string name="llm_model">Model</string>
+    <string name="llm_endpoint_url">Endpoint URL</string>
+    <string name="llm_api_key_optional">API Key (optional)</string>
+    <!-- rec_settings.* -->
+    <string name="rec_settings_delete_after_transfer">Delete from device after transfer</string>
+    <string name="rec_settings_delete_after_transfer_footer">When on, the file is removed from the device as soon as the BLE transfer + decrypt finishes.</string>
+    <string name="rec_settings_fast_transfer_threshold">Fast Transfer Threshold</string>
+    <string name="rec_settings_fast_transfer_threshold_footer">Show the Wi-Fi Fast Transfer button when undownloaded recordings on the device exceed this size. Set to 0 KB to always show the suggestion whenever files are pending.</string>
+    <!-- developer_mode.* / privacy.* -->
+    <string name="developer_mode_status_on">Developer mode is on</string>
+    <string name="developer_mode_taps_to_enable">%d more taps to enable developer mode</string>
+    <string name="developer_mode_taps_to_disable">%d more taps to disable developer mode</string>
+    <string name="developer_mode_toast_enabled">Developer mode enabled</string>
+    <string name="developer_mode_toast_disabled">Developer mode disabled</string>
+    <string name="privacy_cloud_title">Data leaves your device</string>
+    <string name="privacy_cloud_message">You\'ve set up a cloud transcription or AI provider (e.g. Azure, OpenAI). Your audio and text are sent to that third-party service to be processed. Nothing goes to a Nomily server, but the data does leave your device. For fully on-device processing, use a local ASR server and a local (Ollama) or no AI model.</string>
+    <string name="privacy_cloud_agree">I Understand, Continue</string>
+    <string name="common_none">None</string>
+    <!-- device.* -->
+    <string name="device_disconnect">Disconnect</string>
+    <string name="device_serial">Serial</string>
+    <string name="device_firmware">Firmware</string>
+    <string name="device_storage_used">%s used of %s</string>
+    <string name="device_connected_mtu">Connected · MTU %d</string>
+    <string name="device_identity">Identity</string>
+    <string name="device_bluetooth_name">Bluetooth name</string>
+    <string name="device_bt_mac">BT MAC</string>
+    <string name="device_device_time">Device time</string>
+    <string name="device_audio">Audio</string>
+    <string name="device_noise_cancel">Noise cancel</string>
+    <string name="device_noise_cancel_hint">On-device noise cancellation. Off keeps more of the ambient sound; on makes voices stand out. It is a separate setting from “Noise reduction” below.</string>
+    <string name="device_save_raw_wav">Save raw WAV</string>
+    <string name="device_save_raw_wav_hint">Also keep an uncompressed WAV copy of each recording on the device. Best quality, but it uses far more storage.</string>
+    <string name="device_vad">Voice activity detection</string>
+    <string name="device_vad_hint">The device skips silence while recording and keeps only the parts where someone is talking, saving storage and battery; very quiet speech may get clipped at the start. This is not the same as Settings → Speech recognition → “Trim silence before upload”, which runs on the phone before uploading — this one runs on the device while recording.</string>
+    <string name="device_mic_gain">Mic gain</string>
+    <string name="device_mic_gain_hint">Microphone sensitivity, 1 lowest to 9 highest. Higher picks up distant or quiet speech, but also amplifies background noise and clips more easily on loud sounds.</string>
+    <string name="device_noise_reduction">Noise reduction</string>
+    <string name="device_noise_reduction_hint">Noise reduction strength, 1 weakest to 9 strongest. Higher removes more background noise, but can also thin out voices and make them sound muffled.</string>
+    <string name="device_behavior">Behavior</string>
+    <string name="device_led_indicator">LED indicator</string>
+    <string name="device_vibration">Vibration</string>
+    <string name="device_usb_drive_mode">USB drive mode</string>
+    <string name="device_usb_drive_mode_hint">When enabled, the device appears as a removable drive when plugged into a computer.</string>
+    <string name="device_auto_power_off">Auto power-off</string>
+    <string name="device_never">Never</string>
+    <string name="device_custom_idle_off">Custom (%ds)</string>
+    <string name="device_danger_zone">Danger zone</string>
+    <string name="device_connection">Connection</string>
+    <string name="device_unbind_and_remove">Unbind and Remove Device</string>
+    <string name="device_unbind_and_remove_message">This turns off the device\'s encryption, deletes the recordings stored on the device, unbinds it, and removes it from your paired devices. This can\'t be undone.</string>
+    <string name="device_danger_zone_footer">Format erases all recordings; factory reset only resets switches and BT name. Shut down cuts the connection.</string>
+    <string name="device_erase_all_recordings">Erase all recordings?</string>
+    <string name="device_erase_message">This deletes every recording on the device. Switches and Bluetooth name are preserved. Cannot be undone.</string>
+    <string name="device_format_storage">Format storage</string>
+    <string name="device_restore_factory">Restore factory defaults?</string>
+    <string name="device_restore_message">Resets switches and Bluetooth name. Recordings are kept.</string>
+    <string name="device_factory_reset">Factory reset</string>
+    <string name="device_power_off">Power off the device?</string>
+    <string name="device_power_off_message">The device will disconnect immediately. Press its physical button to turn it back on.</string>
+    <string name="device_shut_down">Shut down</string>
+    <string name="device_couldnt_update">Couldn\'t update</string>
+    <!-- pairing.* -->
+    <string name="pairing_unpair">Unpair this Nomi</string>
+    <string name="pairing_unpair_message">Unpair removes the device\'s pairing with this app. You\'ll need to pair again before recording.</string>
+    <string name="pairing_pair">Pair</string>
+    <string name="pairing_message">%s needs to be paired with this app before it can record. You can unpair any time from the Device screen.</string>
+    <string name="pairing_status">Pairing</string>
+    <string name="pairing_paired">Paired</string>
+    <string name="pairing_not_paired">Not paired</string>
+    <!-- device_encryption.* -->
+    <string name="device_encryption_state_on">ON</string>
+    <string name="device_encryption_state_off">OFF</string>
+    <string name="device_encryption_state_row">On-device encryption</string>
+    <string name="device_encryption_firmware_footer">This firmware (v1.50) auto-enables encryption at bind time and refuses to disable it. Recordings are encrypted under whatever 32-byte key was last written via 0xA2. Use "Verify device passphrase" above so this app can decrypt them.</string>
+
+    <!-- devices.* -->
+    <string name="devices_auto_reconnect">Auto-Reconnect</string>
+    <string name="devices_auto_reconnect_footer">When on, the app reconnects to your most recent device by itself after an unexpected disconnect — for example after the device is powered off and on again. When off, tap the connection pill at the top to reconnect manually.</string>
+
+    <!-- library.* -->
+    <string name="library_merge">Merge Adjacent</string>
+    <string name="library_merging">Merging…</string>
+    <string name="library_merge_failed">Merge Failed</string>
+    <string name="library_merge_confirm_title">Merge Adjacent Clips?</string>
+    <string name="library_merge_confirm_message">%1$s and %2$s will be combined into a single new recording (M4A). The original clips and their transcripts, summaries, and translations will be deleted. This can\'t be undone.</string>
+    <string name="library_import_audio">Import Audio</string>
+    <string name="library_import_confirm_title">Import Audio File</string>
+    <string name="library_import_choose_file">Choose File…</string>
+    <string name="library_import_failed">Import Failed</string>
+    <string name="library_import_confirm_message">Choose audio files from your phone, cloud storage, or a connected USB drive.\n\nThis imports local files — it does not download recordings from the Nomi. To pull clips from the recorder, use the Device tab.</string>
+    <string name="library_import_unsupported">This file type (.%s) isn\'t supported for import.</string>
+    <string name="encryption_section_header">Encryption passphrase</string>
+    <string name="encryption_local_key">Local key</string>
+    <string name="encryption_configured">configured</string>
+    <string name="encryption_missing">missing</string>
+    <string name="encryption_set_button">Set passphrase…</string>
+    <string name="encryption_verify_button">Verify device passphrase…</string>
+    <string name="encryption_rotate_button">Rotate (overwrite device key)…</string>
+    <string name="encryption_clear_button">Clear local key</string>
+    <string name="encryption_sheet_title_rotate">Rotate key</string>
+    <string name="encryption_action_rotate">Rotate</string>
+    <string name="encryption_footer_rotate">Rotate writes a brand-new key to the device. Every existing encrypted recording on the device becomes permanently undecryptable. Use this only when you\'re taking ownership of a pre-owned device or have forgotten the old passphrase.</string>
+    <string name="devices_known_devices">Known Devices</string>
+    <string name="devices_no_devices_yet">No devices remembered yet.</string>
+    <string name="devices_last_seen">Last seen %s</string>
+    <string name="devices_library">Library</string>
+    <string name="devices_files">Files</string>
+    <string name="devices_total_size">Total size</string>
+    <string name="devices_library_footer">Audio clips, transcripts, and summaries stored on this device. All data will be lost if the app is deleted — export and back up regularly.</string>
+    <string name="devices_danger_zone">Danger Zone</string>
+    <string name="devices_clear_audio">Clear Media</string>
+    <string name="devices_clear_audio_message">All audio clips stored on this phone will be deleted. Transcripts, summaries, and titles are kept.</string>
+    <string name="devices_clear_transcripts">Clear Transcripts</string>
+    <string name="devices_clear_transcripts_message">Deletes every transcript and its translation. Audio and summaries are kept. This can\'t be undone.</string>
+    <string name="devices_clear_summaries">Clear Summaries</string>
+    <string name="devices_clear_summaries_message">Deletes every summary and its translation. Audio and transcripts are kept. This can\'t be undone.</string>
+    <string name="devices_clear_all_data">Clear Library Data</string>
+    <string name="devices_clear_all_data_message">All audio clips, transcripts, summaries, and titles stored on this phone will be deleted. This cannot be undone.\n\nNot included: app settings, provider API keys, Wi-Fi hotspot name and password, paired devices, and the recording passphrase. To remove those, uninstall the app.</string>
+    <string name="devices_cleanup_partial_title">Some files couldn\'t be deleted</string>
+    <string name="devices_cleanup_partial_message">%1$d file(s) could not be removed and are still on this phone. Try again, or free up space and retry.</string>
+    <string name="privacy_cloud_go_local">Provider Settings</string>
+    <string name="clip_detail_summarize">Summarize</string>
+    <string name="clip_detail_translation">Translation</string>
+    <string name="clip_detail_translate">Translate</string>
+    <string name="clip_detail_translating">Translating...</string>
+    <string name="clip_detail_translated_summary">Translated Summary</string>
+    <string name="summarize_choose_template">Choose Template</string>
+    <string name="summarize_summarizing">Summarizing...</string>
+    <string name="summarize_summarizing_with">Summarizing with %s...</string>
+    <string name="summarize_error">Error</string>
+    <string name="summarize_truncated_warning">The model hit its output limit, so this result is cut off. Try a shorter transcript or a template that asks for less.</string>
+    <string name="summarize_output_language">Output Language</string>
+    <string name="summarize_same_as_transcript">Same as transcript</string>
+    <string name="summarize_add_template">Add Template</string>
+    <string name="summarize_clone">Clone</string>
+    <string name="summarize_category">Category</string>
+    <string name="summarize_name">Name</string>
+    <string name="summarize_template_name">Template name</string>
+    <string name="summarize_prompt">Prompt</string>
+    <string name="summarize_new_template">New Template</string>
+    <string name="summarize_edit_template">Edit Template</string>
+    <string name="summarize_copy_name">%s (copy)</string>
+    <string name="summarize_restore_defaults">Restore default templates</string>
+    <string name="summarize_restore_defaults_title">Restore default templates?</string>
+    <string name="summarize_restore_defaults_message">This replaces your current template list with the built-in defaults. Your custom templates will be lost. Built-in templates that ship with the app will reappear.</string>
+    <string name="settings_summarize_templates">Summarize Templates</string>
+    <string name="template_cat_meeting_notes">Meeting Notes</string>
+    <string name="template_cat_action_items">Action Items</string>
+    <string name="template_cat_general_summary">General Summary</string>
+    <string name="template_cat_professional">Professional</string>
+    <string name="template_cat_academic">Academic</string>
+    <string name="template_cat_creative">Creative</string>
+    <string name="template_formal_minutes">Formal Meeting Minutes</string>
+    <string name="template_structured_minutes">Structured Minutes</string>
+    <string name="template_executive_brief">Executive Brief</string>
+    <string name="template_key_takeaways">Key Takeaways</string>
+    <string name="template_task_extraction">Task Extraction</string>
+    <string name="template_decision_log">Decision Log</string>
+    <string name="template_concise_summary">Concise Summary</string>
+    <string name="template_detailed_notes">Detailed Notes</string>
+    <string name="template_qa_format">Q&amp;A Format</string>
+    <string name="template_client_meeting_recap">Client Meeting Recap</string>
+    <string name="template_one_on_one_summary">1-on-1 Summary</string>
+    <string name="template_status_update">Status Update</string>
+    <string name="template_lecture_notes">Lecture Notes</string>
+    <string name="template_research_discussion">Research Discussion</string>
+    <string name="template_brainstorm_synthesis">Brainstorm Synthesis</string>
+    <string name="template_interview_summary">Interview Summary</string>
+    <string name="live_status_connecting">Connecting…</string>
+    <string name="live_status_failed">Failed</string>
+    <string name="live_status_reconnecting">Reconnecting…</string>
+    <string name="live_listening">Listening...</string>
+    <string name="live_paused">Paused</string>
+    <string name="live_streaming">Streaming</string>
+    <string name="live_ready">Ready</string>
+    <string name="live_no_device">No device connected</string>
+    <string name="live_no_device_message">Connect your D·NOTE to start live transcription and translation.</string>
+    <string name="live_tap_mic_to_start">Tap the mic to start</string>
+    <string name="live_target_language">Target Language</string>
+    <string name="live_same_as_source">Same as source</string>
+    <string name="live_source_language">Source Language</string>
+    <string name="live_pause">Pause</string>
+    <string name="live_repair_title">Complete recording available</string>
+    <string name="live_repair_message">This recording had pauses, so some audio wasn\'t captured. Replace with the complete recording from your Nomi?</string>
+    <string name="live_repair_message_attached">This session joined a recording that was already in progress, so the start is missing. Replace with the complete recording from your Nomi?</string>
+    <string name="live_repair_not_playable">The file came back encrypted and this phone has no matching passphrase, so nothing playable was produced. The recording is still on your Nomi.</string>
+    <string name="live_start_unknown_title">Can\'t tell whether Nomi is recording</string>
+    <string name="live_start_unknown_message">Nomi didn\'t answer the status check. Starting a live session now could cut off a recording you began with the button on the device. Try again, or start anyway if you\'re sure it isn\'t recording.</string>
+    <string name="live_start_anyway">Start Anyway</string>
+    <string name="live_repair_replace">Replace</string>
+    <string name="live_saved_to_library">Saved to Library: %s</string>
+    <!-- device_files.* -->
+    <string name="device_files_stop_recording">Stop Recording</string>
+    <string name="device_files_reading_file_list">Reading file list…</string>
+    <string name="device_files_device_is_recording">Device is recording</string>
+    <string name="device_files_recording_unavailable_message">File list is unavailable while recording. Stop recording to browse files.</string>
+    <string name="device_files_no_recordings">No recordings on device</string>
+    <string name="device_files_no_recordings_message">Tap the refresh button after recording on the device.</string>
+    <string name="device_files_operation_failed">Operation failed</string>
+    <string name="device_files_fast_transfer_wifi">Fast Transfer over Wi-Fi</string>
+    <string name="device_files_pending">%s pending</string>
+    <string name="device_files_transfer_in_progress">Transfer in Progress</string>
+    <string name="device_files_cancel_transfer_to_switch">Cancel all transfers to switch tabs?</string>
+    <string name="device_files_cancel_and_switch">Cancel &amp; Switch</string>
+
+    <!-- tab.* / pill.* -->
+    <string name="tab_recordings">Recordings</string>
+    <string name="tab_live">Live</string>
+    <string name="pill_add_device">Add Device</string>
+
+    <!-- common.* -->
+    <string name="common_recording">Recording</string>
+    <string name="common_delete">Delete</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_ok">OK</string>
+    <string name="common_close">Close</string>
+    <string name="common_save">Save</string>
+    <string name="common_keep_foreground">Keep this screen in the foreground — going to the background will interrupt the transfer.</string>
+
+    <!-- Action labels on list rows, error bars, and empty states of scan pages -->
+    <string name="scanner_bluetooth_off_message">Turn on Bluetooth in system settings, then scan again.</string>
+    <string name="device_refresh">Refresh</string>
+    <string name="clip_fetch">Fetch</string>
+    <string name="clip_play">Play</string>
+    <string name="clip_stop">Stop</string>
+    <string name="error_dismiss">Dismiss</string>
+    <string name="clip_detail_text_only">Text only</string>
+    <!-- device_panel: Button with text, also for TalkBack to read aloud. -->
+    <string name="device_panel">Device settings</string>
+
+    <!-- Status text and empty states -->
+    <string name="pairing_pairing_now">Pairing…</string>
+    <string name="pairing_unpairing">Unpairing…</string>
+    <string name="device_saving_idle_off">Saving idle-off…</string>
+    <string name="device_saving_name">Saving name…</string>
+    <string name="device_formatting">Formatting…</string>
+    <string name="device_resetting">Resetting…</string>
+    <string name="device_shutting_down">Shutting down…</string>
+    <string name="device_unbinding_and_removing">Removing device…</string>
+    <string name="device_files_couldnt_read_device">Couldn\'t read the device</string>
+    <string name="device_files_transcribing">Transcribing…</string>
+    <string name="device_files_delete_recording">Delete recording?</string>
+    <string name="device_files_delete_recording_message">Permanently remove %s from the device. This can\'t be undone.</string>
+    <string name="fast_transfer_stage_stopping">Stopping recording…</string>
+    <string name="fast_transfer_stage_starting_ap">Starting device Wi-Fi AP…</string>
+    <string name="fast_transfer_stage_joining_wifi">Joining Wi-Fi…</string>
+    <string name="fast_transfer_stage_connecting">Connecting to device…</string>
+    <string name="fast_transfer_stage_downloading">Downloading…</string>
+    <string name="rec_settings_wifi_ap">Wi-Fi AP (Fast Transfer)</string>
+    <string name="rec_settings_wifi_credentials_footer">Credentials the device broadcasts when you start Fast Transfer.</string>
+    <string name="rec_settings_ssid">SSID</string>
+    <string name="rec_settings_password">Password</string>
+    <string name="rec_settings_wifi_generated">Wi-Fi credentials generated</string>
+    <string name="rec_settings_wifi_generated_message">SSID and password have been auto-generated. You can change them above.</string>
+    <string name="fast_transfer_title">Fast Transfer</string>
+    <string name="fast_transfer_status">Status</string>
+    <string name="fast_transfer_ap_credentials">AP credentials</string>
+    <string name="fast_transfer_files_count">Files (%d)</string>
+    <string name="fast_transfer_pending">Pending…</string>
+    <string name="fast_transfer_saved">Saved</string>
+    <string name="fast_transfer_stage_polling_ap">Waiting for the device hotspot to start… (attempt %1$d of %2$d)</string>
+    <string name="fast_transfer_stage_join_failed">Wi-Fi join failed</string>
+    <string name="fast_transfer_stage_cleanup">Cleaning up…</string>
+    <string name="fast_transfer_hint_polling">The device can take 30-45 s to bring the AP up (longer on battery).</string>
+    <string name="fast_transfer_hint_join_failed">Tap \"Retry\" to try joining the device\'s Wi-Fi again.</string>
+    <string name="fast_transfer_ap_not_broadcasting">Device accepted the AP-start command but the AP never came up. Try again; if it keeps failing, restart the device.</string>
+    <string name="fast_transfer_invalid_psk">The device hotspot password must be 8\u201363 characters. Change it in Settings \u2192 Recording &amp; transfer \u2192 Wi-Fi AP, then try again.</string>
+    <string name="fast_transfer_permission_denied">Fast Transfer needs the nearby-devices permission to join the device hotspot. Grant it in system settings, then try again.</string>
+    <string name="fast_transfer_stage_done">Done</string>
+    <string name="fast_transfer_stage_stopped">Stopped</string>
+    <string name="live_repair_downloading">Downloading complete audio…</string>
+    <string name="live_repair_failed">Couldn\'t download: %s</string>
+    <string name="clip_detail_view_full_summary">View Full Summary</string>
+    <string name="clip_detail_view_full_translation">View Full Translation</string>
+    <string name="clip_detail_view_full_translated_summary">View Full Translated Summary</string>
+    <string name="clip_detail_transcribing">Transcribing...</string>
+
+    <!-- P2: Azure guidance / Language selection / Wi-Fi credentials / Encryption banner / No provider guide -->
+    <string name="azure_guide_title">Azure Speech Setup</string>
+    <string name="azure_guide_step">Step %1$d: %2$s</string>
+    <string name="azure_guide_step1_title">Create an Azure Account</string>
+    <string name="azure_guide_step1_item1">Go to portal.azure.com</string>
+    <string name="azure_guide_step1_item2">Sign up for a free account if you don\'t have one (includes $200 credit for 30 days)</string>
+    <string name="azure_guide_step2_title">Create a Speech Resource</string>
+    <string name="azure_guide_step2_item1">In the Azure Portal, tap Create a resource</string>
+    <string name="azure_guide_step2_item2">Search for \"Speech\" and select Speech (by Microsoft)</string>
+    <string name="azure_guide_step2_item3">Tap Create</string>
+    <string name="azure_guide_step2_item4">Pick a Region that supports Fast Transcription (e.g. westus3, eastus, eastasia)</string>
+    <string name="azure_guide_step2_item5">Pricing tier: F0 (Free) for testing, or S0 (Standard) for production</string>
+    <string name="azure_guide_step2_item6">Tap Review + create, then Create</string>
+    <string name="azure_guide_step3_title">Get Your API Key and Region</string>
+    <string name="azure_guide_step3_item1">Go to your Speech resource in the portal</string>
+    <string name="azure_guide_step3_item2">Tap Keys and Endpoint in the sidebar</string>
+    <string name="azure_guide_step3_item3">Copy Key 1 (or Key 2) and the Region (e.g. westus3)</string>
+    <string name="azure_guide_free_tier_title">Free Tier Limits (F0)</string>
+    <string name="azure_guide_fast_transcription">Fast transcription</string>
+    <string name="azure_guide_fast_transcription_value">5 hours / month</string>
+    <string name="azure_guide_realtime_transcription">Real-time transcription</string>
+    <string name="azure_guide_realtime_transcription_value">1 concurrent request</string>
+    <string name="azure_guide_speaker_diarization">Speaker diarization</string>
+    <string name="azure_guide_speaker_diarization_value">Included</string>
+    <string name="azure_guide_audio_formats">Audio formats</string>
+    <string name="azure_guide_audio_formats_value">WAV, OGG/Opus, MP3, FLAC</string>
+    <string name="asr_azure_how_to_get_key">How to get a key</string>
+    <string name="asr_specify_languages">Specify languages…</string>
+    <string name="asr_transcribe_auto">Auto-detect language</string>
+    <string name="asr_languages_footer">Azure detects the language of each phrase independently, not the clip as a whole — useful for meetings that mix several languages.</string>
+    <string name="asr_max_languages_hint">Up to %d languages</string>
+    <string name="asr_no_provider">No ASR Provider</string>
+    <string name="asr_no_provider_message">Set up a transcription provider (Azure or Local Server) in Settings.</string>
+    <string name="llm_no_provider">No LLM Provider</string>
+    <string name="llm_no_provider_message">Set up an LLM provider and select an Active Provider.</string>
+    <string name="live_search_languages">Search languages</string>
+    <string name="common_done">Done</string>
+    <string name="common_open_settings">Open Settings</string>
+    <string name="common_retry">Retry</string>
+    <string name="common_try_again">Try Again</string>
+    <string name="encryption_banner_title">Device is encrypted</string>
+    <string name="encryption_banner_message">Enter the passphrase this device was set up with to unlock its recordings on this phone. If you\'ve forgotten it, rotate the key (this erases existing encrypted recordings on the device).</string>
+    <string name="encryption_banner_cta">Verify passphrase…</string>
+
+    <!-- P2: Finalizing Live replacement and entry point -->
+    <string name="live_repair_keep">Keep current</string>
+    <string name="live_repair_succeeded">Replaced with complete audio</string>
+    <string name="live_repair_manual_transfer">Complete recording is still on your Nomi. Transfer it from Recordings.</string>
+    <string name="live_view_in_library">View in Library</string>
+    <string name="live_setup_azure">Set up Azure</string>
+    <string name="live_switch_language">Switch language?</string>
+    <string name="live_continue">Continue</string>
+    <string name="llm_select_model">Select a model</string>
+    <string name="llm_model_placeholder">Model — e.g. %s</string>
+    <string name="llm_provider_placeholder">Provider — e.g. %s</string>
+    <string name="summarize_search_templates">Search templates</string>
+    <string name="summarize_new">New</string>
+    <string name="summarize_new_category_name">New category name</string>
+    <string name="summarize_pick_existing">Pick Existing</string>
+
+    <!-- P2: Password confirmation -->
+    <string name="encryption_field_confirm">Confirm</string>
+    <string name="encryption_mismatch_title">Passphrase didn\'t match</string>
+
+    <!-- P2 Cleanup: Confirm language switch message -->
+    <string name="live_transcribe_only">Transcribe %s only</string>
+    <string name="live_translate_pair">%1$s → %2$s</string>
+
+    <!-- P2: Password probe validation -->
+    <string name="encryption_progress_locating">Locating probe clip…</string>
+    <string name="encryption_progress_verifying">Verifying…</string>
+    <string name="encryption_progress_writing_key">Writing key to device…</string>
+    <string name="encryption_mismatch_message">The probe clip didn\'t decrypt with that passphrase. Double-check it and try again. If you\'ve truly forgotten it, use \"Rotate\" to overwrite the device key — but that permanently destroys every existing encrypted recording on the device.</string>
+    <string name="encryption_mismatch_try_again">Try again</string>
+    <string name="encryption_action_verify_save">Verify &amp; save</string>
+    <string name="encryption_error_connect_first">Connect the device first — the passphrase needs to be verified against a real recording.</string>
+    <string name="encryption_error_device_not_connected">Device not connected.</string>
+    <string name="encryption_error_probe_not_found">Couldn\'t find the probe recording on the device.</string>
+    <string name="encryption_error_key_store_failed">Couldn\'t save the new passphrase on this phone, so the device was left unchanged. Try again.</string>
+    <string name="encryption_footer_set_encrypted">This device is encrypted. We\'ll record a short probe clip, download it, and trial-decrypt with the passphrase you typed. The probe is auto-deleted afterwards.</string>
+    <string name="encryption_footer_set_unencrypted">Saves the locally-derived key to the Android Keystore. The device isn\'t touched — pick a strong passphrase and enable encryption from the Device sheet when you\'re ready.</string>
+    <string name="asr_multi_language_warning">Picking several languages makes Azure choose a language for each phrase separately. On audio that is really in one language, that is what produces garbled output — select only the language actually spoken.</string>
+    <string name="encryption_banner_setup_title">Enter this device\'s passphrase</string>
+    <string name="encryption_banner_setup_message">This device is already encrypted. Enter the passphrase it was set up with — this phone verifies it and saves it, so everything you record opens here. There are no recordings on the device yet, so nothing is at risk.</string>
+    <string name="encryption_adopt_title">Use this passphrase for the device?</string>
+    <string name="encryption_adopt_message">The device is using a key this phone does not have — normal for a device you have just bound. It holds no recordings, so writing your passphrase to it loses nothing. Write the passphrase down: it is the only way to open recordings made from now on, and there is no recovery.</string>
+    <string name="encryption_adopt_action">Use this passphrase</string>
+    <string name="encryption_cannot_reveal_note">The passphrase itself is never stored — only the key derived from it — so it cannot be shown here. If you have forgotten it, use Rotate to set a new one.</string>
+    <string name="settings_language">Language</string>
+    <string name="language_follow_system">Follow System</string>
+    <string name="language_footer">By default the app follows your system language. If that language is not supported, English is used.</string>
+    <string name="ble_error_timeout">The device did not reply in time.</string>
+    <string name="device_unavailable_while_recording">Stop the recording before running device operations.</string>
+    <string name="bluetooth_permission_title">Bluetooth permission required</string>
+    <string name="bluetooth_permission_message">Allow Bluetooth access to find and connect to your D·NOTE.</string>
+    <string name="bluetooth_permission_settings_message">Bluetooth access is disabled. Enable Nearby devices permission in system settings.</string>
+    <string name="bluetooth_permission_open_settings">Open Settings</string>
+
+    <string name="summarize_delete_title">Delete template?</string>
+    <string name="summarize_delete_message">Delete “%1$s”? This cannot be undone.</string>
+    <string name="summarize_prompt_count">%1$d / %2$d characters</string>
+    <string name="summarize_prompt_context_hint">The prompt shares the model context with the transcript. Keep it focused to leave room for the source and output.</string>
+    <string name="template_prompt_formal_minutes" formatted="false">You convert meeting transcripts, interview records, and discussion material into formal, archive-ready meeting minutes.\n\nCore principles\n- Follow a McKinsey-style structure: conclusion-first, highly structured, layered decomposition, MECE (mutually exclusive, collectively exhaustive).\n- Language must be professional, clear, restrained, specific, and actionable.\n- For any missing or uncertain information that materially affects the formal minutes, mark it as 【To Be Confirmed】.\n- Standardize names of people, companies, tools, projects, and terminology throughout the document; carry corrections forward consistently.\n- Remove empty sections — do not keep placeholder headings with no content.\n- If the source clearly says certain information should not be included, exclude it entirely (do not move it to &quot;pending confirmations&quot;, notes, background, or appendix).\n\nWorkflow\n1. Read the source carefully.\n2. Extract: topic, date, time, format, participants, related company/project, key topics, core conclusions, discussion points, disputes, action items, and pending confirmations.\n3. Summarize core conclusions, discussion flow, major consensus points, action items, and only the pending confirmations that truly matter.\n\nOutput the following structure (omit sections with no content):\n\n# [Meeting Title]\n\n## 0. Basic Meeting Information\n\n| Item | Details |\n|---|---|\n| Meeting Topic |  |\n| Meeting Date |  |\n| Meeting Time |  |\n| Meeting Format |  |\n| Participants |  |\n| Meeting Purpose |  |\n| Related Company / Project |  |\n| Source Materials |  |\n\n## 1. Core Meeting Conclusions\nThe 3–5 most important conclusions from the meeting, conclusion-first.\n\n## 2. Main Discussion Topics\nFor each topic:\n### 2.x [Topic]\n- Current Issue\n- Discussion Summary\n- Initial Direction\n\n## 3. Key Consensus\nItems on which agreement was reached.\n\n## 4. Follow-up Recommendations\nOrganize by business / product / technology / operations / collaboration as appropriate.\n\n## 5. Action Items\n\n| No. | Action Item | Priority | Suggested Owner |\n|---|---|---|---|\n\n## 6. Pending Confirmations\nOnly items that genuinely require confirmation and materially affect the formal record.\n\n## 7. Summary\nA concise wrap-up of the meeting\&#x27;s value and next-step direction.\n\nIf the meeting involves additional content types not covered above, add the necessary sections.</string>
+    <string name="template_prompt_structured_minutes" formatted="false">You are an expert meeting notes assistant. Analyze this transcript and produce structured meeting minutes in Markdown:\n\n## Meeting Summary\nOne paragraph overview of the meeting purpose and outcome.\n\n## Attendees\nList all speakers/participants mentioned.\n\n## Agenda Items Discussed\nFor each topic discussed:\n### [Topic]\n- Key points raised\n- Different viewpoints expressed\n- Outcome or conclusion reached\n\n## Action Items\n| Owner | Task | Deadline (if mentioned) |\n|-------|------|------------------------|\n\n## Decisions Made\nBullet list of concrete decisions.\n\n## Open Questions\nUnresolved items that need follow-up.\n\nBe concise. Use the speakers\&#x27; own words for accuracy. If something is unclear in the transcript, note it as [unclear].</string>
+    <string name="template_prompt_executive_brief" formatted="false">Summarize this meeting transcript into a brief executive summary (3-5 paragraphs max). Focus on:\n1. Why the meeting was held\n2. The most important decisions made\n3. Critical action items and who owns them\n4. Any risks or blockers raised\n5. Next steps\n\nWrite in professional, direct language. Skip pleasantries and filler. A busy executive should be able to read this in under 2 minutes.</string>
+    <string name="template_prompt_key_takeaways" formatted="false">Extract the key takeaways from this meeting transcript. Format as:\n\n## Key Takeaways\n- Numbered list of the 5-10 most important points from this meeting\n- Each point should be a single, self-contained sentence\n- Prioritize decisions, commitments, and new information over discussion\n\n## Notable Quotes\nInclude 2-3 direct quotes that capture critical moments or commitments, with speaker attribution.\n\n## Sentiment\nBrief note on the overall tone — was this productive, contentious, exploratory, etc.?</string>
+    <string name="template_prompt_task_extraction" formatted="false">Review this transcript carefully and extract ALL commitments, assignments, and follow-up tasks. For each item:\n\n- **Who**: The person who committed or was assigned\n- **What**: Specific task or deliverable\n- **When**: Deadline if mentioned, otherwise &quot;TBD&quot;\n- **Context**: One sentence on why this matters\n\nFormat as a numbered list. Include implicit commitments (e.g., &quot;I\&#x27;ll look into that&quot; = task). Flag any tasks where ownership is ambiguous with [OWNER UNCLEAR].</string>
+    <string name="template_prompt_decision_log" formatted="false">Extract every decision made in this transcript. For each decision:\n\n1. **Decision**: What was decided\n2. **Rationale**: Why (key arguments that led to it)\n3. **Alternatives considered**: Other options discussed and why they were rejected\n4. **Impact**: Who or what is affected\n5. **Owner**: Who is responsible for execution\n\nIf a topic was discussed but no clear decision was reached, list it under &quot;Pending Decisions&quot; with the current status of the discussion.</string>
+    <string name="template_prompt_concise_summary" formatted="false">Provide a concise summary of this transcript in 3-5 paragraphs. Cover the main topics discussed, key points made, and any conclusions reached. Write in clear, professional prose. Do not use bullet points or headers — just well-organized paragraphs.</string>
+    <string name="template_prompt_detailed_notes" formatted="false">Create comprehensive, well-organized notes from this transcript. Use Markdown formatting:\n\n## Overview\nBrief context-setting paragraph.\n\n## Discussion\nOrganize by topic (not chronologically). For each topic, capture:\n- The main points and arguments\n- Supporting details or data mentioned\n- Any disagreements or alternative viewpoints\n\n## Conclusions\nWhat was resolved or agreed upon.\n\n## Follow-up\nItems requiring further discussion or action.\n\nPreserve important nuance. When speakers disagree, represent both sides fairly.</string>
+    <string name="template_prompt_qa_format" formatted="false">Restructure this transcript into a clean Q&amp;A format. Identify questions (explicit or implicit) and pair them with the answers given. Format:\n\n**Q: [Question]**\nA: [Answer, synthesized from the discussion]\n\nGroup related Q&amp;As under topic headers. If a question was asked but not fully answered, note it as [Partially answered] or [Unanswered].</string>
+    <string name="template_prompt_client_meeting_recap" formatted="false">Create a client-ready meeting recap from this transcript. Format:\n\n**Subject:** [Meeting topic]\n**Date:** [Extract if mentioned]\n**Participants:** [List]\n\n**Summary:**\nProfessional overview of what was discussed and agreed upon.\n\n**Agreed Next Steps:**\nNumbered list of commitments from both sides.\n\n**Timeline:**\nAny dates or milestones discussed.\n\nKeep the tone professional and positive. Avoid internal jargon. Focus on mutual commitments and value delivered.</string>
+    <string name="template_prompt_one_on_one_summary" formatted="false">Summarize this 1-on-1 conversation. Capture:\n\n## Topics Discussed\nBrief list of what was covered.\n\n## Feedback Given\nAny feedback exchanged (positive or constructive), with context.\n\n## Blockers &amp; Support Needed\nIssues raised that need help or escalation.\n\n## Goals &amp; Commitments\nWhat each person committed to before the next check-in.\n\n## Career/Growth\nAny career development, learning, or growth topics discussed.\n\nKeep this private and constructive in tone.</string>
+    <string name="template_prompt_status_update" formatted="false">Convert this transcript into a project status update:\n\n## Status: [Green/Yellow/Red based on the discussion tone]\n\n## Progress Since Last Update\n- What was accomplished\n\n## Current Focus\n- What\&#x27;s being worked on now\n\n## Blockers\n- Issues preventing progress\n\n## Upcoming Milestones\n- What\&#x27;s next and when\n\n## Risks\n- Anything that could derail the timeline\n\nBe factual and specific. Use dates and metrics when mentioned.</string>
+    <string name="template_prompt_lecture_notes" formatted="false">Transform this lecture/talk transcript into well-organized study notes:\n\n## Topic\nMain subject and context.\n\n## Key Concepts\nFor each major concept introduced:\n- **Term/Concept**: Clear definition or explanation\n- Supporting examples or analogies used by the speaker\n\n## Important Details\nFacts, figures, dates, or formulas mentioned.\n\n## Connections\nHow concepts relate to each other or to broader themes.\n\n## Review Questions\nGenerate 3-5 questions a student could use for self-testing.\n\nUse clear, educational language. Highlight terms that would likely appear on an exam.</string>
+    <string name="template_prompt_research_discussion" formatted="false">Summarize this research discussion or journal club transcript:\n\n## Paper/Topic Discussed\nTitle and authors if mentioned.\n\n## Main Findings\nKey results or claims presented.\n\n## Methodology\nHow the research was conducted (if discussed).\n\n## Strengths\nWhat the group found compelling.\n\n## Criticisms &amp; Limitations\nConcerns raised about the work.\n\n## Implications\nWhy this matters, applications discussed.\n\n## Open Questions\nUnresolved scientific questions that emerged.</string>
+    <string name="template_prompt_brainstorm_synthesis" formatted="false">Synthesize this brainstorming session into an organized output:\n\n## Problem Statement\nWhat problem or opportunity was being explored.\n\n## Ideas Generated\nGroup similar ideas into themes. For each theme:\n### [Theme]\n- Specific ideas proposed\n- Who suggested them (if identifiable)\n- Pros/cons discussed\n\n## Top Candidates\nIdeas that got the most energy or support from the group.\n\n## Wild Cards\nUnconventional or risky ideas worth exploring further.\n\n## Recommended Next Steps\nHow to evaluate or prototype the most promising ideas.</string>
+    <string name="template_prompt_interview_summary" formatted="false">Summarize this interview transcript:\n\n## Interviewee\nName and background (if mentioned).\n\n## Key Insights\nThe most valuable or surprising things shared, organized by theme.\n\n## Notable Quotes\n3-5 direct quotes that capture their perspective well.\n\n## Themes\nRecurring ideas or concerns throughout the conversation.\n\n## Follow-up Questions\nQuestions that weren\&#x27;t asked but would be worth exploring.\n\nPreserve the interviewee\&#x27;s voice and perspective. Don\&#x27;t editorialize.</string>
+    <string name="scanner_section_available">Available to add</string>
+    <string name="scanner_section_added">Already added</string>
+    <string name="scanner_added_badge">Added</string>
+    <string name="asr_no_provider_configured">No transcription service is configured. Set one up in Settings.</string>
+    <string name="asr_all_providers_unreachable">None of the configured transcription services could be reached.</string>
+    <string name="asr_azure_required_for_translation">Live translation needs Azure. Add your Azure key and region in Settings.</string>
+    <string name="asr_missing_credentials">%1$s is not configured. Set it up in Settings.</string>
+    <string name="asr_open_provider_settings">Set up transcription</string>
+    <string name="azure_verify_bad_credentials">Subscription key rejected, or it isn\'t valid for this region. Check that the key and region match.</string>
+    <string name="azure_verify_region_not_found">That region doesn\'t exist. Check the spelling (for example eastus or westeurope).</string>
+    <string name="azure_verify_rate_limited">Too many requests. Try again in a moment.</string>
+    <string name="azure_verify_service_unavailable">Azure is temporarily unavailable. Try again later.</string>
+    <string name="azure_verify_network">Couldn\'t reach Azure. Check your network connection.</string>
+    <string name="azure_verify_unexpected">Azure returned an unexpected response.</string>
+    <string name="common_edit">Edit</string>
+    <string name="live_clip_not_in_library">That recording isn\'t in the library any more. It may have been renamed, merged, or deleted.</string>
+    <string name="azure_verify_host_unresolved">Couldn\'t resolve the Azure address for that region. Check the region spelling (for example eastus or westeurope) and your network connection.</string>
+</resources>

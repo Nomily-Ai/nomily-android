@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Shared export file. Only exposes the exports/ subdirectory under cache ——
+  The original recording is in filesDir/clips/, not accessible to external apps.
+-->
+<paths>
+    <cache-path name="exports" path="exports/" />
+</paths>
