@@ -613,7 +613,7 @@ private fun AsrSection(cfg: AppConfig, vm: NomiViewModel) {
 @Composable
 private fun LocalProbeRow(result: com.nomily.app.asr.LocalAsrProbe.Result?, probing: Boolean, onProbe: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = NomiDimens.rowMinHeight).padding(start = NomiDimens.rowInset),
+        Modifier.fillMaxWidth().heightIn(min = NomiDimens.rowMinHeight).padding(start = NomiDimens.rowInset, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
