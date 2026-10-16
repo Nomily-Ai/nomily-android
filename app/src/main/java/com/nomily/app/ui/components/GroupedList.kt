@@ -218,7 +218,7 @@ fun ActionRow(
             Icon(
                 it,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(NomiDimens.actionIconSize),
             )
         }

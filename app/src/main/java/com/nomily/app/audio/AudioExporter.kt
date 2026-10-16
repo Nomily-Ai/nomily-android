@@ -10,7 +10,7 @@ import java.io.File
 import java.nio.ByteBuffer
 
 /**
- * Export a segment as **M4A (AAC)**.
+ * Export a segment as **M4A (AAC)** or **WAV (PCM)**.
  *
  * Why transcode instead of sharing the `.ogg` directly: Ogg‑Opus is essentially unreadable in other apps (WeChat, email,
  * most players), and the purpose of exporting is that “others can play it”.
@@ -47,6 +47,41 @@ object AudioExporter {
      * @param outDir Output directory (use a cache subdirectory; can be cleared after sharing)
      * @param stem   Output file name (without extension)
      */
+    /**
+     * Export as **WAV (16-bit PCM)** at the source's own rate and channel count — lossless, and the format
+     * transcription and editing tools expect. Decoding is [PcmCodec]'s; this only owns the 44-byte RIFF header.
+     */
+    fun exportAsWav(source: File, outDir: File, stem: String): File {
+        outDir.mkdirs()
+        val out = File(outDir, "$stem.wav")
+        val raw = File(outDir, "$stem.pcm.tmp")
+        try {
+            val pcm = PcmCodec.decodeToPcm(source, raw, mono = false)
+            val dataBytes = raw.length()
+            if (dataBytes > 0xFFFF_FFFFL - 36) throw ExportException("too long for WAV: ${source.name}")
+            out.outputStream().buffered(1 shl 16).use { sink ->
+                sink.write(riffHeader(dataBytes, pcm.rate, pcm.channels))
+                raw.inputStream().use { it.copyTo(sink, 1 shl 16) }
+            }
+            return out
+        } catch (e: Exception) {
+            out.delete()
+            throw e as? ExportException ?: ExportException(e.message ?: e.javaClass.simpleName, e)
+        } finally {
+            raw.delete()
+        }
+    }
+
+    /** Canonical 44-byte RIFF/WAVE header for 16-bit PCM. */
+    internal fun riffHeader(dataBytes: Long, rate: Int, channels: Int): ByteArray {
+        val b = ByteBuffer.allocate(44).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        b.put("RIFF".toByteArray()).putInt((36 + dataBytes).toInt()).put("WAVE".toByteArray())
+        b.put("fmt ".toByteArray()).putInt(16).putShort(1).putShort(channels.toShort())
+        b.putInt(rate).putInt(rate * channels * 2).putShort((channels * 2).toShort()).putShort(16)
+        b.put("data".toByteArray()).putInt(dataBytes.toInt())
+        return b.array()
+    }
+
     fun exportAsM4a(source: File, outDir: File, stem: String): File {
         if (!source.isFile) throw ExportException("source not found: ${source.name}")
         outDir.mkdirs()

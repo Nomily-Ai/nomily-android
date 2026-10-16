@@ -120,6 +120,10 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
          */
         val filesError: String? = null,
         val busy: String? = null,
+        /** Bases of the clips being transcribed — drives the per-clip progress row and its Cancel button. */
+        val transcribing: Set<String> = emptySet(),
+        /** `"{base}:{artefact}"` keys of translations in flight, so the transcript and summary sections spin independently. */
+        val translating: Set<String> = emptySet(),
         val progress: Pair<Int, Int>? = null,
         /**
          * Name of the device file currently being downloaded. [progress] is a global value; row rendering must claim it,
@@ -1059,7 +1063,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         val audio = clip.audio ?: return
         if (transcribeJobs.containsKey(clip.base)) return
         transcribeJobs[clip.base] = viewModelScope.launch {
-            set { it.copy(busy = str(R.string.device_files_transcribing), error = null) }
+            set { it.copy(busy = str(R.string.device_files_transcribing), transcribing = it.transcribing + clip.base, error = null) }
             try {
                 val outcome = withContext(Dispatchers.IO) {
                     transcription.transcribe(
@@ -1074,6 +1078,10 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 val warn = outcome.warnings.joinToString("; ").ifEmpty { null }
                 set { it.copy(busy = null, error = warn) }
                 refreshClips()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // User hit Cancel — back to idle without an error.
+                set { it.copy(busy = null) }
+                throw e
             } catch (e: com.nomily.app.asr.TranscriptionService.TooShortException) {
                 Log.i(TAG, "Skipping transcription (too short): ${e.message}")
                 set { it.copy(busy = null, error = e.message) }
@@ -1087,9 +1095,20 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 set { it.copy(busy = null, error = failed(R.string.device_files_operation_failed, e)) }
             } finally {
                 transcribeJobs.remove(clip.base)
+                set { it.copy(transcribing = it.transcribing - clip.base) }
             }
         }
     }
+
+    fun cancelTranscribe(clip: LocalClip) {
+        transcribeJobs[clip.base]?.cancel()
+    }
+
+    /** The transcript as the LLM should see it — see [com.nomily.app.core.asr.AsrResult.textForSummarization]. */
+    private fun llmSourceText(clip: LocalClip): String? =
+        clip.transcriptJson?.let { f -> runCatching { com.nomily.app.core.asr.parseAsrArtefact(f.readText()) }.getOrNull()?.textForSummarization() }
+            ?.takeIf { it.isNotBlank() }
+            ?: clip.transcript?.let { runCatching { it.readText() }.getOrNull() }?.takeIf { it.isNotBlank() }
 
     // ── Wi‑Fi Fast Transfer (P1)─────────────────────────────────────────────
     //
@@ -2364,8 +2383,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         template: com.nomily.app.core.llm.SummarizeTemplate,
         languageName: String?,
     ): com.nomily.app.llm.LlmClient.Completion {
-        val transcript = clip.transcript?.let { runCatching { it.readText() }.getOrNull() }
-            ?.takeIf { it.isNotBlank() }
+        val transcript = llmSourceText(clip)
             ?: throw IllegalStateException(str(R.string.clip_detail_transcribe_first))
         return withContext(Dispatchers.IO) {
             val cfg = configStore.config.value
@@ -2404,24 +2422,32 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     /**
      * Translate transcription or summary on demand — write `{base}.translated.txt` / `{base}.summary.translated.md`.
      */
-    fun translateArtefact(clip: LocalClip, which: ClipArtefact, languageName: String) {
+    /**
+     * @param languageCode Remembered as `last_target_lang`, the same preference Live translation starts from.
+     */
+    fun translateArtefact(clip: LocalClip, which: ClipArtefact, languageName: String, languageCode: String) {
         val src = when (which) {
-            ClipArtefact.TRANSCRIPT -> clip.transcript
-            ClipArtefact.SUMMARY -> clip.summary
+            ClipArtefact.TRANSCRIPT -> llmSourceText(clip)
+            ClipArtefact.SUMMARY -> clip.summary?.let { runCatching { it.readText() }.getOrNull() }?.takeIf { it.isNotBlank() }
             else -> null
-        }?.let { runCatching { it.readText() }.getOrNull() }?.takeIf { it.isNotBlank() } ?: return
+        } ?: return
+        configStore.update { it.copy(lastTargetLang = languageCode) }
+        val key = "${clip.base}:${which.name}"
         val dir = File(getApplication<Application>().filesDir, "clips")
         val out = when (which) {
             ClipArtefact.TRANSCRIPT -> File(dir, "${clip.base}.translated.txt")
             else -> File(dir, "${clip.base}.summary.translated.md")
         }
         viewModelScope.launch {
-            set { it.copy(busy = str(R.string.clip_detail_translating), error = null) }
+            set { it.copy(busy = str(R.string.clip_detail_translating), translating = it.translating + key, error = null) }
             runCatching {
                 withContext(Dispatchers.IO) {
                     val res = com.nomily.app.llm.LlmClient
                         .translate(src, languageName, configStore.config.value)
                     out.writeText(res.text)
+                    // Live's `.translated.json` carries timestamps for one specific target language; an on-demand
+                    // translation to another language makes it stale, so drop it rather than let it drift.
+                    if (which == ClipArtefact.TRANSCRIPT) File(dir, "${clip.base}.translated.json").delete()
                     res.truncated
                 }
             }.onFailure { e ->
@@ -2431,7 +2457,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 // When the translation hits the token limit, the result is **truncated**, and we should note it even if it gets written to disk
                 if (truncated) set { it.copy(error = str(R.string.summarize_truncated_warning)) }
             }
-            set { it.copy(busy = null) }
+            set { it.copy(busy = null, translating = it.translating - key) }
             refreshClips()
         }
     }

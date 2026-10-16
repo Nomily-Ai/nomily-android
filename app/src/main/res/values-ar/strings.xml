@@ -592,4 +592,14 @@
     <string name="template_desc_email_thread_summary">Quickly organizes the origin, process, and final outcome of a multi-email exchange</string>
     <string name="template_desc_long_article_to_slide_deck_outline">Quickly generates a presentation structure outline from a long article or report</string>
     <string name="template_desc_turning_scattered_notes_into_a_to_do_list">Organizes clear task lists from scattered, off-the-cuff notes</string>
+    <string name="clip_detail_mind_map">خريطة ذهنية</string>
+    <string name="clip_detail_mind_map_level">المستويات</string>
+    <string name="clip_detail_mind_map_fit">ملاءمة الشاشة</string>
+    <string name="clip_detail_mind_map_empty">لا يحتوي هذا الملخص على عناوين أو قوائم لإنشاء خريطة ذهنية.</string>
+    <string name="clip_detail_mind_map_export_failed">تعذّر تصدير الخريطة الذهنية.</string>
+    <string name="clip_detail_mind_map_expand_all">توسيع الكل</string>
+    <string name="clip_detail_mind_map_collapse_all">طي الكل</string>
+    <string name="clip_detail_export_audio">تصدير الصوت</string>
+    <string name="clip_detail_export_as_wav">تصدير بصيغة WAV (PCM)</string>
+    <string name="clip_detail_export_format_footer">صيغة M4A مضغوطة وتعمل في أي مكان. أما WAV فغير مضغوطة — حجمها أكبر، لكنها الصيغة التي تتوقعها أدوات التفريغ والتحرير.</string>
 </resources>

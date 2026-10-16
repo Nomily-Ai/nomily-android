@@ -592,4 +592,14 @@
     <string name="template_desc_email_thread_summary">Quickly organizes the origin, process, and final outcome of a multi-email exchange</string>
     <string name="template_desc_long_article_to_slide_deck_outline">Quickly generates a presentation structure outline from a long article or report</string>
     <string name="template_desc_turning_scattered_notes_into_a_to_do_list">Organizes clear task lists from scattered, off-the-cuff notes</string>
+    <string name="clip_detail_mind_map">マインドマップ</string>
+    <string name="clip_detail_mind_map_level">表示する階層</string>
+    <string name="clip_detail_mind_map_fit">画面に合わせる</string>
+    <string name="clip_detail_mind_map_empty">この要約には見出しやリストがないため、マインドマップを作成できません。</string>
+    <string name="clip_detail_mind_map_export_failed">マインドマップを書き出せませんでした。</string>
+    <string name="clip_detail_mind_map_expand_all">すべて展開</string>
+    <string name="clip_detail_mind_map_collapse_all">すべて折りたたむ</string>
+    <string name="clip_detail_export_audio">音声を書き出す</string>
+    <string name="clip_detail_export_as_wav">WAV（非圧縮 PCM）で書き出す</string>
+    <string name="clip_detail_export_format_footer">M4A は圧縮されていて再生環境を選びません。WAV は非圧縮でサイズは大きくなりますが、文字起こしや編集ツールが想定している形式です。</string>
 </resources>

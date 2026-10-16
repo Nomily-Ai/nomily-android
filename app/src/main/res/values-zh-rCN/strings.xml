@@ -592,4 +592,14 @@
     <string name="template_desc_email_thread_summary">快速梳理多封邮件往来的起因、过程与最终结论</string>
     <string name="template_desc_long_article_to_slide_deck_outline">根据长篇文章或报告，快速生成演示文稿的结构大纲</string>
     <string name="template_desc_turning_scattered_notes_into_a_to_do_list">从零散的随手笔记中，梳理出明确的任务清单</string>
+    <string name="clip_detail_mind_map">思维导图</string>
+    <string name="clip_detail_mind_map_level">展开层级</string>
+    <string name="clip_detail_mind_map_fit">适应屏幕</string>
+    <string name="clip_detail_mind_map_empty">这份总结没有标题或列表，暂时画不出导图。</string>
+    <string name="clip_detail_mind_map_export_failed">思维导图导出失败。</string>
+    <string name="clip_detail_mind_map_expand_all">展开全部</string>
+    <string name="clip_detail_mind_map_collapse_all">收起全部</string>
+    <string name="clip_detail_export_audio">导出音频</string>
+    <string name="clip_detail_export_as_wav">导出为 WAV（无损 PCM）</string>
+    <string name="clip_detail_export_format_footer">M4A 体积小、到哪都能播；WAV 不压缩，文件更大，但转录与剪辑工具认的就是它。</string>
 </resources>

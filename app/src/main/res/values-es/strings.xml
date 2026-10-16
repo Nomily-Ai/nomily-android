@@ -592,4 +592,14 @@
     <string name="template_desc_email_thread_summary">Quickly organizes the origin, process, and final outcome of a multi-email exchange</string>
     <string name="template_desc_long_article_to_slide_deck_outline">Quickly generates a presentation structure outline from a long article or report</string>
     <string name="template_desc_turning_scattered_notes_into_a_to_do_list">Organizes clear task lists from scattered, off-the-cuff notes</string>
+    <string name="clip_detail_mind_map">Mapa mental</string>
+    <string name="clip_detail_mind_map_level">Niveles</string>
+    <string name="clip_detail_mind_map_fit">Ajustar</string>
+    <string name="clip_detail_mind_map_empty">Este resumen no tiene títulos ni listas con los que crear un mapa mental.</string>
+    <string name="clip_detail_mind_map_export_failed">No se pudo exportar el mapa mental.</string>
+    <string name="clip_detail_mind_map_expand_all">Expandir todo</string>
+    <string name="clip_detail_mind_map_collapse_all">Contraer todo</string>
+    <string name="clip_detail_export_audio">Exportar audio</string>
+    <string name="clip_detail_export_as_wav">Exportar como WAV (PCM)</string>
+    <string name="clip_detail_export_format_footer">El M4A está comprimido y se reproduce en cualquier parte. El WAV no tiene compresión: ocupa más, pero es el formato que esperan las herramientas de transcripción y edición.</string>
 </resources>

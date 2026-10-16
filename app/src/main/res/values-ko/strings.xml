@@ -592,4 +592,14 @@
     <string name="template_desc_email_thread_summary">Quickly organizes the origin, process, and final outcome of a multi-email exchange</string>
     <string name="template_desc_long_article_to_slide_deck_outline">Quickly generates a presentation structure outline from a long article or report</string>
     <string name="template_desc_turning_scattered_notes_into_a_to_do_list">Organizes clear task lists from scattered, off-the-cuff notes</string>
+    <string name="clip_detail_mind_map">마인드맵</string>
+    <string name="clip_detail_mind_map_level">펼치는 단계</string>
+    <string name="clip_detail_mind_map_fit">화면에 맞추기</string>
+    <string name="clip_detail_mind_map_empty">이 요약에는 제목이나 목록이 없어 마인드맵을 만들 수 없습니다.</string>
+    <string name="clip_detail_mind_map_export_failed">마인드맵을 내보내지 못했습니다.</string>
+    <string name="clip_detail_mind_map_expand_all">모두 펼치기</string>
+    <string name="clip_detail_mind_map_collapse_all">모두 접기</string>
+    <string name="clip_detail_export_audio">오디오 내보내기</string>
+    <string name="clip_detail_export_as_wav">WAV(PCM)로 내보내기</string>
+    <string name="clip_detail_export_format_footer">M4A는 압축되어 어디서나 재생됩니다. WAV는 보압축이라 파일은 크지만, 받아쓰기와 편집 도구가 기대하는 형식입니다.</string>
 </resources>

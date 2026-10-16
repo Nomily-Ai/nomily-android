@@ -33,6 +33,16 @@ data class AsrResult(
     fun formatTranscript(): String =
         if (segments.isEmpty()) text else segments.joinToString("\n") { it.formatted() }
 
+    /**
+     * The transcript handed to the LLM for summaries and translation: stamped lines when speakers are
+     * known (the model needs them to attribute points), bare segment text otherwise, the whole text last.
+     */
+    fun textForSummarization(): String = when {
+        segments.any { !it.speaker.isNullOrEmpty() } -> segments.joinToString("\n") { it.formatted() }
+        segments.isNotEmpty() -> segments.joinToString("\n") { it.text }
+        else -> text
+    }
+
     /** Payload written to `{name}.asr.json`. */
     fun toJsonString(): String = writeJson(
         mapOf(
