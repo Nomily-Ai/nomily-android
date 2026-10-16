@@ -623,4 +623,7 @@
     <string name="llm_no_models_on_server">已连上，但那台服务器上还没有安装任何模型。</string>
     <string name="llm_probe_reachable">已连通 · %s</string>
     <string name="llm_probe_model_count">%d 个模型</string>
+    <string name="fast_transfer_tcp_unreachable">无法连接到设备，可能没有成功加入它的 Wi-Fi。</string>
+    <string name="fast_transfer_hint_connecting">正在 192.168.88.1:6718 上协商 TCP 会话。</string>
+    <string name="fast_transfer_decode_failed">%s：已下载，但无法解析为可播放的音频。设备上的原件已保留。</string>
 </resources>

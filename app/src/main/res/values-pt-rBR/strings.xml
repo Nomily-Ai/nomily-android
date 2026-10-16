@@ -623,4 +623,7 @@
     <string name="llm_no_models_on_server">Connected, but that server has no models installed yet.</string>
     <string name="llm_probe_reachable">Reachable · %s</string>
     <string name="llm_probe_model_count">%d models</string>
+    <string name="fast_transfer_tcp_unreachable">Não foi possível alcançar o dispositivo; a conexão ao Wi-Fi dele pode ter falhado.</string>
+    <string name="fast_transfer_hint_connecting">Negociando uma sessão TCP em 192.168.88.1:6718.</string>
+    <string name="fast_transfer_decode_failed">%s: baixado, mas não foi possível convertê-lo em um áudio reproduzível. O original foi mantido no dispositivo.</string>
 </resources>

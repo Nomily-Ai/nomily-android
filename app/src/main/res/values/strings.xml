@@ -35,7 +35,7 @@
     <string name="encryption_progress_recording">Recording a short probe clip…</string>
     <string name="encryption_progress_stopping">Stopping recording…</string>
     <string name="encryption_download_key_missing">%s: this recording is encrypted, but no passphrase is set on this phone. Open Settings → Encryption passphrase → Verify device passphrase… to unlock it.</string>
-    <string name="encryption_download_wrong_key">%1$@: couldn\'t decrypt — the passphrase doesn\'t match this recording. Open Settings → Encryption passphrase, clear the current one, and set the correct passphrase. (Details: %2$@)</string>
+    <string name="encryption_download_wrong_key">%1$s: couldn\'t decrypt — the passphrase doesn\'t match this recording. Open Settings → Encryption passphrase, clear the current one, and set the correct passphrase. (Details: %2$s)</string>
     <!-- clip_detail.* -->
     <string name="clip_detail_view_full_transcript">View Full Transcript</string>
     <string name="clip_detail_speaker">Speaker %s</string>
@@ -662,4 +662,7 @@
     <string name="llm_no_models_on_server">Connected, but that server has no models installed yet.</string>
     <string name="llm_probe_reachable">Reachable · %s</string>
     <string name="llm_probe_model_count">%d models</string>
+    <string name="fast_transfer_tcp_unreachable">Could not reach the device — joining its Wi-Fi may not have succeeded.</string>
+    <string name="fast_transfer_hint_connecting">Negotiating a TCP session on 192.168.88.1:6718.</string>
+    <string name="fast_transfer_decode_failed">%s: downloaded, but it couldn\'t be turned into a playable audio file. The original has been kept on the device.</string>
 </resources>

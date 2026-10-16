@@ -623,4 +623,7 @@
     <string name="llm_no_models_on_server">Connected, but that server has no models installed yet.</string>
     <string name="llm_probe_reachable">Reachable · %s</string>
     <string name="llm_probe_model_count">%d models</string>
+    <string name="fast_transfer_tcp_unreachable">デバイスに接続できません。デバイスの Wi-Fi への参加に失敗した可能性があります。</string>
+    <string name="fast_transfer_hint_connecting">192.168.88.1:6718 で TCP セッションをネゴシエーション中。</string>
+    <string name="fast_transfer_decode_failed">%s：ダウンロードは完了しましたが、再生可能な音声に変換できませんでした。デバイス上の元ファイルは保持されています。</string>
 </resources>

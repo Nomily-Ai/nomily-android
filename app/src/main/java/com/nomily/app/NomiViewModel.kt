@@ -1227,7 +1227,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                         joiner.join(ssid, psk, FAST_TRANSFER_WIFI_JOIN_TIMEOUT_MS)
                     } catch (e: Exception) {
                         joiner.release()
-                        awaitFastTransferRetry(e)
+                        awaitFastTransferRetry(failed(R.string.device_files_operation_failed, e))
                         // Join failures are usually because the device reports wifiap=1 but isn’t actually broadcasting. Reusing the same dead AP yields identical failures; before retrying, have the device turn the hotspot off and on again.
                         cycleAp(c, ssid, psk)
                         continue
@@ -1239,43 +1239,71 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                     if (tcpError == null) break
 
                     // If the hotspot is joined but TCP is unreachable for 60 s: first unbind that network; on retry, request the hotspot network again, matching the behavior of unbinding then re‑requesting.
+                    Log.w(TAG, "TCP unreachable after Wi-Fi join: ${tcpError.message}")
                     wifi.close()
                     joiner.release()
-                    awaitFastTransferRetry(tcpError)
+                    awaitFastTransferRetry(str(R.string.fast_transfer_tcp_unreachable))
                     // Join succeeds but TCP cannot connect for a minute, indicating the reported `wifiap=1` does not match the actual broadcast.
                     cycleAp(c, ssid, psk)
                 }
 
                 var done = 0
+                val saved = mutableListOf<String>()
                 ftStage(FtStage.DOWNLOADING)
+                // A failing file (timeout, undecryptable) is marked on its own row and the rest carry on, as on iOS.
                 for (f in files) {
                     set {
                         it.copy(busy = "${str(R.string.fast_transfer_stage_downloading)} ${done + 1}/${files.size}")
                     }
                     ftFile(f.name) { it.copy(status = FtFileStatus.DOWNLOADING) }
-                    val bytes = withContext(Dispatchers.IO) {
-                        // Include the size declared in the list: short reads or corruption must raise an error, not fall through to the “delete from device after transfer” branch below.
-                        wifi.download(f.name, f.size) { got, total ->
-                            set { ui -> ui.copy(progress = if (total > 0) got to total else null) }
-                            ftFile(f.name) { it.copy(got = got) }
+                    try {
+                        val bytes = withContext(Dispatchers.IO) {
+                            // Include the size declared in the list: short reads or corruption must raise an error, not fall through to the "delete from device after transfer" branch below.
+                            wifi.download(f.name, f.size) { got, total ->
+                                set { ui -> ui.copy(progress = if (total > 0) got to total else null) }
+                                ftFile(f.name) { it.copy(got = got) }
+                            }
                         }
+                        // Downloaded bytes are not a completed transfer until the encrypted payload has been decoded and
+                        // durably written; an unreadable file keeps its original on the device so it can be retried.
+                        val res = try {
+                            withContext(Dispatchers.IO) { pipeline.ingestRaw(bytes, f.name, key) }
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Keeping ${f.name} on device — not playable: ${e.message}")
+                            ftFile(f.name) { it.copy(status = FtFileStatus.FAILED, error = downloadFailureReason(f.name, key, e)) }
+                            continue
+                        }
+                        ftFile(f.name) { it.copy(status = FtFileStatus.DONE, got = it.size) }
+                        saved += res.oggFile.name.substringBeforeLast('.')
+                        // Same as recorder: after successful save, delete from the device over the same TCP channel.
+                        if (configStore.config.value.autoDeleteAfterTransfer) {
+                            runCatching { withContext(Dispatchers.IO) { wifi.deleteFile(f.name) } }
+                                .onFailure { Log.w(TAG, "Failed to delete ${f.name} after fast transfer: ${it.message}") }
+                        }
+                        done++
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Fast transfer of ${f.name} failed: ${e.message}")
+                        ftFile(f.name) { it.copy(status = FtFileStatus.FAILED, error = e.message ?: e.javaClass.simpleName) }
                     }
-                    withContext(Dispatchers.IO) { pipeline.ingestRaw(bytes, f.name, key) }
-                    // Downloaded bytes are not a completed transfer until the
-                    // encrypted payload has been decoded and durably written.
-                    // Marking DONE before ingest made missing/wrong-key failures
-                    // show a green file row even though nothing playable existed.
-                    ftFile(f.name) { it.copy(status = FtFileStatus.DONE, got = it.size) }
-                    // Same as recorder: after successful save, delete from the device over the same TCP channel.
-                    if (configStore.config.value.autoDeleteAfterTransfer) {
-                        runCatching { withContext(Dispatchers.IO) { wifi.deleteFile(f.name) } }
-                            .onFailure { Log.w(TAG, "Failed to delete ${f.name} after fast transfer: ${it.message}") }
-                    }
-                    done++
                 }
                 set { it.copy(busy = null, progress = null) }
-                ftStage(FtStage.DONE)
+                // Finishing the loop is not success: summarise failed rows instead of a green "Done" over them.
+                if (done < files.size) {
+                    val msg = str(R.string.device_files_operation_failed)
+                    set { it.copy(fastTransfer = it.fastTransfer?.copy(stage = FtStage.FAILED, error = msg)) }
+                } else {
+                    ftStage(FtStage.DONE)
+                }
                 refreshClips()
+                // Auto-transcribe after download applies to fast transfer too (minimum-duration gate on).
+                if (configStore.config.value.autoTranscribeAfterDownload && saved.isNotEmpty()) {
+                    clipsJob?.join()
+                    _ui.value.clips.filter { it.base in saved }.forEach { transcribe(it, enforceMinDuration = true) }
+                }
                 Log.i(TAG, "Fast transfer completed $done/${files.size}")
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -1406,9 +1434,21 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         return lastError ?: com.nomily.app.wifi.WifiException("Timed out connecting to the device TCP service.")
     }
 
+    /**
+     * Why a downloaded recording could not be saved, in words that say what to do — same wording for the
+     * Bluetooth and Wi‑Fi paths, as on iOS.
+     */
+    private fun downloadFailureReason(name: String, key: ByteArray?, e: Exception): String = when {
+        e is com.nomily.app.core.crypto.DecryptError ->
+            str(R.string.encryption_download_wrong_key, name, e.message ?: e.kind.toString())
+        // ClipPipeline.ingestRaw: encrypted envelope but no key on this phone.
+        key == null && e is IllegalArgumentException -> str(R.string.encryption_download_key_missing, name)
+        e is java.io.IOException -> failed(R.string.device_files_operation_failed, e)
+        else -> str(R.string.fast_transfer_decode_failed, name)
+    }
+
     /** Keep the device AP on, remain in the failure state awaiting user retry or cancellation. */
-    private suspend fun awaitFastTransferRetry(error: Exception) {
-        val message = failed(R.string.device_files_operation_failed, error)
+    private suspend fun awaitFastTransferRetry(message: String) {
         val signal = CompletableDeferred<Unit>()
         fastTransferRetry = signal
         set {
@@ -1799,7 +1839,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Retrieval failed", e)
-                set { it.copy(busy = null, progress = null, downloadingName = null, error = "Fetch failed: ${e.message}") }
+                set { it.copy(busy = null, progress = null, downloadingName = null, error = downloadFailureReason(file.name, key, e)) }
             }
         }
     }

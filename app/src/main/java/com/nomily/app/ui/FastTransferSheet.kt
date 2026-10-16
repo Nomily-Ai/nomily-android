@@ -150,6 +150,7 @@ fun FastTransferSheet(ui: NomiViewModel.Ui, vm: NomiViewModel) {
                             // Stage hint: waiting for hotspot / join failure each has a line
                             val hint = when (ft.stage) {
                                 NomiViewModel.FtStage.POLLING_AP -> R.string.fast_transfer_hint_polling
+                                NomiViewModel.FtStage.CONNECTING -> R.string.fast_transfer_hint_connecting
                                 NomiViewModel.FtStage.JOIN_FAILED -> R.string.fast_transfer_hint_join_failed
                                 else -> null
                             }
