@@ -95,6 +95,8 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
 
     enum class PassphraseMode { SET, ROTATE }
 
+    data class RotatePlan(val passphrase: String, val recordingsAtRisk: Int)
+
     data class Ui(
         val scanning: Boolean = false,
         val discovered: List<DeviceScanner.Discovered> = emptyList(),
@@ -181,6 +183,8 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
          * If verification fails but the device has no recordings, temporarily store the passphrase the user just entered and ask whether to write it to the device (lossless). See the description in [submitPassphrase].
          */
         val passphraseAdoptOffer: String? = null,
+        /** Rotation waiting for confirmation: the new passphrase and how many device recordings the old key would orphan. */
+        val rotatePlan: RotatePlan? = null,
         /** Automatically reconnecting — distinct from user‑initiated connection, with different UI wording. */
         val reconnecting: Boolean = false,
         /** Live transcription session. */
@@ -752,7 +756,13 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 startDeviceInfoPoll()
             } catch (e: Exception) {
                 Log.e(TAG, "Connection failed", e)
-                set { it.copy(busy = null, error = failed(R.string.scanner_connection_failed, e)) }
+                // A connect timeout almost always means the card is asleep and not advertising: say how to wake it.
+                val msg = if (e is kotlinx.coroutines.TimeoutCancellationException) {
+                    str(R.string.scanner_wake_and_retry)
+                } else {
+                    failed(R.string.scanner_connection_failed, e)
+                }
+                set { it.copy(busy = null, error = msg) }
             }
         }
     }
@@ -1611,9 +1621,37 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         set { it.copy(hasLocalKey = false) }
     }
 
-    fun submitPassphrase(passphrase: String) {
+    /**
+     * Step 1 of a rotation: count what is still on the device. Recordings made under the old key become unreadable
+     * the moment the new key lands, so the user sees that number — and can download them first — before anything is written.
+     */
+    private fun prepareRotate(passphrase: String) {
+        val c = client ?: run {
+            set { it.copy(error = str(R.string.encryption_error_device_not_connected)) }
+            return
+        }
+        viewModelScope.launch {
+            set { it.copy(busy = str(R.string.encryption_progress_checking_device), error = null) }
+            val atRisk = runCatching { withContext(Dispatchers.IO) { c.getFileList() } }
+                .getOrNull()?.count { it.name.isNotEmpty() } ?: 0
+            set { it.copy(busy = null, rotatePlan = RotatePlan(passphrase, atRisk)) }
+        }
+    }
+
+    /** Answer to the rotation confirmation: rotate now, or go back to the passphrase sheet. */
+    fun resolveRotate(confirm: Boolean) {
+        val plan = _ui.value.rotatePlan ?: return
+        set { it.copy(rotatePlan = null) }
+        if (confirm) submitPassphrase(plan.passphrase, rotateConfirmed = true)
+    }
+
+    fun submitPassphrase(passphrase: String, rotateConfirmed: Boolean = false) {
         val sn = _ui.value.deviceSn ?: return
         val rotate = _ui.value.passphraseMode == PassphraseMode.ROTATE
+        if (rotate && !rotateConfirmed) {
+            prepareRotate(passphrase)
+            return
+        }
         viewModelScope.launch {
             set { it.copy(needPassphrase = false, busy = str(R.string.encryption_progress_deriving), error = null) }
             // The trial passphrase **must not overwrite the existing good key** — deriveAndCache would directly replace the cache,

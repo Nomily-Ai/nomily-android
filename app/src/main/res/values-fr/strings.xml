@@ -626,4 +626,9 @@
     <string name="fast_transfer_tcp_unreachable">Impossible de joindre l\'appareil : la connexion à son Wi-Fi a peut-être échoué.</string>
     <string name="fast_transfer_hint_connecting">Négociation d\'une session TCP sur 192.168.88.1:6718.</string>
     <string name="fast_transfer_decode_failed">%s : téléchargé, mais impossible d\'en faire un fichier audio lisible. L\'original a été conservé sur l\'appareil.</string>
+    <string name="encryption_progress_checking_device">Vérification des enregistrements sur l\'appareil…</string>
+    <string name="encryption_rotate_confirm_title">Renouveler la clé de l\'appareil ?</string>
+    <string name="encryption_rotate_confirm_message_empty">L\'appareil ne contient plus d\'enregistrements, rien ne sera perdu. Notez la nouvelle phrase secrète : c\'est le seul moyen d\'ouvrir les futurs enregistrements, aucune récupération n\'est possible.</string>
+    <string name="encryption_rotate_confirm_message">%d enregistrement(s) sont encore sur l\'appareil. Créés avec l\'ancienne clé, ils deviendront définitivement illisibles — transférez-les d\'abord si vous y tenez. Notez la nouvelle phrase secrète : aucune récupération n\'est possible.</string>
+    <string name="scanner_wake_and_retry">Appareil introuvable. Appuyez sur le bouton de l’appareil pour le réveiller, puis réessayez.</string>
 </resources>

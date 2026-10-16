@@ -626,4 +626,9 @@
     <string name="fast_transfer_tcp_unreachable">Não foi possível alcançar o dispositivo; a conexão ao Wi-Fi dele pode ter falhado.</string>
     <string name="fast_transfer_hint_connecting">Negociando uma sessão TCP em 192.168.88.1:6718.</string>
     <string name="fast_transfer_decode_failed">%s: baixado, mas não foi possível convertê-lo em um áudio reproduzível. O original foi mantido no dispositivo.</string>
+    <string name="encryption_progress_checking_device">Verificando as gravações no dispositivo…</string>
+    <string name="encryption_rotate_confirm_title">Girar a chave do dispositivo?</string>
+    <string name="encryption_rotate_confirm_message_empty">O dispositivo não tem mais gravações, nada será perdido. Anote a nova senha: é o único jeito de abrir as gravações futuras e não há recuperação.</string>
+    <string name="encryption_rotate_confirm_message">Ainda há %d gravação(ões) no dispositivo. Foram feitas com a chave antiga e ficarão ilegíveis para sempre — baixe antes se quiser mantê-las. Anote a nova senha: não há recuperação.</string>
+    <string name="scanner_wake_and_retry">Dispositivo não encontrado. Pressione o botão do dispositivo para ativá-lo e tente novamente.</string>
 </resources>

@@ -387,6 +387,33 @@ fun NomiApp(vm: NomiViewModel) {
         )
     }
 
+    // Rotation is destructive for recordings still on the device: confirm with their count first.
+    ui.rotatePlan?.let { plan ->
+        AlertDialog(
+            onDismissRequest = { vm.resolveRotate(confirm = false) },
+            title = { Text(stringResource(R.string.encryption_rotate_confirm_title)) },
+            text = {
+                Text(
+                    if (plan.recordingsAtRisk == 0) {
+                        stringResource(R.string.encryption_rotate_confirm_message_empty)
+                    } else {
+                        stringResource(R.string.encryption_rotate_confirm_message, plan.recordingsAtRisk)
+                    },
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { vm.resolveRotate(confirm = true) }) {
+                    Text(stringResource(R.string.encryption_action_rotate), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { vm.resolveRotate(confirm = false) }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            },
+        )
+    }
+
     // Validation failed, but the device has no prior recording: writing the user-entered password is lossless; just ask a question to proceed
     if (ui.passphraseAdoptOffer != null) {
         AlertDialog(

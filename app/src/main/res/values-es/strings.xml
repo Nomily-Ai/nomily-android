@@ -626,4 +626,9 @@
     <string name="fast_transfer_tcp_unreachable">No se pudo conectar con el dispositivo; puede que no se haya unido a su Wi-Fi.</string>
     <string name="fast_transfer_hint_connecting">Negociando una sesión TCP en 192.168.88.1:6718.</string>
     <string name="fast_transfer_decode_failed">%s: se descargó, pero no se pudo convertir en un audio reproducible. El original se ha conservado en el dispositivo.</string>
+    <string name="encryption_progress_checking_device">Comprobando las grabaciones del dispositivo…</string>
+    <string name="encryption_rotate_confirm_title">¿Rotar la clave del dispositivo?</string>
+    <string name="encryption_rotate_confirm_message_empty">El dispositivo ya no tiene grabaciones, no se perderá nada. Anota la nueva contraseña: es la única forma de abrir las grabaciones futuras y no hay recuperación.</string>
+    <string name="encryption_rotate_confirm_message">Aún hay %d grabación(es) en el dispositivo. Se hicieron con la clave anterior y quedarán ilegibles para siempre; descárgalas antes si quieres conservarlas. Anota la nueva contraseña: no hay recuperación.</string>
+    <string name="scanner_wake_and_retry">No se encontró el dispositivo. Pulsa el botón del dispositivo para activarlo y vuelve a intentarlo.</string>
 </resources>

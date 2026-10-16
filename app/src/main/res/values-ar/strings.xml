@@ -626,4 +626,9 @@
     <string name="fast_transfer_tcp_unreachable">تعذّر الوصول إلى الجهاز، ربما لم ينجح الانضمام إلى شبكة Wi-Fi الخاصة به.</string>
     <string name="fast_transfer_hint_connecting">جارٍ إنشاء جلسة TCP على 192.168.88.1:6718.</string>
     <string name="fast_transfer_decode_failed">%s: تم التنزيل، لكن تعذّر تحويله إلى ملف صوتي قابل للتشغيل. تم الاحتفاظ بالنسخة الأصلية على الجهاز.</string>
+    <string name="encryption_progress_checking_device">جارٍ فحص التسجيلات الموجودة على الجهاز…</string>
+    <string name="encryption_rotate_confirm_title">تغيير مفتاح الجهاز؟</string>
+    <string name="encryption_rotate_confirm_message_empty">لم تعد هناك تسجيلات على الجهاز، لن يُفقد شيء. دوّن عبارة المرور الجديدة: إنها الطريقة الوحيدة لفتح التسجيلات القادمة، ولا توجد استعادة.</string>
+    <string name="encryption_rotate_confirm_message">لا يزال على الجهاز %d تسجيل. أُنشئت بالمفتاح القديم وستصبح غير قابلة للقراءة نهائياً — نزّلها أولاً إن أردت الاحتفاظ بها. دوّن عبارة المرور الجديدة: لا توجد استعادة.</string>
+    <string name="scanner_wake_and_retry">لم يتم العثور على الجهاز. اضغط زر الجهاز لتنشيطه، ثم حاول مرة أخرى.</string>
 </resources>

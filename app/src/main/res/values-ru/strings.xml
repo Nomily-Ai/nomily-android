@@ -626,4 +626,9 @@
     <string name="fast_transfer_tcp_unreachable">Не удалось связаться с устройством: подключение к его Wi-Fi могло не удаться.</string>
     <string name="fast_transfer_hint_connecting">Установка TCP-сессии на 192.168.88.1:6718.</string>
     <string name="fast_transfer_decode_failed">%s: загружено, но не удалось получить воспроизводимый аудиофайл. Оригинал сохранён на устройстве.</string>
+    <string name="encryption_progress_checking_device">Проверяем записи на устройстве…</string>
+    <string name="encryption_rotate_confirm_title">Сменить ключ устройства?</string>
+    <string name="encryption_rotate_confirm_message_empty">На устройстве не осталось записей — ничего не потеряется. Запишите новый пароль: только им можно будет открыть будущие записи, восстановления нет.</string>
+    <string name="encryption_rotate_confirm_message">На устройстве ещё %d запис(ей). Они сделаны старым ключом и станут нечитаемыми навсегда — сначала скачайте их, если они нужны. Запишите новый пароль: восстановления нет.</string>
+    <string name="scanner_wake_and_retry">Устройство не найдено. Нажмите кнопку на устройстве, чтобы разбудить его, затем повторите попытку.</string>
 </resources>

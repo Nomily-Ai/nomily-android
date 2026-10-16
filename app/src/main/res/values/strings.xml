@@ -665,4 +665,9 @@
     <string name="fast_transfer_tcp_unreachable">Could not reach the device — joining its Wi-Fi may not have succeeded.</string>
     <string name="fast_transfer_hint_connecting">Negotiating a TCP session on 192.168.88.1:6718.</string>
     <string name="fast_transfer_decode_failed">%s: downloaded, but it couldn\'t be turned into a playable audio file. The original has been kept on the device.</string>
+    <string name="encryption_progress_checking_device">Checking what\'s on the device…</string>
+    <string name="encryption_rotate_confirm_title">Rotate the device key?</string>
+    <string name="encryption_rotate_confirm_message_empty">The device has no recordings left, so nothing will be lost. Write down the new passphrase — it\'s the only way to open recordings made from now on, and there is no recovery.</string>
+    <string name="encryption_rotate_confirm_message">%d recording(s) are still on the device. They were made with the old key and will become permanently unreadable — download them first if you want to keep them. Write down the new passphrase: it\'s the only way to open recordings made from now on, and there is no recovery.</string>
+    <string name="scanner_wake_and_retry">Device not found. Press the device\'s button to wake it, then try again.</string>
 </resources>

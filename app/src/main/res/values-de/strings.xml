@@ -626,4 +626,9 @@
     <string name="fast_transfer_tcp_unreachable">Das Gerät ist nicht erreichbar – der Beitritt zu seinem WLAN ist möglicherweise fehlgeschlagen.</string>
     <string name="fast_transfer_hint_connecting">Eine TCP-Sitzung wird auf 192.168.88.1:6718 ausgehandelt.</string>
     <string name="fast_transfer_decode_failed">%s: heruntergeladen, konnte aber nicht in eine abspielbare Audiodatei umgewandelt werden. Das Original bleibt auf dem Gerät.</string>
+    <string name="encryption_progress_checking_device">Aufnahmen auf dem Gerät werden geprüft…</string>
+    <string name="encryption_rotate_confirm_title">Geräteschlüssel wirklich erneuern?</string>
+    <string name="encryption_rotate_confirm_message_empty">Auf dem Gerät sind keine Aufnahmen mehr, es geht nichts verloren. Notiere die neue Passphrase — nur damit lassen sich künftige Aufnahmen öffnen, eine Wiederherstellung gibt es nicht.</string>
+    <string name="encryption_rotate_confirm_message">Auf dem Gerät liegen noch %d Aufnahme(n). Sie wurden mit dem alten Schlüssel erstellt und werden dauerhaft unlesbar — übertrage sie vorher, wenn du sie behalten willst. Notiere die neue Passphrase; eine Wiederherstellung gibt es nicht.</string>
+    <string name="scanner_wake_and_retry">Gerät nicht gefunden. Drücke die Gerätetaste, um es aufzuwecken, und versuche es erneut.</string>
 </resources>

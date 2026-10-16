@@ -626,4 +626,9 @@
     <string name="fast_transfer_tcp_unreachable">デバイスに接続できません。デバイスの Wi-Fi への参加に失敗した可能性があります。</string>
     <string name="fast_transfer_hint_connecting">192.168.88.1:6718 で TCP セッションをネゴシエーション中。</string>
     <string name="fast_transfer_decode_failed">%s：ダウンロードは完了しましたが、再生可能な音声に変換できませんでした。デバイス上の元ファイルは保持されています。</string>
+    <string name="encryption_progress_checking_device">デバイス内の録音を確認しています…</string>
+    <string name="encryption_rotate_confirm_title">デバイスの鍵を更新しますか？</string>
+    <string name="encryption_rotate_confirm_message_empty">デバイスに録音は残っていないため、失われるものはありません。新しいパスフレーズは必ず控えてください。今後の録音を開ける唯一の手段で、復旧はできません。</string>
+    <string name="encryption_rotate_confirm_message">デバイスにはまだ %d 件の録音があります。旧鍵で作成されたため、更新後は永久に開けなくなります。残したい場合は先に転送してください。新しいパスフレーズは必ず控えてください。復旧はできません。</string>
+    <string name="scanner_wake_and_retry">デバイスが見つかりません。デバイスのボタンを押して起動し、もう一度お試しください。</string>
 </resources>
