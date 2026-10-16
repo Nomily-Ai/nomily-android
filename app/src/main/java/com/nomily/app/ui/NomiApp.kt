@@ -3,6 +3,7 @@ package com.nomily.app.ui
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.ui.text.font.FontWeight
@@ -765,6 +766,7 @@ private fun LiveTab(
         val applyLang: (Boolean, String) -> Unit = { isSource, code ->
             val value = code.takeIf { c -> c.isNotEmpty() }
             vm.updateConfig { if (isSource) it.copy(lastSourceLang = value) else it.copy(lastTargetLang = value) }
+            if (live.running) vm.switchLiveAsr()
         }
         if (showSourcePicker) {
             LanguagePickerDialog(
@@ -824,7 +826,7 @@ private fun LiveTab(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(
-                Modifier.clickable(enabled = !live.running) { showSourcePicker = true },
+                Modifier.clickable { showSourcePicker = true },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(sourceName, style = MaterialTheme.typography.bodyMedium)
@@ -841,9 +843,12 @@ private fun LiveTab(
                 tint = MaterialTheme.colorScheme.outline,
                 modifier = Modifier.size(14.dp),
             )
-            if (hasAsr) {
+            // A translation has a path through Azure live translation **or** the LLM (line by line, behind local ASR).
+            val azureConfigured = cfg.asrProviders.azure?.let { it.key.isNotEmpty() && it.region.isNotEmpty() } == true
+            val llmConfigured = cfg.llmProviders.primary?.let { p -> cfg.llmProviders.configuredProviders.any { it.first == p } } == true
+            if (azureConfigured || llmConfigured) {
                 Row(
-                    Modifier.clickable(enabled = !live.running) { showTargetPicker = true },
+                    Modifier.clickable { showTargetPicker = true },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
@@ -895,6 +900,29 @@ private fun LiveTab(
             )
         }
 
+
+        // Soft notice from the translation path: deliberately lighter than an error — the transcript is unaffected.
+        live.translationNotice?.let { notice ->
+            Row(
+                Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background.copy(alpha = 0.6f))
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Filled.Translate,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(14.dp),
+                )
+                Text(
+                    notice,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+        }
 
         live.error?.let { msg ->
             Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {

@@ -602,4 +602,5 @@
     <string name="clip_detail_export_audio">Exportar áudio</string>
     <string name="clip_detail_export_as_wav">Exportar como WAV (PCM)</string>
     <string name="clip_detail_export_format_footer">O M4A é comprimido e toca em qualquer lugar. O WAV não é comprimido — ocupa mais espaço, mas é o formato que as ferramentas de transcrição e edição esperam.</string>
+    <string name="live_translate_unavailable">A tradução ao vivo não está disponível — a transcrição continua. Configure o Azure ou um LLM local para ver as traduções.</string>
 </resources>

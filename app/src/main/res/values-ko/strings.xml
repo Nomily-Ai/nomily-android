@@ -602,4 +602,5 @@
     <string name="clip_detail_export_audio">오디오 내보내기</string>
     <string name="clip_detail_export_as_wav">WAV(PCM)로 내보내기</string>
     <string name="clip_detail_export_format_footer">M4A는 압축되어 어디서나 재생됩니다. WAV는 보압축이라 파일은 크지만, 받아쓰기와 편집 도구가 기대하는 형식입니다.</string>
+    <string name="live_translate_unavailable">실시간 번역을 사용할 수 없습니다. 받아쓰기는 계속 진행됩니다. Azure 또는 로컬 LLM을 설정하면 번역이 표시됩니다.</string>
 </resources>

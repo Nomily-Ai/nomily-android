@@ -25,6 +25,14 @@ class LanguageService(context: Context) {
         .onFailure { Log.w(TAG, "Could not fetch the language list, using the cache: ${it.message}") }
         .getOrNull() ?: loadCache()
 
+    /**
+     * English name for a target [code] without touching the network: the cached Translator list first, then the
+     * platform's locale name. Live translation needs it synchronously when it opens the ASR link.
+     */
+    fun cachedName(code: String): String? =
+        loadCache().firstOrNull { it.code == code }?.name
+            ?: java.util.Locale.forLanguageTag(code).getDisplayName(java.util.Locale.ENGLISH).takeIf { it.isNotEmpty() }
+
     private fun fetch(): List<Language> {
         val conn = (URL(ENDPOINT).openConnection() as HttpURLConnection).apply {
             connectTimeout = 15_000

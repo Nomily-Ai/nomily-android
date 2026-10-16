@@ -602,4 +602,5 @@
     <string name="clip_detail_export_audio">音声を書き出す</string>
     <string name="clip_detail_export_as_wav">WAV（非圧縮 PCM）で書き出す</string>
     <string name="clip_detail_export_format_footer">M4A は圧縮されていて再生環境を選びません。WAV は非圧縮でサイズは大きくなりますが、文字起こしや編集ツールが想定している形式です。</string>
+    <string name="live_translate_unavailable">リアルタイム翻訳は利用できません。文字起こしはそのまま続きます。Azure またはローカル LLM を設定すると訳文が表示されます。</string>
 </resources>

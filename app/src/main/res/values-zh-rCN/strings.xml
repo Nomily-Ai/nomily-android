@@ -602,4 +602,5 @@
     <string name="clip_detail_export_audio">导出音频</string>
     <string name="clip_detail_export_as_wav">导出为 WAV（无损 PCM）</string>
     <string name="clip_detail_export_format_footer">M4A 体积小、到哪都能播；WAV 不压缩，文件更大，但转录与剪辑工具认的就是它。</string>
+    <string name="live_translate_unavailable">当前无法实时翻译，转录照常进行。配置 Azure 或本机大模型后即可显示译文。</string>
 </resources>

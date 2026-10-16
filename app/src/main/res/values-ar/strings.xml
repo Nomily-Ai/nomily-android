@@ -602,4 +602,5 @@
     <string name="clip_detail_export_audio">تصدير الصوت</string>
     <string name="clip_detail_export_as_wav">تصدير بصيغة WAV (PCM)</string>
     <string name="clip_detail_export_format_footer">صيغة M4A مضغوطة وتعمل في أي مكان. أما WAV فغير مضغوطة — حجمها أكبر، لكنها الصيغة التي تتوقعها أدوات التفريغ والتحرير.</string>
+    <string name="live_translate_unavailable">الترجمة الفورية غير متاحة — يستمر النسخ النصي. اضبط Azure أو نموذجًا محليًا لعرض الترجمات.</string>
 </resources>

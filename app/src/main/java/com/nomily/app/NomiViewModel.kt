@@ -22,6 +22,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -67,6 +68,12 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         private const val PROBE_RECORD_MS = 2_500L
         /** How long to wait before reconnecting after an ASR disconnection. */
         private const val LIVE_RECONNECT_DELAY_MS = 1_500L
+        private const val LIVE_MAX_RECONNECTS = 5
+        /** Partial lines are translated at most this often, always the latest — a debounce would never fire while someone talks. */
+        private const val PARTIAL_TRANSLATE_MIN_INTERVAL_MS = 2_500L
+        /** How long stopping waits for queued line translations before saving without them. */
+        private const val TRANSLATION_FLUSH_TIMEOUT_MS = 8_000L
+        private val liveLineIds = java.util.concurrent.atomic.AtomicLong()
 
         /**
          * Fast‑transfer hotspot SSID — **a fixed value, not randomly generated**.
@@ -210,6 +217,11 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
          * Sending 0x51 blindly will cut off the segment the user is recording with the physical button.
          */
         val pendingStartConfirm: Boolean = false,
+        /**
+         * Soft warning that the translation path failed or is unavailable; the transcript is unaffected,
+         * so it is a gray banner rather than [error].
+         */
+        val translationNotice: String? = null,
     )
 
     enum class LiveStatus { IDLE, CONNECTING, READY, STREAMING, FAILED, RECONNECTING }
@@ -253,7 +265,16 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     enum class RepairState { IDLE, SUCCEEDED, NEEDS_MANUAL_TRANSFER }
 
     /** A segment in the transcription stream: original text + (translation when live translation is enabled). */
-    data class LiveLine(val text: String, val translation: String = "")
+    /**
+     * @param id Stable identity, so a translation that returns after more lines arrived lands on the right one.
+     * @param at Seconds of audio captured when the line was finalized — the saved transcript's timestamps.
+     */
+    data class LiveLine(
+        val text: String,
+        val translation: String = "",
+        val at: Double = 0.0,
+        val id: Long = liveLineIds.incrementAndGet(),
+    )
 
     /**
      * The “gap” left by a paused session: the phone’s recording lacks audio from the pause period, while the device’s version is complete — ask the user whether to replace it with the device’s recording.
@@ -366,7 +387,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     }
     private var adapterStateReceiver: BroadcastReceiver? = null
 
-    private fun set(f: (Ui) -> Ui) { _ui.value = f(_ui.value) }
+    private fun set(f: (Ui) -> Ui) = _ui.update(f)
 
     /**
      * Runtime permissions an action needs before it can run. Only an Activity can ask, so the gate is
@@ -1867,6 +1888,25 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     /** A provider that connected but never produced a result: do not reconnect it in this session, switch to the next one. */
     private val liveDeadProviders = mutableSetOf<String>()
 
+    /** `azure` / `local` — the provider the open ASR link belongs to (dead-provider bookkeeping and the saved transcript). */
+    private var liveActiveProvider = ""
+    private var liveReconnectAttempts = 0
+    /** Exact bytes captured this session; [Live.bytes] is batched for the UI and too coarse for timestamps. */
+    private var liveCapturedBytes = 0L
+    private val liveCapturedSeconds: Double
+        get() = (liveCapturedBytes / com.nomily.app.core.audio.OPUS_FRAME_SIZE) * 0.02
+
+    // LLM live translation — used when the session wants a translation but Azure live translation is not available.
+    // The queue is written from the ASR socket's callback thread and drained by the pump on the main thread.
+    /** Target language name handed to the LLM; null = no LLM translation this session. */
+    @Volatile private var liveTranslateTo: String? = null
+    private var liveTranslatePump: Job? = null
+    private val translateFinals = java.util.concurrent.ConcurrentLinkedDeque<Long>()
+    @Volatile private var translatePartial: String? = null
+    @Volatile private var translateInFlight: Long? = null
+    @Volatile private var lastPartialTranslated = ""
+    @Volatile private var lastPartialTranslateAt = 0L
+
     /**
      * @param assumeIdle Only the branch “unknown state → user clicks start anyway” passes true,
      *   all others are false.
@@ -1886,6 +1926,11 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         val cfg = configStore.config.value
+        liveDeadProviders.clear()
+        liveReconnectAttempts = 0
+        liveCapturedBytes = 0
+        endLiveTranslation()
+        set { it.copy(live = it.live.copy(translationNotice = null)) }
         val asr = try {
             newLiveAsr(cfg)
         } catch (e: Exception) {
@@ -1895,8 +1940,6 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         liveAsr = asr
         liveDidPause = false
         liveAttachedToExisting = false
-        liveSawResult = false
-        liveDeadProviders.clear()
         preSessionFiles = null
         // Write temporary files while receiving: after the session ends, package into Ogg and store in the library
         liveBufferFile = File(getApplication<Application>().cacheDir, "live-stream.opus.raw").also { f ->
@@ -1907,8 +1950,9 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
             it.copy(
                 live = Live(
                     running = true,
-                    provider = providerLabel(cfg),
+                    provider = providerLabel(),
                     status = LiveStatus.CONNECTING,
+                    translationNotice = it.live.translationNotice,
                 ),
             )
         }
@@ -1995,6 +2039,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 // Swallow write failures: stopLive closes the buffered stream, and we might be writing the last frame —
                 // that isn’t a session error; it shouldn’t push the UI into FAILED.
                         runCatching { liveBuffer?.write(frames) }
+                        liveCapturedBytes += frames.size
                         if (!_ui.value.live.paused) liveAsr?.send(frames)
                     }
                 }
@@ -2029,25 +2074,44 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
             liveAsr = asr
             asr.connect { ev -> onLiveEvent(ev) }
         }.onSuccess {
-            set { it.copy(live = it.live.copy(paused = false, status = LiveStatus.STREAMING, error = null)) }
+            set { it.copy(live = it.live.copy(paused = false, status = LiveStatus.STREAMING, error = null, provider = providerLabel())) }
         }.onFailure { e ->
             set { it.copy(live = it.live.copy(error = e.message, status = LiveStatus.FAILED)) }
         }
     }
 
-    /** Consolidate unfinished temporary lines into a segment. */
-    private fun commitLivePartial() = set { ui ->
-        val live = ui.live
-        if (live.partial.isBlank()) {
-            ui
-        } else {
-            ui.copy(
-                live = live.copy(
-                    finals = live.finals + LiveLine(live.partial, live.partialTranslation),
-                    partial = "",
-                    partialTranslation = "",
-                ),
-            )
+    /**
+     * Consolidate unfinished temporary lines into a segment. With LLM translation on, an untranslated line is
+     * queued too — partial translation is throttled, so otherwise the last sentence would never get one.
+     */
+    private fun commitLivePartial() {
+        val live = _ui.value.live
+        if (live.partial.isBlank()) return
+        val line = LiveLine(live.partial, live.partialTranslation, at = liveCapturedSeconds)
+        set { it.copy(live = it.live.copy(finals = it.live.finals + line, partial = "", partialTranslation = "")) }
+        if (liveTranslateTo != null && line.translation.isEmpty()) translateFinals.addLast(line.id)
+        translatePartial = null
+    }
+
+    /**
+     * Reopen the ASR link with the current language settings — called after the user changes language
+     * mid-session. Paused sessions pick the settings up on resume.
+     */
+    fun switchLiveAsr() {
+        val live = _ui.value.live
+        if (!live.running || live.paused) return
+        commitLivePartial()
+        liveIntentionalClose = true
+        liveAsr?.close(); liveAsr = null
+        liveReconnectAttempts = 0
+        runCatching {
+            val asr = newLiveAsr(configStore.config.value)
+            liveAsr = asr
+            asr.connect { ev -> onLiveEvent(ev) }
+        }.onSuccess {
+            set { it.copy(live = it.live.copy(status = LiveStatus.RECONNECTING, error = null, provider = providerLabel())) }
+        }.onFailure { e ->
+            set { it.copy(live = it.live.copy(error = e.message, status = LiveStatus.FAILED)) }
         }
     }
 
@@ -2069,22 +2133,8 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         liveAsr?.close(); liveAsr = null
         com.nomily.app.LiveSessionService.stop(getApplication())
         // Finalize temporary results into a completed entry — otherwise the last half‑sentence would be lost
-        set { ui ->
-            val live = ui.live
-            ui.copy(
-                live = live.copy(
-                    running = false,
-                    status = LiveStatus.IDLE,
-                    partial = "",
-                    partialTranslation = "",
-                    finals = if (live.partial.isNotBlank()) {
-                        live.finals + LiveLine(live.partial, live.partialTranslation)
-                    } else {
-                        live.finals
-                    },
-                ),
-            )
-        }
+        commitLivePartial()
+        set { it.copy(live = it.live.copy(running = false, status = LiveStatus.IDLE)) }
         val hadPauses = liveDidPause
         liveDidPause = false
         val buffer = liveBufferFile
@@ -2102,9 +2152,13 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                         .onFailure { Log.w(TAG, "Failed to stop recording: ${it.message}") }
                         .getOrNull()
                 }
+                flushLiveTranslation()
                 saveLiveClip(c, buffer, stopInfo, hadPauses)
+                endLiveTranslation()
                 loadFiles()
             }
+        } else {
+            endLiveTranslation()
         }
     }
 
@@ -2143,13 +2197,35 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         buffer.delete()
         if (saved == null) return
 
-        // Persist the transcription text as well: live‑generated paragraphs become the segment’s transcript
+        // Persist the transcription as well: live lines become the clip's transcript (txt + segmented json),
+        // and their translations the clip's translation — the same files batch transcription writes.
         val lines = _ui.value.live.finals
         if (lines.isNotEmpty()) {
+            val cfg = configStore.config.value
+            val provider = liveActiveProvider.ifEmpty { "live" }
             runCatching {
                 withContext(Dispatchers.IO) {
                     val base = saved.name.substringBeforeLast('.')
-                    File(saved.parentFile, "$base.txt").writeText(lines.joinToString("\n") { it.text })
+                    val dir = saved.parentFile
+                    fun write(txt: String, json: String, items: List<Pair<String, Double>>, provider: String, locale: String) {
+                        val text = items.joinToString("\n") { it.first }
+                        File(dir, txt).writeText(text)
+                        File(dir, json).writeText(
+                            com.nomily.app.core.asr.AsrResult(text, liveSegments(items), provider, locale).toJsonString(),
+                        )
+                    }
+                    val source = cfg.lastSourceLang ?: "en-US"
+                    write("$base.txt", "$base.asr.json", lines.map { it.text to it.at }, provider, source)
+                    val translated = lines.filter { it.translation.isNotEmpty() }
+                    if (translated.isNotEmpty()) {
+                        write(
+                            "$base.translated.txt",
+                            "$base.translated.json",
+                            translated.map { it.translation to it.at },
+                            "$provider-translate",
+                            cfg.lastTargetLang ?: source,
+                        )
+                    }
                 }
             }.onFailure { Log.w(TAG, "Failed to write real-time transcription: ${it.message}") }
         }
@@ -2264,29 +2340,38 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     private fun onLiveEvent(ev: com.nomily.app.asr.LiveAsrEvent) {
         when (ev) {
             is com.nomily.app.asr.LiveAsrEvent.Partial -> {
-                liveSawResult = true
+                noteLiveResult()
+                val llm = liveTranslateTo != null
+                // Only the latest partial is worth translating: it keeps rolling.
+                if (llm && ev.text.isNotEmpty()) translatePartial = ev.text
                 set {
                     it.copy(
                         live = it.live.copy(
                             partial = ev.text,
-                            partialTranslation = ev.translation,
+                            partialTranslation = if (llm) it.live.partialTranslation else ev.translation,
                             status = LiveStatus.STREAMING,
                         ),
                     )
                 }
             }
             is com.nomily.app.asr.LiveAsrEvent.Final -> {
-                liveSawResult = true
-                set {
-                    it.copy(
-                        live = it.live.copy(
-                            finals = it.live.finals + LiveLine(ev.text, ev.translation),
-                            partial = "",
-                            partialTranslation = "",
-                            status = LiveStatus.STREAMING,
-                        ),
-                    )
+                noteLiveResult()
+                val llm = liveTranslateTo != null
+                if (ev.text.isNotEmpty() || ev.translation.isNotEmpty()) {
+                    // LLM translation lags a line behind speech. If the partial just translated is the start of this
+                    // final, show that translation now as a placeholder; the queued full translation replaces it.
+                    // A non-matching prefix means the previous sentence is mixed in — better none than a wrong one.
+                    val partialTr = _ui.value.live.partialTranslation
+                    val seed = if (llm && partialTr.isNotEmpty() && lastPartialTranslated.isNotEmpty() &&
+                        ev.text.startsWith(lastPartialTranslated)
+                    ) partialTr else ev.translation
+                    val line = LiveLine(ev.text, seed, at = liveCapturedSeconds)
+                    set { it.copy(live = it.live.copy(finals = it.live.finals + line)) }
+                    if (llm && ev.text.isNotEmpty()) translateFinals.addLast(line.id)
                 }
+                translatePartial = null
+                lastPartialTranslated = ""
+                set { it.copy(live = it.live.copy(partial = "", partialTranslation = "", status = LiveStatus.STREAMING)) }
             }
             is com.nomily.app.asr.LiveAsrEvent.Closed -> {
                 if (liveIntentionalClose) {
@@ -2294,26 +2379,36 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                     return
                 }
                 if (!_ui.value.live.running || _ui.value.live.paused) return
+                liveAsr = null
                 // A service that was shut down without ever producing a result is a **dead end**: reconnecting to it only consumes reconnection attempts,
-                // while the UI keeps showing it as active. Log it and switch to the next provider in the chain.
-                if (!liveSawResult) {
-                    val dead = providerLabel(configStore.config.value)
-                    Log.w(TAG, "ASR provider $dead connected but produced no results — considered dead end, switching to next")
-                    liveDeadProviders += dead
+                // while the UI keeps showing it as active. Cross it off and fall through to the next provider in the chain right away.
+                val delayMs = if (!liveSawResult && liveActiveProvider.isNotEmpty()) {
+                    Log.w(TAG, "ASR provider $liveActiveProvider connected but produced no results — considered dead end, switching to next")
+                    liveDeadProviders += liveActiveProvider
+                    liveReconnectAttempts = 0
+                    0L
+                } else {
+                    if (liveReconnectAttempts >= LIVE_MAX_RECONNECTS) {
+                        set { it.copy(live = it.live.copy(status = LiveStatus.FAILED, error = ev.error ?: str(R.string.live_status_failed))) }
+                        return
+                    }
+                    liveReconnectAttempts++
+                    // Backoff 1.5 s, 3 s, 4.5 s, then flat.
+                    LIVE_RECONNECT_DELAY_MS * minOf(liveReconnectAttempts, 3)
                 }
-                // Session still active but receives a close = disconnection; reconnect ASR once (BLE remains unchanged)
-                Log.w(TAG, "ASR connection dropped: ${ev.error ?: "closed by the server"}, reconnecting")
+                // Session still active but receives a close = disconnection; reconnect ASR (BLE remains unchanged)
+                Log.w(TAG, "ASR connection dropped: ${ev.error ?: "closed by the server"}, reconnecting (attempt $liveReconnectAttempts)")
                 set { it.copy(live = it.live.copy(status = LiveStatus.RECONNECTING, error = ev.error)) }
                 viewModelScope.launch {
-                    kotlinx.coroutines.delay(LIVE_RECONNECT_DELAY_MS)
-                    if (!_ui.value.live.running) return@launch
+                    kotlinx.coroutines.delay(delayMs)
+                    if (!_ui.value.live.running || _ui.value.live.paused || liveAsr != null) return@launch
                     runCatching {
-                        val asr = newLiveAsr(configStore.config.value, skip = liveDeadProviders)
+                        val asr = newLiveAsr(configStore.config.value)
                         liveAsr = asr
                         asr.connect { e -> onLiveEvent(e) }
                         // Socket opened **does not mean** transcription is active — state stays at “reconnecting”,
-                // only after the first result arrives is it considered connected (Partial/Final branches set STREAMING).
-                        set { it.copy(live = it.live.copy(error = null)) }
+                        // only after the first result arrives is it considered connected (Partial/Final branches set STREAMING).
+                        set { it.copy(live = it.live.copy(error = null, provider = providerLabel())) }
                     }.onFailure { e ->
                         set { it.copy(live = it.live.copy(status = LiveStatus.FAILED, error = e.message)) }
                     }
@@ -2322,35 +2417,197 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Use Azure if available, otherwise use the local server — the same credential logic as the batch transcription provider chain. */
-    private fun newLiveAsr(
-        cfg: com.nomily.app.core.config.AppConfig,
-        skip: Set<String> = emptySet(),
-    ): com.nomily.app.asr.LiveAsr {
-        val azure = cfg.asrProviders.azure
-        if (azure != null && azure.key.isNotEmpty() && azure.region.isNotEmpty() && "Azure" !in skip) {
-            val target = cfg.lastTargetLang
-            val source = cfg.lastSourceLang ?: "en-US"
-            // Only route to the translation endpoint when target language **differs** from source; if identical (or not selected) only perform recognition.
-            val wantTranslation = !target.isNullOrEmpty() &&
-                target.substringBefore('-').lowercase() != source.substringBefore('-').lowercase()
-            return if (wantTranslation) {
-                com.nomily.app.asr.AzureLiveTranslation(azure.key, azure.region, source, target)
-            } else {
-                com.nomily.app.asr.AzureLiveAsr(azure.key, azure.region, source)
+    /**
+     * Open the ASR link for this session, mirroring iOS `LiveModel.openASR`:
+     * - a translation is wanted and Azure is configured → Azure live translation (source and translation in one stream);
+     * - otherwise walk the configured chain (`defaults.asr` primary → fallbacks), skipping providers that proved dead
+     *   this session; a wanted translation is then produced line by line by the LLM.
+     */
+    private fun newLiveAsr(cfg: com.nomily.app.core.config.AppConfig): com.nomily.app.asr.LiveAsr {
+        liveSawResult = false
+        val target = cfg.lastTargetLang
+        val source = cfg.lastSourceLang ?: "en-US"
+        // Only translate when the target language **differs** from the source; if identical (or not selected) only perform recognition.
+        val wantTranslation = !target.isNullOrEmpty() &&
+            target.substringBefore('-').lowercase() != source.substringBefore('-').lowercase()
+        val azure = cfg.asrProviders.azure?.takeIf { it.key.isNotEmpty() && it.region.isNotEmpty() }
+        if (wantTranslation && azure != null) {
+            endLiveTranslation()
+            liveActiveProvider = "azure"
+            return com.nomily.app.asr.AzureLiveTranslation(azure.key, azure.region, source, target!!)
+        }
+        if (wantTranslation) beginLiveTranslation(cfg, target!!) else endLiveTranslation()
+
+        val chain = (listOf(cfg.defaults.asrPrimary) + cfg.defaults.asrFallbacks).map { it.lowercase() }.distinct()
+        for (name in chain) {
+            if (name in liveDeadProviders) continue
+            when (name) {
+                "azure" -> if (azure != null) {
+                    liveActiveProvider = "azure"
+                    return com.nomily.app.asr.AzureLiveAsr(azure.key, azure.region, source)
+                }
+                "local" -> {
+                    val local = cfg.asrProviders.local
+                    if (local != null && local.host.isNotEmpty() && local.port > 0) {
+                        liveActiveProvider = "local"
+                        return com.nomily.app.asr.LocalLiveAsr(local.host, local.port)
+                    }
+                }
             }
         }
-        val local = cfg.asrProviders.local
-        if (local != null && local.host.isNotEmpty() && local.port > 0 && "Local" !in skip) {
-            return com.nomily.app.asr.LocalLiveAsr(local.host, local.port)
-        }
-        throw IllegalStateException(str(R.string.asr_no_provider_configured))
+        throw IllegalStateException(
+            str(if (liveDeadProviders.isEmpty()) R.string.asr_no_provider_configured else R.string.asr_all_providers_unreachable),
+        )
     }
 
-    private fun providerLabel(cfg: com.nomily.app.core.config.AppConfig): String {
-        val azure = cfg.asrProviders.azure
-        return if (azure != null && azure.key.isNotEmpty()) "Azure" else "Local"
+    private fun providerLabel(): String = if (liveActiveProvider == "local") "Local" else "Azure"
+
+    /** A delivered result proves the (possibly just-reconnected) link works: fresh reconnect budget. */
+    private fun noteLiveResult() {
+        liveSawResult = true
+        liveReconnectAttempts = 0
     }
+
+    // ── Live translation via the LLM ───────────────────────────────────────────
+
+    private fun llmUsable(cfg: com.nomily.app.core.config.AppConfig): Boolean {
+        val primary = cfg.llmProviders.primary?.takeIf { it.isNotEmpty() } ?: return false
+        return cfg.llmProviders.configuredProviders.any { it.first == primary }
+    }
+
+    /**
+     * Prepare LLM translation into [targetCode]. Idempotent: a reconnect calls it again, and restarting would drop
+     * the translations in flight. Without an LLM the session transcribes only, with a soft notice saying why.
+     */
+    private fun beginLiveTranslation(cfg: com.nomily.app.core.config.AppConfig, targetCode: String) {
+        val name = languageService.cachedName(targetCode) ?: targetCode
+        if (liveTranslateTo == name && liveTranslatePump?.isActive == true) return
+        resetLiveTranslationQueue()
+        set { it.copy(live = it.live.copy(partialTranslation = "")) }
+        if (!llmUsable(cfg)) {
+            liveTranslateTo = null
+            liveTranslatePump?.cancel(); liveTranslatePump = null
+            set { it.copy(live = it.live.copy(translationNotice = str(R.string.live_translate_unavailable))) }
+            Log.i(TAG, "Live translation requested but no LLM provider is configured")
+            return
+        }
+        liveTranslateTo = name
+        set { it.copy(live = it.live.copy(translationNotice = null)) }
+        // Serial pump — one request at a time; a local model on CPU only slows down when run concurrently.
+        // Finals first (finalized text), then the latest partial, throttled.
+        liveTranslatePump = viewModelScope.launch {
+            while (true) {
+                val id = translateFinals.pollFirst()
+                if (id != null) {
+                    translateLiveLine(id)
+                    continue
+                }
+                val partial = translatePartial
+                if (partial != null && System.currentTimeMillis() - lastPartialTranslateAt >= PARTIAL_TRANSLATE_MIN_INTERVAL_MS) {
+                    translatePartial = null
+                    translateLivePartial(partial)
+                    continue
+                }
+                kotlinx.coroutines.delay(200)
+            }
+        }
+        Log.i(TAG, "Live translation via LLM into $name")
+    }
+
+    private fun endLiveTranslation() {
+        liveTranslateTo = null
+        resetLiveTranslationQueue()
+        liveTranslatePump?.cancel(); liveTranslatePump = null
+        val unavailable = str(R.string.live_translate_unavailable)
+        if (_ui.value.live.translationNotice == unavailable) set { it.copy(live = it.live.copy(translationNotice = null)) }
+    }
+
+    private fun resetLiveTranslationQueue() {
+        translateFinals.clear()
+        translatePartial = null
+        translateInFlight = null
+        lastPartialTranslated = ""
+        lastPartialTranslateAt = 0L
+    }
+
+    private suspend fun translateLiveLine(id: Long) {
+        val target = liveTranslateTo ?: return
+        val source = _ui.value.live.finals.firstOrNull { it.id == id }?.text?.trim()?.takeIf { it.isNotEmpty() } ?: return
+        translateInFlight = id
+        try {
+            val out = withContext(Dispatchers.IO) {
+                com.nomily.app.llm.LlmClient.translate(source, target, configStore.config.value).text.trim()
+            }
+            if (out.isEmpty()) return
+            // Look the line up by id again: the session may have moved on while the LLM was working.
+            set { ui ->
+                ui.copy(
+                    live = ui.live.copy(
+                        finals = ui.live.finals.map { if (it.id == id) it.copy(translation = out) else it },
+                        translationNotice = null,
+                    ),
+                )
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            noteLiveTranslationFailure(e)
+        } finally {
+            translateInFlight = null
+        }
+    }
+
+    private suspend fun translateLivePartial(text: String) {
+        val target = liveTranslateTo ?: return
+        val source = text.trim()
+        if (source.isEmpty() || source == lastPartialTranslated) return
+        lastPartialTranslateAt = System.currentTimeMillis()
+        try {
+            val out = withContext(Dispatchers.IO) {
+                com.nomily.app.llm.LlmClient.translate(source, target, configStore.config.value).text.trim()
+            }
+            // Only if the partial is still the same text — otherwise the previous sentence's translation would sit under the next one.
+            if (out.isEmpty() || _ui.value.live.partial != text) return
+            lastPartialTranslated = source
+            set { it.copy(live = it.live.copy(partialTranslation = out, translationNotice = null)) }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            noteLiveTranslationFailure(e)
+        }
+    }
+
+    /** A translation failure never interrupts transcription: one soft notice, not repeated. */
+    private fun noteLiveTranslationFailure(e: Exception) {
+        Log.w(TAG, "Live translation failed: ${e.message}")
+        if (_ui.value.live.translationNotice == null) {
+            set { it.copy(live = it.live.copy(translationNotice = str(R.string.live_translate_unavailable))) }
+        }
+    }
+
+    /**
+     * Wait — bounded — for queued line translations before the transcript is saved, so lines the user saw
+     * translated are not saved without it. Better to miss two translations than to hang the save on a slow model.
+     */
+    private suspend fun flushLiveTranslation() {
+        if (liveTranslateTo == null) return
+        val deadline = System.currentTimeMillis() + TRANSLATION_FLUSH_TIMEOUT_MS
+        while ((translateFinals.isNotEmpty() || translateInFlight != null) && System.currentTimeMillis() < deadline) {
+            kotlinx.coroutines.delay(100)
+        }
+        if (translateFinals.isNotEmpty() || translateInFlight != null) {
+            Log.w(TAG, "Live translation flush timed out with ${translateFinals.size} line(s) pending")
+        }
+    }
+
+    /** Segments for a saved live transcript: each line spans from the previous line's end to its own. */
+    private fun liveSegments(items: List<Pair<String, Double>>): List<com.nomily.app.core.asr.AsrSegment> =
+        items.mapIndexed { i, (text, at) ->
+            val start = if (i > 0) items[i - 1].second else 0.0
+            fun r(v: Double) = Math.round(v * 10) / 10.0
+            com.nomily.app.core.asr.AsrSegment(null, text, r(start), r(at), r(at - start))
+        }
+
 
     // ── Summary / Translation (P2)─────────────────────────────────────────────
 
