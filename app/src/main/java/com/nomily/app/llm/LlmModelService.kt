@@ -24,6 +24,8 @@ object LlmModelService {
         val error: String? = null,
         val errorRes: Int? = null,
         val httpCode: Int? = null,
+        /** Connectivity detail for endpoint providers: model count · latency (· server version). */
+        val detail: String? = null,
     )
 
     private const val TAG = "LlmModelService"
@@ -91,15 +93,47 @@ object LlmModelService {
         else -> com.nomily.app.R.string.azure_verify_unexpected
     }
 
-    fun ollama(endpoint: String): Result =
-        perform("${endpoint.trimEnd('/')}/api/tags", parse = ::parseOllama)
+    /**
+     * Ollama model list, doubling as the connectivity test: on success [Result.detail] carries
+     * model count, round-trip time and the server version.
+     */
+    fun ollama(ctx: android.content.Context, endpoint: String): Result {
+        val base = endpoint.trimEnd('/')
+        val started = System.currentTimeMillis()
+        val r = perform("$base/api/tags", parse = ::parseOllama)
+        if (!r.ok) return r
+        val ms = System.currentTimeMillis() - started
+        return r.copy(detail = probeDetail(ctx, r.models.size, ms, ollamaVersion(base)))
+    }
 
-    /** Custom endpoint: test `/v1/models` using the OpenAI‑compatible convention. */
-    fun custom(endpoint: String, apiKey: String?): Result {
+    /** Custom endpoint: test `/v1/models` using the OpenAI‑compatible convention. No version probe — there is no common endpoint for it. */
+    fun custom(ctx: android.content.Context, endpoint: String, apiKey: String?): Result {
         val base = endpoint.trimEnd('/').removeSuffix("/chat/completions").trimEnd('/')
         val url = if (base.endsWith("/v1")) "$base/models" else "$base/v1/models"
-        return if (apiKey.isNullOrEmpty()) perform(url, parse = ::parseOpenAi) else bearer(url, apiKey, ::parseOpenAi)
+        val started = System.currentTimeMillis()
+        val r = if (apiKey.isNullOrEmpty()) perform(url, parse = ::parseOpenAi) else bearer(url, apiKey, ::parseOpenAi)
+        if (!r.ok) return r
+        return r.copy(detail = probeDetail(ctx, r.models.size, System.currentTimeMillis() - started, null))
     }
+
+    /** `GET /api/version` → `{"version":"0.12.6"}`; null on any failure. A nicety, so it gets a shorter timeout than the list. */
+    private fun ollamaVersion(base: String): String? = runCatching {
+        val conn = (URL("$base/api/version").openConnection() as HttpURLConnection).apply {
+            connectTimeout = 4_000
+            readTimeout = 4_000
+        }
+        try {
+            if (conn.responseCode !in 200..299) return null
+            JSONObject(conn.inputStream.bufferedReader().use { it.readText() }).optString("version").ifEmpty { null }
+        } finally {
+            conn.disconnect()
+        }
+    }.getOrNull()
+
+    /** `3 models · 23 ms · v0.12.6` — no version, no trailing segment. */
+    private fun probeDetail(ctx: android.content.Context, count: Int, ms: Long, version: String?): String =
+        listOfNotNull(ctx.getString(com.nomily.app.R.string.llm_probe_model_count, count), "$ms ms", version?.let { "v$it" })
+            .joinToString(" · ")
 
     private fun bearer(url: String, apiKey: String, parse: (JSONObject) -> List<String>) =
         perform(url, mapOf("Authorization" to "Bearer $apiKey"), parse)

@@ -62,6 +62,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -724,8 +726,8 @@ private fun LlmSection(cfg: AppConfig, vm: NomiViewModel) {
         { k, _ -> com.nomily.app.llm.LlmModelService.gemini(k) }) { p ->
         vm.updateConfig { it.copy(llmProviders = it.llmProviders.copy(gemini = p)) }
     }
-    EndpointProvider("Ollama", "qwen3:32b", cfg.llmProviders.ollama,
-        fetchModels = { _, e -> com.nomily.app.llm.LlmModelService.ollama(e) }) { p ->
+    EndpointProvider("Ollama", "qwen2.5:3b", cfg.llmProviders.ollama,
+        fetchModels = { ctx, _, e -> com.nomily.app.llm.LlmModelService.ollama(ctx, e) }) { p ->
         vm.updateConfig { it.copy(llmProviders = it.llmProviders.copy(ollama = p)) }
     }
     CustomEndpointCard(cfg, vm)
@@ -893,24 +895,190 @@ private fun EndpointProvider(
     name: String,
     example: String,
     p: AppConfig.LlmProviders.Endpoint?,
-    fetchModels: (String?, String) -> com.nomily.app.llm.LlmModelService.Result,
+    fetchModels: (android.content.Context, String?, String) -> com.nomily.app.llm.LlmModelService.Result,
     onChange: (AppConfig.LlmProviders.Endpoint?) -> Unit,
 ) {
-    Group(name) {
-        val v = remember { VerifyState() }
+    val probe = rememberEndpointProbe(p?.endpoint ?: "") { ctx, ep -> fetchModels(ctx, p?.apiKey, ep) }
+    Group(name, footer = probe.footer()) {
         Field(
             stringResource(R.string.llm_endpoint_url), p?.endpoint ?: "",
-            trailing = { VerifyIcon(v, true) { fetchModels(p?.apiKey, p?.endpoint ?: "") } },
+            trailing = { ProbeIcon(probe) },
         ) { new ->
             onChange(
                 if (new.isEmpty() && p?.apiKey.isNullOrEmpty()) null
                 else (p ?: AppConfig.LlmProviders.Endpoint(endpoint = "")).copy(endpoint = new),
             )
         }
-        ModelField(example, p?.model, v) { m ->
+        ModelListField(example, p?.model, probe, divider = false) { m ->
             onChange((p ?: AppConfig.LlmProviders.Endpoint(endpoint = "")).copy(model = m))
         }
-        VerifyError(v)
+    }
+}
+
+/**
+ * Model list of an endpoint provider (Ollama / Custom). Loading it **is** the connectivity test: success proves the
+ * server answers and fills [detail]; mirrors iOS `ModelListField` + `loadModels`.
+ */
+private class EndpointProbe {
+    var models by mutableStateOf<List<String>>(emptyList())
+    var loading by mutableStateOf(false)
+    var error by mutableStateOf<String?>(null)
+    var detail by mutableStateOf<String?>(null)
+    /** Load now (the ✓, the model row, the retry button). */
+    var load: () -> Unit = {}
+    var job: kotlinx.coroutines.Job? = null
+
+    /** Card footer: the failure reason, or "Reachable · 3 models · 23 ms · v0.12.6". */
+    @Composable
+    fun footer(): String? = error ?: detail?.let { stringResource(R.string.llm_probe_reachable, it) }
+}
+
+/** Loads automatically 0.7 s after the endpoint stops changing, so the list appears without tapping the ✓. */
+@Composable
+private fun rememberEndpointProbe(
+    endpoint: String,
+    fetch: (android.content.Context, String) -> com.nomily.app.llm.LlmModelService.Result,
+): EndpointProbe {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val currentFetch by rememberUpdatedState(fetch)
+    val probe = remember { EndpointProbe() }
+    suspend fun run() {
+        val ep = endpoint.trim()
+        probe.detail = null
+        if (ep.isEmpty()) {
+            probe.error = ctx.getString(R.string.llm_no_endpoint)
+            return
+        }
+        // A missing scheme still parses as a URI (as a path) and then fails with an unreadable error; require a host.
+        if (runCatching { java.net.URI(ep).host }.getOrNull().isNullOrEmpty()) {
+            probe.error = ctx.getString(R.string.llm_bad_endpoint)
+            return
+        }
+        probe.loading = true
+        probe.error = null
+        try {
+            val r = withContext(Dispatchers.IO) { currentFetch(ctx, ep) }
+            when {
+                // "Connected but no models" is not a fetch failure — say so, or the user keeps checking the network.
+                r.ok && r.models.isEmpty() -> probe.error = ctx.getString(R.string.llm_no_models_on_server)
+                r.ok -> {
+                    probe.models = r.models
+                    probe.detail = r.detail
+                }
+                else -> probe.error = r.errorRes?.let { ctx.getString(it) } ?: r.error ?: ctx.getString(R.string.asr_verify_failed)
+            }
+        } finally {
+            probe.loading = false
+        }
+    }
+    probe.load = {
+        probe.job?.cancel()
+        probe.job = scope.launch { run() }
+    }
+    LaunchedEffect(endpoint) {
+        if (endpoint.isBlank()) return@LaunchedEffect
+        kotlinx.coroutines.delay(700)
+        probe.job?.cancel()
+        run()
+    }
+    return probe
+}
+
+@Composable
+private fun ProbeIcon(probe: EndpointProbe) {
+    IconButton(onClick = probe.load, enabled = !probe.loading) {
+        if (probe.loading) {
+            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+        } else {
+            Icon(
+                if (probe.error != null) Icons.Filled.Cancel else Icons.Filled.CheckCircleOutline,
+                contentDescription = stringResource(R.string.llm_load_model_list),
+                tint = when {
+                    probe.error != null -> MaterialTheme.colorScheme.error
+                    probe.detail != null -> MaterialTheme.colorScheme.primary
+                    else -> MaterialTheme.colorScheme.outline
+                },
+            )
+        }
+    }
+}
+
+/**
+ * Model row for endpoint providers — a list to pick from, never a text field by default:
+ * list loaded → dropdown (keeps the saved value even if the server no longer has it);
+ * not loaded → whole row taps to load; load failed → manual entry with a retry button.
+ */
+@Composable
+private fun ModelListField(
+    example: String,
+    model: String?,
+    probe: EndpointProbe,
+    divider: Boolean = true,
+    onChange: (String?) -> Unit,
+) {
+    when {
+        probe.models.isNotEmpty() -> {
+            var open by remember { mutableStateOf(false) }
+            val options = if (model.isNullOrEmpty() || model in probe.models) probe.models else listOf(model) + probe.models
+            Row(
+                Modifier.fillMaxWidth().clickable { open = true }.heightIn(min = NomiDimens.rowMinHeight).padding(horizontal = NomiDimens.rowInset),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(stringResource(R.string.llm_model), style = MaterialTheme.typography.bodyLarge)
+                Spacer(Modifier.weight(1f))
+                Text(
+                    model ?: stringResource(R.string.llm_select_model),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Icon(
+                    Icons.Filled.UnfoldMore,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 6.dp).size(18.dp),
+                )
+                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                    options.forEach { m ->
+                        DropdownMenuItem(text = { Text(m) }, onClick = { onChange(m); open = false })
+                    }
+                }
+            }
+            if (divider) RowDivider()
+        }
+        probe.error == null -> {
+            Row(
+                Modifier.fillMaxWidth().clickable(enabled = !probe.loading, onClick = probe.load)
+                    .heightIn(min = NomiDimens.rowMinHeight).padding(horizontal = NomiDimens.rowInset),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(stringResource(R.string.llm_model), style = MaterialTheme.typography.bodyLarge)
+                Spacer(Modifier.weight(1f))
+                if (probe.loading) {
+                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                } else {
+                    Text(
+                        stringResource(R.string.llm_tap_to_load_models),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.outline,
+                    )
+                }
+            }
+            if (divider) RowDivider()
+        }
+        else -> Field(
+            stringResource(R.string.llm_model_placeholder, example), model ?: "", divider = divider,
+            trailing = {
+                IconButton(onClick = probe.load, enabled = !probe.loading) {
+                    Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.llm_load_model_list))
+                }
+            },
+        ) { new -> onChange(new.ifEmpty { null }) }
     }
 }
 
@@ -945,22 +1113,25 @@ private fun OpenRouterCard(cfg: AppConfig, vm: NomiViewModel) {
     }
 }
 
-/** Custom endpoint: field order — API address / model / API key (optional), and this provider lacks a verify button. */
+/** Custom endpoint: API address (with verification ✓) / model / API key (optional) — same model-list interaction as Ollama. */
 @Composable
 private fun CustomEndpointCard(cfg: AppConfig, vm: NomiViewModel) {
     val p = cfg.llmProviders.custom
     val save = { np: AppConfig.LlmProviders.Endpoint? ->
         vm.updateConfig { it.copy(llmProviders = it.llmProviders.copy(custom = np)) }
     }
-    Group("Custom") {
-        Field(stringResource(R.string.llm_endpoint_url), p?.endpoint ?: "") { new ->
+    val probe = rememberEndpointProbe(p?.endpoint ?: "") { ctx, ep ->
+        com.nomily.app.llm.LlmModelService.custom(ctx, ep, p?.apiKey)
+    }
+    Group("Custom", footer = probe.footer()) {
+        Field(stringResource(R.string.llm_endpoint_url), p?.endpoint ?: "", trailing = { ProbeIcon(probe) }) { new ->
             save(
                 if (new.isEmpty() && p?.apiKey.isNullOrEmpty()) null
                 else (p ?: AppConfig.LlmProviders.Endpoint(endpoint = "")).copy(endpoint = new),
             )
         }
-        Field(stringResource(R.string.llm_model), p?.model ?: "") { new ->
-            save((p ?: AppConfig.LlmProviders.Endpoint(endpoint = "")).copy(model = new.ifEmpty { null }))
+        ModelListField("gpt-4o-mini", p?.model, probe) { m ->
+            save((p ?: AppConfig.LlmProviders.Endpoint(endpoint = "")).copy(model = m))
         }
         Field(stringResource(R.string.llm_api_key_optional), p?.apiKey ?: "", secure = true, divider = false) { new ->
             save((p ?: AppConfig.LlmProviders.Endpoint(endpoint = "")).copy(apiKey = new.ifEmpty { null }))

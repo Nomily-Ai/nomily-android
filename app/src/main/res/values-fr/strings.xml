@@ -616,4 +616,11 @@
     <string name="asr_local_probe_warn_batch">⚠️ Batch port %d isn\'t answering — file transcription will fail</string>
     <string name="asr_local_probe_warn_live">⚠️ Streaming port %d isn\'t answering — live transcription will fail</string>
     <string name="asr_verify_failed">Échec de la vérification</string>
+    <string name="llm_tap_to_load_models">Tap to load</string>
+    <string name="llm_load_model_list">Load model list</string>
+    <string name="llm_no_endpoint">Enter the endpoint URL first.</string>
+    <string name="llm_bad_endpoint">That doesn\'t look like a full address — it should start with http:// and include the port, e.g. http://192.168.1.5:11434</string>
+    <string name="llm_no_models_on_server">Connected, but that server has no models installed yet.</string>
+    <string name="llm_probe_reachable">Reachable · %s</string>
+    <string name="llm_probe_model_count">%d models</string>
 </resources>

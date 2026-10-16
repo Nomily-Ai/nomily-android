@@ -616,4 +616,11 @@
     <string name="asr_local_probe_warn_batch">⚠️ 批量端口 %d 没响应 —— 文件转写会失败</string>
     <string name="asr_local_probe_warn_live">⚠️ 实时端口 %d 没响应 —— 实时转写会失败</string>
     <string name="asr_verify_failed">验证失败</string>
+    <string name="llm_tap_to_load_models">点击获取</string>
+    <string name="llm_load_model_list">获取模型列表</string>
+    <string name="llm_no_endpoint">请先填写接口地址。</string>
+    <string name="llm_bad_endpoint">这看起来不是一个完整地址 —— 要以 http:// 开头并带上端口，例如 http://192.168.1.5:11434</string>
+    <string name="llm_no_models_on_server">已连上，但那台服务器上还没有安装任何模型。</string>
+    <string name="llm_probe_reachable">已连通 · %s</string>
+    <string name="llm_probe_model_count">%d 个模型</string>
 </resources>
