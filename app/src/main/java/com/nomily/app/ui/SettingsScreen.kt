@@ -62,6 +62,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -553,7 +554,13 @@ private fun AsrSection(cfg: AppConfig, vm: NomiViewModel) {
     }
     if (showAzureGuide) AzureSetupGuide { showAzureGuide = false }
 
-    Group(stringResource(R.string.asr_local_server)) {
+    Group(stringResource(R.string.asr_local_server), footer = stringResource(R.string.asr_local_probe_footer)) {
+        // A changed host or port invalidates the last probe — a stale "reachable" would be misleading.
+        val probeKey = cfg.asrProviders.local?.let { "${it.host}:${it.port}" }
+        var probe by remember(probeKey) { mutableStateOf<com.nomily.app.asr.LocalAsrProbe.Result?>(null) }
+        var probing by remember(probeKey) { mutableStateOf(false) }
+        val scope = rememberCoroutineScope()
+        val ctx = LocalContext.current
         Field(stringResource(R.string.asr_host), cfg.asrProviders.local?.host ?: "") { new ->
             vm.updateConfig {
                 val lo = (it.asrProviders.local ?: AppConfig.AsrProviders.Local("", DEFAULT_LOCAL_ASR_PORT))
@@ -570,7 +577,7 @@ private fun AsrSection(cfg: AppConfig, vm: NomiViewModel) {
             // port <= 0 means "not configured"; display as empty so the placeholder "Port" is visible,
             // and avoid showing a random number that the user never entered.
             cfg.asrProviders.local?.port?.takeIf { it > 0 }?.toString() ?: "",
-            numeric = true, divider = false,
+            numeric = true,
         ) { new ->
             // Previously it was `toIntOrNull() ?: return@Field`: clearing the input field caused it to be discarded,
             // and once a port was entered it could never be removed.
@@ -582,6 +589,60 @@ private fun AsrSection(cfg: AppConfig, vm: NomiViewModel) {
         }
         if (cfg.asrProviders.local?.let { (it.host.isNotEmpty() || it.port > 0) && it.port !in 1..65535 } == true) {
             FieldHint(stringResource(R.string.asr_port_invalid))
+        }
+        LocalProbeRow(probe, probing) {
+            val local = cfg.asrProviders.local
+            probing = true
+            probe = null
+            scope.launch {
+                probe = withContext(Dispatchers.IO) {
+                    com.nomily.app.asr.LocalAsrProbe.probe(ctx, local?.host ?: "", local?.port ?: 0)
+                }
+                probing = false
+            }
+        }
+    }
+}
+
+/**
+ * "Test connection" for the local server: filled-in and reachable are different things — a stopped service, a
+ * mistyped port or a phone on another network otherwise only surface as a failed transcription later.
+ */
+@Composable
+private fun LocalProbeRow(result: com.nomily.app.asr.LocalAsrProbe.Result?, probing: Boolean, onProbe: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = NomiDimens.rowMinHeight).padding(start = NomiDimens.rowInset),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
+            Text(stringResource(R.string.asr_local_probe), style = MaterialTheme.typography.bodyLarge)
+            val small = MaterialTheme.typography.labelSmall
+            when {
+                probing -> Text(stringResource(R.string.asr_status_verifying), style = small, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                result == null -> Unit
+                !result.ok -> Text(result.error.orEmpty(), style = small, color = MaterialTheme.colorScheme.error)
+                else -> {
+                    result.detail?.let {
+                        Text(stringResource(R.string.asr_local_probe_reachable, it), style = small, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    result.warning?.let { Text(it, style = small, color = Color(0xFFFF9500)) }
+                }
+            }
+        }
+        IconButton(onClick = onProbe, enabled = !probing) {
+            if (probing) {
+                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+            } else {
+                Icon(
+                    if (result?.ok == false) Icons.Filled.Cancel else Icons.Filled.CheckCircleOutline,
+                    contentDescription = stringResource(R.string.asr_local_probe),
+                    tint = when {
+                        result == null -> MaterialTheme.colorScheme.outline
+                        result.ok -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.error
+                    },
+                )
+            }
         }
     }
 }

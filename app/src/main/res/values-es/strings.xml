@@ -603,4 +603,17 @@
     <string name="clip_detail_export_as_wav">Exportar como WAV (PCM)</string>
     <string name="clip_detail_export_format_footer">El M4A está comprimido y se reproduce en cualquier parte. El WAV no tiene compresión: ocupa más, pero es el formato que esperan las herramientas de transcripción y edición.</string>
     <string name="live_translate_unavailable">La traducción en directo no está disponible: la transcripción continúa. Configura Azure o un LLM local para ver las traducciones.</string>
+    <string name="asr_local_probe">Test connection</string>
+    <string name="asr_local_probe_footer">The app uses two ports on your server: this one for live streaming, and the one right after it for file transcription. Tap the check button to confirm both are answering.</string>
+    <string name="asr_local_probe_no_host">Enter the host and port first</string>
+    <string name="asr_local_probe_reachable">Reachable · %s</string>
+    <string name="asr_local_probe_timeout">Timed out — make sure the phone and the server are on the same network</string>
+    <string name="asr_local_probe_refused">Connection refused — the server isn\'t running, or the port is wrong</string>
+    <string name="asr_local_probe_bad_host">Can\'t resolve that host name</string>
+    <string name="asr_local_probe_offline">Network unreachable — check the address and your Wi-Fi</string>
+    <string name="asr_local_probe_model_loading">model loading</string>
+    <string name="asr_local_probe_threads">%d threads</string>
+    <string name="asr_local_probe_warn_batch">⚠️ Batch port %d isn\'t answering — file transcription will fail</string>
+    <string name="asr_local_probe_warn_live">⚠️ Streaming port %d isn\'t answering — live transcription will fail</string>
+    <string name="asr_verify_failed">La verificación falló</string>
 </resources>

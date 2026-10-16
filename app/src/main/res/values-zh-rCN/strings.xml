@@ -603,4 +603,17 @@
     <string name="clip_detail_export_as_wav">导出为 WAV（无损 PCM）</string>
     <string name="clip_detail_export_format_footer">M4A 体积小、到哪都能播；WAV 不压缩，文件更大，但转录与剪辑工具认的就是它。</string>
     <string name="live_translate_unavailable">当前无法实时翻译，转录照常进行。配置 Azure 或本机大模型后即可显示译文。</string>
+    <string name="asr_local_probe">测试连通性</string>
+    <string name="asr_local_probe_footer">App 会用到服务器上的两个端口：这里填的跑实时流式，紧挨着它的下一个跑文件转写。点右侧的对勾，两个都会探一次。</string>
+    <string name="asr_local_probe_no_host">请先填写服务器地址和端口</string>
+    <string name="asr_local_probe_reachable">已连通 · %s</string>
+    <string name="asr_local_probe_timeout">连接超时 —— 确认手机和服务器在同一网络</string>
+    <string name="asr_local_probe_refused">连接被拒绝 —— 服务没在跑，或端口填错了</string>
+    <string name="asr_local_probe_bad_host">无法解析这个主机名</string>
+    <string name="asr_local_probe_offline">网络不可达 —— 检查地址和 Wi-Fi</string>
+    <string name="asr_local_probe_model_loading">模型加载中</string>
+    <string name="asr_local_probe_threads">%d 线程</string>
+    <string name="asr_local_probe_warn_batch">⚠️ 批量端口 %d 没响应 —— 文件转写会失败</string>
+    <string name="asr_local_probe_warn_live">⚠️ 实时端口 %d 没响应 —— 实时转写会失败</string>
+    <string name="asr_verify_failed">验证失败</string>
 </resources>
