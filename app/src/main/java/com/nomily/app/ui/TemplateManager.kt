@@ -67,6 +67,7 @@ import com.nomily.app.llm.PROMPT_MAX_CHARACTERS
 import com.nomily.app.llm.localizedTemplateCategory
 import com.nomily.app.llm.localizedTemplateName
 import com.nomily.app.llm.localizedTemplatePrompt
+import com.nomily.app.llm.localizedTemplateSubtitle
 
 /**
  * Summary template management: browse by category, clone, edit, delete custom templates, restore defaults.
@@ -159,7 +160,7 @@ fun TemplateManagerPage(vm: NomiViewModel, onPush: (PushedPage?) -> Unit, onDism
                     inCategory.forEachIndexed { i, t ->
                         TemplateRow(
                             name = localizedTemplateName(context, t.name, t.isBuiltIn),
-                            prompt = localizedTemplatePrompt(context, t),
+                            prompt = localizedTemplateSubtitle(context, t),
                             deletable = !t.isBuiltIn,
                             onDelete = { pendingDelete = t },
                         ) {
@@ -220,6 +221,7 @@ fun TemplateManagerPage(vm: NomiViewModel, onPush: (PushedPage?) -> Unit, onDism
                     ),
                     prompt = localizedTemplatePrompt(context, t),
                     isBuiltIn = false,
+                    summary = null,
                 )
                 previewing = null
             },

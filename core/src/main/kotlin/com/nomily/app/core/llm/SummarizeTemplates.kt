@@ -13,9 +13,11 @@ data class SummarizeTemplate(
     val name: String,
     val prompt: String,
     val isBuiltIn: Boolean = true,
+    /** One line of "what is this for", shown in the picker instead of a prompt preview. Null on the original 16. */
+    val summary: String? = null,
 )
 
-/** 16 built‑in templates, divided into 6 categories — order is fixed (UI groups them in this order). */
+/** 16 original built‑in templates, divided into 6 categories. */
 val BUILTIN_SUMMARIZE_TEMPLATES: List<SummarizeTemplate> = listOf(
     SummarizeTemplate(
         id = "builtin-0",
@@ -412,6 +414,9 @@ Preserve the interviewee's voice and perspective. Don't editorialize.
 """,
     ),
 )
+
+/** Every built‑in template: the original 16 followed by the Vobot library — order is fixed (UI groups them in this order). */
+val DEFAULT_SUMMARIZE_TEMPLATES: List<SummarizeTemplate> = BUILTIN_SUMMARIZE_TEMPLATES + VOBOT_SUMMARIZE_TEMPLATES
 
 /**
  * Template categories. Ordered by first appearance, but **custom categories are placed before built‑in ones**.

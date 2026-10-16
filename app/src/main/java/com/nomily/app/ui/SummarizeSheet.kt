@@ -59,6 +59,7 @@ import com.nomily.app.llm.LanguageService
 import com.nomily.app.llm.localizedTemplateCategory
 import com.nomily.app.llm.localizedTemplateName
 import com.nomily.app.llm.localizedTemplatePrompt
+import com.nomily.app.llm.localizedTemplateSubtitle
 
 /**
  * Summary panel.
@@ -346,7 +347,7 @@ fun SummarizeSheet(clip: LocalClip, vm: NomiViewModel, onDismiss: () -> Unit) {
                                             style = MaterialTheme.typography.bodyLarge,
                                         )
                                         Text(
-                                            localizedTemplatePrompt(context, t).replace(Regex("\\s+"), " ").trim(),
+                                            localizedTemplateSubtitle(context, t).replace(Regex("\\s+"), " ").trim(),
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             maxLines = 2,

@@ -4,7 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.nomily.app.core.json.JsonParser
 import com.nomily.app.core.json.writeJson
-import com.nomily.app.core.llm.BUILTIN_SUMMARIZE_TEMPLATES
+import com.nomily.app.core.llm.DEFAULT_SUMMARIZE_TEMPLATES
 import com.nomily.app.core.llm.SummarizeTemplate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,7 +30,7 @@ class TemplateStore(context: Context) {
     }
 
     fun resetToDefaults() {
-        _templates.value = BUILTIN_SUMMARIZE_TEMPLATES
+        _templates.value = DEFAULT_SUMMARIZE_TEMPLATES
         save()
     }
 
@@ -46,13 +46,14 @@ class TemplateStore(context: Context) {
                     name = m["name"] as? String ?: return@mapNotNull null,
                     prompt = m["prompt"] as? String ?: return@mapNotNull null,
                     isBuiltIn = m["isBuiltIn"] as? Boolean ?: false,
+                    summary = m["summary"] as? String,
                 )
             }.takeIf { it.isNotEmpty() }
         }.onFailure { Log.w(TAG, "Template read failed, falling back to built-in: ${it.message}") }.getOrNull()
-            ?: return BUILTIN_SUMMARIZE_TEMPLATES
+            ?: return DEFAULT_SUMMARIZE_TEMPLATES
 
         val seen = saved.map { it.category to it.name }.toSet()
-        val missing = BUILTIN_SUMMARIZE_TEMPLATES.filter { (it.category to it.name) !in seen }
+        val missing = DEFAULT_SUMMARIZE_TEMPLATES.filter { (it.category to it.name) !in seen }
         return if (missing.isEmpty()) saved else (saved + missing).also { persist(it) }
     }
 
@@ -62,13 +63,13 @@ class TemplateStore(context: Context) {
         runCatching {
             val json = writeJson(
                 list.map {
-                    sortedMapOf(
+                    sortedMapOf<String, Any>(
                         "id" to it.id,
                         "category" to it.category,
                         "name" to it.name,
                         "prompt" to it.prompt,
                         "isBuiltIn" to it.isBuiltIn,
-                    )
+                    ).apply { it.summary?.let { s -> put("summary", s) } }
                 },
             )
             val tmp = File(file.parentFile, "$FILE_NAME.tmp")
