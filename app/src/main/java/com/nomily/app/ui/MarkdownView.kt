@@ -10,19 +10,21 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 
 /**
- * Markdown rendering for the summary.
+ * Markdown rendering for the summary, with the shared summary stylesheet and enhancement pass
+ * (`summary.css` / `summary.js`, the same files the iOS app ships).
  *
- * `marked.min.js` is bundled into `assets/`, inlined into the HTML to run, **with no network requests sent**
- * (works offline, and also complies with the "data never leaves the device" principle; pulling a copy from
- * the CDN would amount to sending a request just for a purely local feature).
+ * `marked.min.js` and both summary files are bundled into `assets/` and inlined into the HTML, **with no network
+ * requests sent** (works offline, and also complies with the "data never leaves the device" principle; pulling a
+ * copy from the CDN would amount to sending a request just for a purely local feature).
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun MarkdownView(markdown: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val js = remember(context) {
-        runCatching { context.assets.open("marked.min.js").bufferedReader().use { it.readText() } }
-            .getOrDefault("")
+    val assets = remember(context) {
+        fun read(name: String) =
+            runCatching { context.assets.open(name).bufferedReader().use { it.readText() } }.getOrDefault("")
+        SummaryAssets(read("marked.min.js"), read("summary.js"), read("summary.css"))
     }
     AndroidView(
         modifier = modifier,
@@ -34,10 +36,16 @@ fun MarkdownView(markdown: String, modifier: Modifier = Modifier) {
             }
         },
         update = { web ->
-            web.loadDataWithBaseURL(null, wrapHtml(markdown, js), "text/html", "utf-8", null)
+            // Reloading identical HTML throws away the reader's scroll position, and recomposition calls this for unrelated state changes.
+            if (web.tag != markdown) {
+                web.tag = markdown
+                web.loadDataWithBaseURL(null, wrapHtml(markdown, assets), "text/html", "utf-8", null)
+            }
         },
     )
 }
+
+private class SummaryAssets(val marked: String, val summaryJs: String, val summaryCss: String)
 
 /**
  * `title` — add the space that CommonMark requires.
@@ -52,82 +60,48 @@ internal fun normalizeHeadings(md: String): String =
         if (after.isEmpty() || after.first() == ' ') line else line.substring(0, m.range.last + 1) + " " + after
     }
 
-private fun wrapHtml(md: String, markedJs: String): String {
-    val escaped = normalizeHeadings(md)
-        .replace("\\", "\\\\")
+/**
+ * Escapes the source so it can sit inside a JavaScript template literal: `\\`, backtick and `$` would end the literal,
+ * and `</` because the HTML tokenizer ends a `<script>` element on the text `</script` regardless of JS context.
+ */
+internal fun escapeForScript(md: String): String =
+    md.replace("\\", "\\\\")
+        .replace("</", "<\\/")
         .replace("`", "\\`")
         .replace("$", "\\$")
-    return """
-        <!DOCTYPE html>
-        <html>
-        <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-        <script>$markedJs</script>
-        <style>
-          :root { color-scheme: light dark; }
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-            font-size: 16px;
-            line-height: 1.5;
-            padding: 0 16px;
-            margin: 0;
-            color: var(--text);
-            background: transparent;
-          }
-          @media (prefers-color-scheme: dark) {
-            :root { --text: #e5e5e7; --code-bg: #2c2c2e; --border: #3a3a3c; }
-          }
-          @media (prefers-color-scheme: light) {
-            :root { --text: #1c1c1e; --code-bg: #f2f2f7; --border: #d1d1d6; }
-          }
-          h1 { font-size: 1.7em; font-weight: 700; margin: 0.6em 0 0.35em; }
-          h2 { font-size: 1.35em; font-weight: 700; margin: 0.5em 0 0.3em; }
-          h3 { font-size: 1.12em; font-weight: 600; margin: 0.4em 0 0.2em; }
-          p { margin: 0.4em 0; }
-          ul, ol { padding-left: 1.4em; margin: 0.3em 0; }
-          li { margin: 0.15em 0; }
-          code {
-            font-family: Menlo, monospace;
-            font-size: 0.88em;
-            background: var(--code-bg);
-            padding: 1px 4px;
-            border-radius: 3px;
-          }
-          pre {
-            background: var(--code-bg);
-            padding: 8px 10px;
-            border-radius: 6px;
-            overflow-x: auto;
-          }
-          pre code { background: none; padding: 0; }
-          table {
-            border-collapse: collapse;
-            width: 100%;
-            margin: 0.5em 0;
-            font-size: 0.92em;
-          }
-          th, td {
-            border: 1px solid var(--border);
-            padding: 4px 8px;
-            text-align: left;
-          }
-          th { font-weight: 600; }
-          blockquote {
-            border-left: 3px solid var(--border);
-            margin: 0.4em 0;
-            padding: 0.2em 0.8em;
-            color: #888;
-          }
-          hr { border: none; border-top: 1px solid var(--border); margin: 0.8em 0; }
-          strong { font-weight: 600; }
-        </style>
-        </head>
-        <body>
-        <div id="content"></div>
-        <script>
-          document.getElementById('content').innerHTML = marked.parse(`$escaped`);
-        </script>
-        </body>
-        </html>
-    """.trimIndent()
+
+private fun wrapHtml(md: String, a: SummaryAssets): String {
+    val escaped = escapeForScript(normalizeHeadings(md))
+    // Not trimIndent(): the inlined assets have their own indentation, and the template literal must stay byte-exact.
+    return """<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<style>${a.summaryCss}</style>
+<script>${a.marked}</script>
+<script>${a.summaryJs}</script>
+</head>
+<body>
+<div id="content"></div>
+<script>
+  (function () {
+    var source = `$escaped`;
+    var html;
+    try {
+      html = (window.marked && marked.parse) ? marked.parse(source) : null;
+    } catch (e) {
+      html = null;
+    }
+    if (html === null || html === undefined) {
+      var pre = document.createElement('pre');
+      pre.textContent = source;
+      html = pre.outerHTML;
+    }
+    document.getElementById('content').innerHTML = html;
+    if (window.__nomilyEnhanceSummary) { window.__nomilyEnhanceSummary(); }
+  })();
+</script>
+</body>
+</html>
+"""
 }

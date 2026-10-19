@@ -55,12 +55,36 @@ private fun JSONObject.optIntOrNull(key: String): Int? = if (has(key)) optInt(ke
 object RecordingName {
     private const val PATTERN = "yyyyMMddHHmmss"
 
+    /**
+     * Recording time from a filename: the whole stem, or else the first timestamp embedded in it —
+     * a merged clip `A+B.m4a` takes the older half's time, so it keeps its place in the library.
+     */
     fun date(filename: String): java.util.Date? {
         val stem = filename.substringBeforeLast('.')
+        return parseExact(stem) ?: embeddedCandidates(stem).firstNotNullOfOrNull(::parseExact)
+    }
+
+    private fun parseExact(s: String): java.util.Date? {
+        if (s.length != PATTERN.length || s.any { !it.isDigit() }) return null
         // The parser must not be a shared singleton: SimpleDateFormat is not thread‑safe, and Compose may access it from multiple threads.
         val parser = java.text.SimpleDateFormat(PATTERN, java.util.Locale.US)
         parser.isLenient = false
-        return runCatching { parser.parse(stem) }.getOrNull()
+        return runCatching { parser.parse(s) }.getOrNull()
+    }
+
+    /** Timestamps hiding inside a stem: a 14‑digit run, or `8 digits-6 digits` joined back together. */
+    internal fun embeddedCandidates(stem: String): List<String> {
+        val out = mutableListOf<String>()
+        Regex("""\d+""").findAll(stem).forEach { m ->
+            val run = m.value
+            if (run.length == 14) {
+                out += run
+            } else if (run.length == 8 && stem.getOrNull(m.range.last + 1) == '-') {
+                val after = Regex("""\d+""").matchAt(stem, m.range.last + 2)?.value
+                if (after?.length == 6) out += run + after
+            }
+        }
+        return out
     }
 
     fun displayTitle(filename: String): String {

@@ -2938,6 +2938,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun mergeClips(older: LocalClip, newer: LocalClip) {
+        if (_ui.value.playing in listOf(older.audio?.name, newer.audio?.name)) stopPlayback()
         val dir = File(getApplication<Application>().filesDir, "clips")
         viewModelScope.launch {
             set { it.copy(busy = str(R.string.library_merging), error = null) }
@@ -2946,8 +2947,17 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                     val a = older.audio ?: throw IllegalStateException("missing audio: ${older.name}")
                     val b = newer.audio ?: throw IllegalStateException("missing audio: ${newer.name}")
                     com.nomily.app.audio.AudioMerger.merge(a, b, dir)
-                    deleteAllArtefacts(dir, older.base)
-                    deleteAllArtefacts(dir, newer.base)
+                    // The sources go to the trash, not away: if the merged audio turns out wrong, both originals can be restored.
+                    // No download record: the files are still on this phone, so the device list must not flip them back to "not downloaded".
+                    library.moveToTrash(
+                        listOf(older, newer).map {
+                            com.nomily.app.data.LibraryStore.TrashRequest(
+                                it.name, clipTitle(it),
+                                com.nomily.app.core.clips.ClipTrash.wholeClipFiles(library.dir, it.base, it.audio),
+                                takesAudio = false,
+                            )
+                        },
+                    )
                 }
             }.onFailure { e ->
                 Log.e(TAG, "Merge failed", e)
@@ -2955,13 +2965,6 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
             }
             set { it.copy(busy = null) }
             refreshClips()
-        }
-    }
-
-    /** Delete **all** artifacts of a given base name (audio/transcription/translation/summary/title) — shared with merge and full‑record deletion. */
-    private fun deleteAllArtefacts(dir: File, base: String) {
-        dir.listFiles()?.forEach { f ->
-            if (ClipArtefact.baseOf(f.name) == base) f.delete()
         }
     }
 
@@ -3200,13 +3203,8 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun clipTitle(c: LocalClip): String = c.title ?: com.nomily.app.ble.RecordingName.displayTitle(c.name)
 
-    /** Base name format like `20260730155017`; returns null if parsing fails (imported external files may not follow this pattern). */
-    private fun parseRecordedAt(stem: String): Date? {
-        if (stem.length != 14 || stem.any { !it.isDigit() }) return null
-        return runCatching {
-            SimpleDateFormat("yyyyMMddHHmmss", Locale.US).parse(stem)
-        }.getOrNull()
-    }
+    /** Base name format like `20260730155017` (or a merged `A+B`); returns null if parsing fails (imported external files may not follow this pattern). */
+    private fun parseRecordedAt(stem: String): Date? = com.nomily.app.ble.RecordingName.date(stem)
 
     /** Abort any ongoing retrieval. The client also notifies the device to stop and flushes remaining packets. */
     /** Request navigation to a specific sub‑page in Settings (used together with switching the tab to Settings). */
