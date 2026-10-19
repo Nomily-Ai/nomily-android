@@ -2548,10 +2548,8 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
 
     // ── Live translation via the LLM ───────────────────────────────────────────
 
-    private fun llmUsable(cfg: com.nomily.app.core.config.AppConfig): Boolean {
-        val primary = cfg.llmProviders.primary?.takeIf { it.isNotEmpty() } ?: return false
-        return cfg.llmProviders.configuredProviders.any { it.first == primary }
-    }
+    private fun llmUsable(cfg: com.nomily.app.core.config.AppConfig): Boolean =
+        com.nomily.app.core.llm.LlmChain.isConfigured(cfg)
 
     /**
      * Prepare LLM translation into [targetCode]. Idempotent: a reconnect calls it again, and restarting would drop
@@ -2614,7 +2612,9 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         translateInFlight = id
         try {
             val out = withContext(Dispatchers.IO) {
-                com.nomily.app.llm.LlmClient.translate(source, target, configStore.config.value).text.trim()
+                com.nomily.app.llm.LlmClient.translate(
+                    getApplication(), source, target, configStore.config.value, allowFallback = false,
+                ).text.trim()
             }
             if (out.isEmpty()) return
             // Look the line up by id again: the session may have moved on while the LLM was working.
@@ -2642,7 +2642,9 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         lastPartialTranslateAt = System.currentTimeMillis()
         try {
             val out = withContext(Dispatchers.IO) {
-                com.nomily.app.llm.LlmClient.translate(source, target, configStore.config.value).text.trim()
+                com.nomily.app.llm.LlmClient.translate(
+                    getApplication(), source, target, configStore.config.value, allowFallback = false,
+                ).text.trim()
             }
             // Only if the partial is still the same text — otherwise the previous sentence's translation would sit under the next one.
             if (out.isEmpty() || _ui.value.live.partial != text) return
@@ -2717,18 +2719,19 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         clip: LocalClip,
         template: com.nomily.app.core.llm.SummarizeTemplate,
         languageName: String?,
-    ): com.nomily.app.llm.LlmClient.Completion {
+        onChunk: ((Int, Int) -> Unit)? = null,
+    ): com.nomily.app.llm.LlmClient.Outcome {
         val transcript = llmSourceText(clip)
             ?: throw IllegalStateException(str(R.string.clip_detail_transcribe_first))
         return withContext(Dispatchers.IO) {
             val cfg = configStore.config.value
             val system = com.nomily.app.core.llm.withLanguageInstruction(template.prompt, languageName)
-            com.nomily.app.llm.LlmClient.complete(system, transcript, cfg)
+            com.nomily.app.llm.LlmClient.completeResilient(getApplication(), system, transcript, cfg, onChunk = onChunk)
         }
     }
 
     /** Write the user‑approved summary into the library, also generating a short title (title failure does not affect the summary). */
-    fun saveSummary(clip: LocalClip, summary: String, languageName: String?) {
+    fun saveSummary(clip: LocalClip, summary: String, languageName: String?, preferredProvider: String? = null) {
         val dir = File(getApplication<Application>().filesDir, "clips")
         viewModelScope.launch {
             runCatching {
@@ -2741,8 +2744,11 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                             com.nomily.app.core.llm.TITLE_PROMPT, languageName,
                         )
                         val title = com.nomily.app.llm.LlmClient
-                            .complete(titleSystem, summary.take(1000), cfg)
-                            .text.trim()
+                            .completeResilient(
+                                getApplication(), titleSystem, summary.take(1000), cfg,
+                                allowChunking = false, preferred = preferredProvider,
+                            )
+                            .completion.text.trim()
                         if (title.isNotEmpty()) File(dir, "${clip.base}.title").writeText(title)
                     }.onFailure { Log.w(TAG, "Failed to generate title (does not affect summary): ${it.message}") }
                 }
@@ -2778,7 +2784,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
             runCatching {
                 withContext(Dispatchers.IO) {
                     val res = com.nomily.app.llm.LlmClient
-                        .translate(src, languageName, configStore.config.value)
+                        .translate(getApplication(), src, languageName, configStore.config.value)
                     out.writeText(res.text)
                     // Live's `.translated.json` carries timestamps for one specific target language; an on-demand
                     // translation to another language makes it stale, so drop it rather than let it drift.

@@ -1,6 +1,11 @@
 package com.nomily.app.ui
 
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
@@ -79,7 +84,8 @@ fun SummarizeSheet(clip: LocalClip, vm: NomiViewModel, onDismiss: () -> Unit) {
 
     LaunchedEffect(Unit) { languages = vm.targetLanguages() }
 
-    val providerLabel = cfg.llmProviders.primary?.replaceFirstChar { it.uppercase() } ?: "LLM"
+    val providerLabel = cfg.llmProviders.primary?.takeIf { it.isNotEmpty() }
+        ?.let(com.nomily.app.core.llm.LlmChain::providerLabel) ?: "LLM"
     val langName = languages.firstOrNull { it.code == langCode }?.name
     val sameAsTranscript = stringResource(R.string.summarize_same_as_transcript)
 
@@ -91,6 +97,10 @@ fun SummarizeSheet(clip: LocalClip, vm: NomiViewModel, onDismiss: () -> Unit) {
     // The result was truncated due to hitting the token limit — show an orange notice at the top of the page so a partial summary doesn't appear complete.
     var truncated by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
+    // Who actually wrote the result (may be a fallback) and the notes saying so; shown with the result, never hidden.
+    var usedProvider by remember { mutableStateOf<String?>(null) }
+    var notices by remember { mutableStateOf<List<String>>(emptyList()) }
+    var chunkProgress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var runningTemplate by remember { mutableStateOf<SummarizeTemplate?>(null) }
     val scope = rememberCoroutineScope()
     val guard = state == SummarizeState.RUNNING || state == SummarizeState.DONE
@@ -131,7 +141,7 @@ fun SummarizeSheet(clip: LocalClip, vm: NomiViewModel, onDismiss: () -> Unit) {
                     actions = {
                         if (state == SummarizeState.DONE) {
                             TextButton(onClick = {
-                                vm.saveSummary(clip, result, langName)
+                                vm.saveSummary(clip, result, langName, usedProvider)
                                 onDismiss()
                             }) { Text(stringResource(R.string.common_save)) }
                         }
@@ -155,6 +165,14 @@ fun SummarizeSheet(clip: LocalClip, vm: NomiViewModel, onDismiss: () -> Unit) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(top = 16.dp),
                             )
+                            chunkProgress?.let { (done, total) ->
+                                Text(
+                                    stringResource(R.string.summarize_chunk_progress, done, total),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 4.dp),
+                                )
+                            }
                             runningTemplate?.let { t ->
                                 Text(
                                     localizedTemplateName(context, t.name, t.isBuiltIn),
@@ -177,6 +195,8 @@ fun SummarizeSheet(clip: LocalClip, vm: NomiViewModel, onDismiss: () -> Unit) {
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                             )
                         }
+                        // A fallback provider stood in, or the transcript was chunked: say so, don't hide the config state.
+                        if (notices.isNotEmpty()) LlmNotices(notices)
                         MarkdownView(result, Modifier.fillMaxSize().padding(horizontal = 16.dp))
                         return@Column
                     }
@@ -208,6 +228,8 @@ fun SummarizeSheet(clip: LocalClip, vm: NomiViewModel, onDismiss: () -> Unit) {
                     }
                     SummarizeState.PICKING -> Unit
                 }
+                // Pre-flight: the primary can't run. Say who will stand in, with a one-tap switch, before a run fails.
+                LlmPrimaryGapBanner(cfg, vm)
                 // This summary sheet has search functionality.
                 // The one without search is the template management page; do not confuse the two interfaces. Filter by name/category.
                 var search by remember { mutableStateOf("") }
@@ -307,14 +329,22 @@ fun SummarizeSheet(clip: LocalClip, vm: NomiViewModel, onDismiss: () -> Unit) {
                                             .clickable {
                                                 runningTemplate = t
                                                 state = SummarizeState.RUNNING
+                                                chunkProgress = null
                                                 val runtimeTemplate = if (t.isBuiltIn) {
                                                     t.copy(prompt = localizedTemplatePrompt(context, t))
                                                 } else t
                                                 scope.launch {
-                                                    runCatching { vm.generateSummary(clip, runtimeTemplate, langName) }
+                                                    runCatching {
+                                                        vm.generateSummary(clip, runtimeTemplate, langName) { done, total ->
+                                                            scope.launch { chunkProgress = done to total }
+                                                        }
+                                                    }
                                                         .onSuccess {
-                                                            result = it.text
-                                                            truncated = it.truncated
+                                                            result = it.completion.text
+                                                            truncated = it.completion.truncated
+                                                            usedProvider = it.providerKey
+                                                            notices = com.nomily.app.llm.LlmClient.resultNotes(context, it, cfg)
+                                                            chunkProgress = null
                                                             state = SummarizeState.DONE
                                                         }
                                                         .onFailure { e ->
@@ -388,6 +418,66 @@ fun SummarizeSheet(clip: LocalClip, vm: NomiViewModel, onDismiss: () -> Unit) {
 
 /** Summarizes the four states of a sheet. */
 private enum class SummarizeState { PICKING, RUNNING, DONE, FAILED }
+
+/** Notes under a result: fallback provider used / transcript chunked. */
+@Composable
+fun LlmNotices(notes: List<String>) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+        notes.forEach { note ->
+            Row(verticalAlignment = Alignment.Top) {
+                Icon(
+                    Icons.Outlined.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp).size(14.dp),
+                )
+                Text(
+                    note,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 6.dp),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The primary LLM provider is incomplete: say what's missing and who stands in, plus a one-tap switch to that
+ * fallback. Nothing when the primary is fine. With no fallback at all it just says no provider can run.
+ */
+@Composable
+fun LlmPrimaryGapBanner(cfg: com.nomily.app.core.config.AppConfig, vm: NomiViewModel) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val chain = com.nomily.app.core.llm.LlmChain
+    val gap = chain.primaryGapWithFallback(cfg)
+    val message = when {
+        gap != null -> {
+            val text = com.nomily.app.llm.LlmClient.gapText(context, gap.first)
+            gap.second?.let { stringResource(R.string.summarize_preflight_fallback, text, chain.providerLabel(it)) } ?: text
+        }
+        chain.candidateChain(cfg).isEmpty() -> stringResource(R.string.llm_error_no_provider)
+        else -> return
+    }
+    val orange = Color(0xFFFF9500)
+    Column(
+        Modifier.fillMaxWidth().background(orange.copy(alpha = 0.12f)).padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.Top) {
+            Icon(Icons.Filled.Warning, contentDescription = null, tint = orange, modifier = Modifier.padding(top = 2.dp).size(14.dp))
+            Text(message, style = MaterialTheme.typography.bodySmall, color = orange, modifier = Modifier.padding(start = 6.dp))
+        }
+        chain.suggestedPrimary(cfg)?.let { fix ->
+            OutlinedButton(
+                onClick = { vm.updateConfig { it.copy(llmProviders = it.llmProviders.copy(primary = fix)) } },
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                modifier = Modifier.padding(top = 6.dp).heightIn(min = 30.dp),
+            ) {
+                Text(stringResource(R.string.llm_adopt_as_primary, chain.providerLabel(fix)), style = MaterialTheme.typography.labelMedium)
+            }
+        }
+    }
+}
 
 /**
  * Language selection.

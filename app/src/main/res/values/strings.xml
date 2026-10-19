@@ -670,4 +670,22 @@
     <string name="encryption_rotate_confirm_message_empty">The device has no recordings left, so nothing will be lost. Write down the new passphrase — it\'s the only way to open recordings made from now on, and there is no recovery.</string>
     <string name="encryption_rotate_confirm_message">%d recording(s) are still on the device. They were made with the old key and will become permanently unreadable — download them first if you want to keep them. Write down the new passphrase: it\'s the only way to open recordings made from now on, and there is no recovery.</string>
     <string name="scanner_wake_and_retry">Device not found. Press the device\'s button to wake it, then try again.</string>
+    <string name="llm_error_no_provider">No LLM provider is selected.</string>
+    <string name="llm_error_no_model">%s has no model selected.</string>
+    <string name="llm_error_no_api_key">%s has no API key configured.</string>
+    <string name="llm_error_no_endpoint">%s has no endpoint URL.</string>
+    <string name="llm_error_http">HTTP %1$d: %2$s</string>
+    <string name="llm_error_decoding">Couldn\'t read the response: %s</string>
+    <string name="llm_error_empty">The model returned nothing.</string>
+    <string name="llm_error_all_failed">Every LLM provider failed:\n%s</string>
+    <string name="llm_error_bad_url">The endpoint URL isn\'t valid.</string>
+    <string name="llm_error_missing_choices">The response has no choices[0].message.content.</string>
+    <string name="llm_error_missing_content">The response has no content[].</string>
+    <string name="llm_error_missing_candidates">The response has no candidates[0].content.parts.</string>
+    <string name="llm_fell_back">%1$s wasn\'t usable — this result came from %2$s.</string>
+    <string name="llm_chunked_note">Long transcript — processed in %d parts and merged.</string>
+    <string name="llm_adopt_as_primary">Use %s as the primary provider</string>
+    <string name="llm_unconfigured">%s (not configured)</string>
+    <string name="summarize_chunk_progress">Part %1$d of %2$d</string>
+    <string name="summarize_preflight_fallback">%1$s It will fall back to %2$s.</string>
 </resources>

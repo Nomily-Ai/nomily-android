@@ -872,7 +872,7 @@ private fun LiveTab(
             )
             // A translation has a path through Azure live translation **or** the LLM (line by line, behind local ASR).
             val azureConfigured = cfg.asrProviders.azure?.let { it.key.isNotEmpty() && it.region.isNotEmpty() } == true
-            val llmConfigured = cfg.llmProviders.primary?.let { p -> cfg.llmProviders.configuredProviders.any { it.first == p } } == true
+            val llmConfigured = com.nomily.app.core.llm.LlmChain.isConfigured(cfg)
             if (azureConfigured || llmConfigured) {
                 Row(
                     Modifier.clickable { showTargetPicker = true },

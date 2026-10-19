@@ -631,4 +631,22 @@
     <string name="encryption_rotate_confirm_message_empty">设备上已没有录音，不会丢失任何内容。请记好新口令——今后录制的内容只能用它打开，且无法找回。</string>
     <string name="encryption_rotate_confirm_message">设备上还有 %d 条录音，它们用旧密钥录制，轮换后将永久无法解密。要保留请先下载。另请记好新口令：今后录制的内容只能用它打开，且无法找回。</string>
     <string name="scanner_wake_and_retry">未找到设备。请按一下设备按键唤醒后重试。</string>
+    <string name="llm_error_no_provider">没有选择大模型通道。</string>
+    <string name="llm_error_no_model">%s 还没选模型。</string>
+    <string name="llm_error_no_api_key">%s 没有配置 API Key。</string>
+    <string name="llm_error_no_endpoint">%s 还没填接口地址。</string>
+    <string name="llm_error_http">HTTP %1$d：%2$s</string>
+    <string name="llm_error_decoding">返回内容无法解析：%s</string>
+    <string name="llm_error_empty">对方返回了空内容。</string>
+    <string name="llm_error_all_failed">所有大模型通道都失败了：\n%s</string>
+    <string name="llm_error_bad_url">接口地址不是合法的 URL。</string>
+    <string name="llm_error_missing_choices">返回体里没有 choices[0].message.content。</string>
+    <string name="llm_error_missing_content">返回体里没有 content[]。</string>
+    <string name="llm_error_missing_candidates">返回体里没有 candidates[0].content.parts。</string>
+    <string name="llm_fell_back">「%1$s」不可用，这次结果来自「%2$s」。</string>
+    <string name="llm_chunked_note">内容较长，已分成 %d 段分别处理后合并。</string>
+    <string name="llm_adopt_as_primary">改用「%s」作为主通道</string>
+    <string name="llm_unconfigured">%s（未配置）</string>
+    <string name="summarize_chunk_progress">第 %1$d/%2$d 段</string>
+    <string name="summarize_preflight_fallback">%1$s 会自动改用 %2$s。</string>
 </resources>

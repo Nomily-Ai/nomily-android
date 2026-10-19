@@ -666,10 +666,14 @@ private fun LlmSection(cfg: AppConfig, vm: NomiViewModel) {
     // This screen shows **one card per provider**, ordered OpenRouter → OpenAI → Claude → Gemini → Ollama → Custom;
     // when at least one provider is configured, an additional top card contains the "Active service" selector.
     val configured = cfg.llmProviders.configuredProviders
-    if (configured.isNotEmpty()) {
+    val primaryGap = com.nomily.app.core.llm.LlmChain.primaryGapWithFallback(cfg)
+    if (configured.isNotEmpty() || primaryGap != null) {
         Group("") {
             var open by remember { mutableStateOf(false) }
-            val current = configured.firstOrNull { it.first == cfg.llmProviders.primary }?.second
+            // An incomplete primary isn't in `configured`; show it as "X (not configured)" rather than a blank value.
+            val primary = cfg.llmProviders.primary?.takeIf { it.isNotEmpty() }
+            val current = configured.firstOrNull { it.first == primary }?.second
+                ?: primary?.let { stringResource(R.string.llm_unconfigured, com.nomily.app.core.llm.LlmChain.providerLabel(it)) }
                 ?: stringResource(R.string.common_none)
             Row(
                 Modifier.fillMaxWidth().clickable { open = true }.heightIn(min = NomiDimens.rowMinHeight).padding(horizontal = NomiDimens.rowInset),
@@ -708,6 +712,8 @@ private fun LlmSection(cfg: AppConfig, vm: NomiViewModel) {
                     }
                 }
             }
+            // The reason it can't run, and a one-tap switch to the provider that would stand in.
+            if (primaryGap != null) LlmPrimaryGapBanner(cfg, vm)
         }
     }
 
