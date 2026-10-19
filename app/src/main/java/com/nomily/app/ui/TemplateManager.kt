@@ -136,53 +136,14 @@ fun TemplateManagerPage(vm: NomiViewModel, onPush: (PushedPage?) -> Unit, onDism
     }
     DisposableEffect(Unit) { onDispose { onPush(null) } }
 
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        templates.categoriesInOrder().forEach { category ->
-            item {
-                Text(
-                    localizedTemplateCategory(
-                        context, category,
-                        templates.any { it.category == category && it.isBuiltIn },
-                    ).uppercase(),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 16.dp, top = 18.dp, bottom = 6.dp),
-                )
-            }
-            item {
-                val inCategory = templates.inCategory(category)
-                Card(
-                    Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                ) {
-                    inCategory.forEachIndexed { i, t ->
-                        TemplateRow(
-                            name = localizedTemplateName(context, t.name, t.isBuiltIn),
-                            prompt = localizedTemplateSubtitle(context, t),
-                            deletable = !t.isBuiltIn,
-                            onDelete = { pendingDelete = t },
-                        ) {
-                            // Custom templates also enter read-only preview first (with Markdown / raw text toggle),
-                            // The edit entry is moved into the preview page — previously it went directly into the plain text editor,
-                            // Users couldn't see what their custom templates looked like in terms of layout (ijh28l8).
-                            previewing = t
-                        }
-                        if (i < inCategory.lastIndex) {
-                            HorizontalDivider(
-                                // The left end of the divider aligns with the title text:
-                                // Inline padding 16 + icon 16 + spacing 12 = 44
-                                Modifier.padding(start = 44.dp),
-                                color = MaterialTheme.colorScheme.outline,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        // The new entry is only in the top bar (izbbpcq), so we don't repeat an Add card here.
-        item { Spacer(Modifier.height(24.dp)) }
+    // Tiles by category, as in the summary sheet. A tile opens the preview (edit / clone live there);
+    // long-press a custom template to delete it.
+    Column(Modifier.fillMaxSize()) {
+        TemplateGrid(
+            templates,
+            onOpen = { previewing = it },
+            onLongPress = { if (!it.isBuiltIn) pendingDelete = it },
+        )
     }
 
     editing?.let { t ->
@@ -262,73 +223,6 @@ fun TemplateManagerPage(vm: NomiViewModel, onPush: (PushedPage?) -> Unit, onDism
     }
 }
 
-/** One-line template: document icon + name + two-line gray hint preview; supports custom left-swipe to delete. */
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-@Composable
-private fun TemplateRow(
-    name: String,
-    prompt: String,
-    deletable: Boolean,
-    onDelete: () -> Unit,
-    onClick: () -> Unit,
-) {
-    val row = @Composable {
-        Row(
-            Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)
-                .clickable(onClick = onClick).padding(16.dp),
-            // The document icon is vertically centered in the entire row, not top-aligned
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                Icons.AutoMirrored.Filled.InsertDriveFile,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.size(16.dp),
-            )
-            Column(Modifier.padding(start = 12.dp)) {
-                Text(name, style = MaterialTheme.typography.bodyLarge)
-                Text(
-                    // Prompts contain newlines; inserting them directly into a two-line preview consumes a blank line first — compress into a single paragraph before truncating
-                    prompt.replace(Regex("\\s+"), " ").trim(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                )
-            }
-        }
-    }
-    if (!deletable) {
-        row()
-        return
-    }
-    // When scrolled to the bottom, show the confirmation dialog and **always reject dismissal** (return false), as the row will automatically slide back.
-    // Previously, allowing the EndToStart state to settle and waiting for the user to tap the red background again caused issues: the row appeared to be gone, but nothing was actually deleted, leading users to believe they had accidentally deleted something.
-    // We cannot use LaunchedEffect + reset() here either, because when the dialog appears, the row recomposes, interrupting the reset animation and leaving the row stuck in the swiped-open state.
-    val state = rememberSwipeToDismissBoxState(
-        confirmValueChange = { v ->
-            if (v == SwipeToDismissBoxValue.EndToStart) onDelete()
-            false
-        },
-    )
-    SwipeToDismissBox(
-        state = state,
-        enableDismissFromStartToEnd = false,
-        backgroundContent = {
-            Row(
-                Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.error)
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    stringResource(R.string.common_delete),
-                    color = MaterialTheme.colorScheme.onError,
-                )
-            }
-        },
-    ) { row() }
-}
 
 @Composable
 private fun TemplatePreview(

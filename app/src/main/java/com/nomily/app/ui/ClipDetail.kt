@@ -29,6 +29,8 @@ import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -70,7 +72,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nomily.app.NomiViewModel
 import com.nomily.app.NomiViewModel.LocalClip
 import com.nomily.app.R
-import com.nomily.app.audio.AudioExporter
+import com.nomily.app.jobs.JobKind
+import com.nomily.app.jobs.WorkJob
 import com.nomily.app.ble.RecordingName
 import com.nomily.app.core.asr.AsrSegment
 import com.nomily.app.core.asr.parseAsrArtefact
@@ -156,7 +159,7 @@ fun ClipDetail(
                 )
             }
 
-            if (clip.hasAudio) ExportSection(clip)
+            if (clip.hasAudio) ExportSection(clip, vm)
             DestructiveSection(clip, vm, onDeletedEverything = onDismiss)
             Spacer(Modifier.padding(bottom = 24.dp))
         }
@@ -234,6 +237,51 @@ private fun ProgressRow(label: String, trailing: (@Composable () -> Unit)? = nul
     RowDivider()
 }
 
+/** This clip's jobs of one kind (and translate target), from the background queue. */
+private class ClipJobs(all: List<WorkJob>, clip: String, kind: JobKind, target: String? = null) {
+    private val mine = all.filter { it.clip == clip && it.kind == kind && (target == null || it.translateTarget == target) }
+    val active: WorkJob? = mine.firstOrNull { it.finishedAt == null }
+    val failed: WorkJob? = mine.firstOrNull { it.finishedAt != null && it.lastError != null }
+    /** The latest success, whose notes (fallback provider, chunking, truncation) still describe the output on disk. */
+    val lastDone: WorkJob? = mine.filter { it.finishedAt != null && it.lastError == null }.maxByOrNull { it.finishedAt ?: 0L }
+}
+
+@Composable
+private fun JobProgressRow(job: WorkJob, label: String) {
+    val part = if (job.progressDone != null && job.progressTotal != null) {
+        stringResource(R.string.jobs_progress, job.progressDone, job.progressTotal)
+    } else null
+    ProgressRow(listOfNotNull(label, part).joinToString("  ·  "))
+}
+
+/** The job gave up after its retries: the reason and a retry button. */
+@Composable
+private fun JobFailedRow(job: WorkJob, vm: NomiViewModel) {
+    val orange = androidx.compose.ui.graphics.Color(0xFFFF9500)
+    Column(Modifier.fillMaxWidth().padding(horizontal = NomiDimens.rowInset, vertical = 10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.Warning, null, tint = orange, modifier = Modifier.size(18.dp))
+            Text(stringResource(R.string.jobs_status_gave_up), color = orange, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 6.dp))
+        }
+        job.lastError?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp)) }
+        OutlinedButton(onClick = { vm.jobs.retry(job.id) }, modifier = Modifier.padding(top = 6.dp)) { Text(stringResource(R.string.jobs_retry)) }
+    }
+    RowDivider()
+}
+
+@Composable
+private fun JobNotes(job: WorkJob?) {
+    job ?: return
+    val notes = job.notes.filterNot { job.wasTruncated && it == stringResource(R.string.summarize_truncated_warning) }
+    if (!job.wasTruncated && notes.isEmpty()) return
+    Column(Modifier.fillMaxWidth().padding(horizontal = NomiDimens.rowInset, vertical = 8.dp)) {
+        if (job.wasTruncated) {
+            Text(stringResource(R.string.summarize_truncated_warning), style = MaterialTheme.typography.bodySmall, color = androidx.compose.ui.graphics.Color(0xFFFF9500))
+        }
+        notes.forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    }
+}
+
 private fun readText(f: java.io.File?): String? = f?.let { runCatching { it.readText() }.getOrNull() }?.takeIf { it.isNotBlank() }
 
 /**
@@ -246,6 +294,9 @@ private fun TranscriptSections(clip: LocalClip, ui: NomiViewModel.Ui, vm: NomiVi
     val cfgNow by vm.config.collectAsStateWithLifecycle()
     val transcribing = clip.base in ui.transcribing
     val translating = "${clip.base}:${ClipArtefact.TRANSCRIPT.name}" in ui.translating
+    val allJobs by vm.jobs.jobs.collectAsStateWithLifecycle()
+    val transcribeJobs = ClipJobs(allJobs, clip.base, JobKind.TRANSCRIBE)
+    val translateJobs = ClipJobs(allJobs, clip.base, JobKind.TRANSLATE, "transcript")
     var full by remember { mutableStateOf(false) }
     var fullTranslation by remember { mutableStateOf(false) }
     var translatePicker by remember { mutableStateOf(false) }
@@ -281,7 +332,9 @@ private fun TranscriptSections(clip: LocalClip, ui: NomiViewModel.Ui, vm: NomiVi
                 OutlinedButton(onClick = { vm.cancelTranscribe(clip) }) { Text(stringResource(R.string.common_cancel)) }
             }
         }
-        if (translating) ProgressRow(stringResource(R.string.clip_detail_translating))
+        if (!transcribing) transcribeJobs.failed?.let { JobFailedRow(it, vm) }
+        translateJobs.active?.let { JobProgressRow(it, stringResource(R.string.clip_detail_translating)) }
+            ?: translateJobs.failed?.let { JobFailedRow(it, vm) }
         when {
             doc != null -> {
                 PreviewRow(transcriptPreview(doc))
@@ -391,6 +444,9 @@ private fun SummarySections(
     val translating = "${clip.base}:${ClipArtefact.SUMMARY.name}" in ui.translating
     val cfgNow by vm.config.collectAsStateWithLifecycle()
     val hasLlm = cfgNow.llmProviders.configuredProviders.isNotEmpty()
+    val allJobs by vm.jobs.jobs.collectAsStateWithLifecycle()
+    val summarizeJobs = ClipJobs(allJobs, clip.base, JobKind.SUMMARIZE)
+    val translateJobs = ClipJobs(allJobs, clip.base, JobKind.TRANSLATE, "summary")
     var showSummarize by remember { mutableStateOf(false) }
     var translatePicker by remember { mutableStateOf(false) }
     var noLlm by remember { mutableStateOf(false) }
@@ -416,7 +472,10 @@ private fun SummarySections(
             null
         },
     ) {
-        if (translating) ProgressRow(stringResource(R.string.clip_detail_translating))
+        summarizeJobs.active?.let { JobProgressRow(it, stringResource(R.string.summarize_summarizing)) }
+            ?: summarizeJobs.failed?.let { JobFailedRow(it, vm) }
+        translateJobs.active?.let { JobProgressRow(it, stringResource(R.string.clip_detail_translating)) }
+            ?: translateJobs.failed?.let { JobFailedRow(it, vm) }
         when {
             summary != null -> {
                 PreviewRow(summary)
@@ -428,6 +487,7 @@ private fun SummarySections(
                     ActionRow(stringResource(R.string.clip_detail_mind_map), icon = MindMapIcon, divider = false) { mindMap = true }
                 }
             }
+            summarizeJobs.active != null -> Unit
             clip.transcript != null -> ActionRow(
                 stringResource(R.string.clip_detail_summarize),
                 icon = Icons.Filled.AutoAwesome,
@@ -435,6 +495,10 @@ private fun SummarySections(
                 onClick = openSummarize,
             )
             else -> EmptyRow(stringResource(R.string.clip_detail_transcribe_first))
+        }
+        if (summary != null) {
+            JobNotes(summarizeJobs.lastDone)
+            JobNotes(translateJobs.lastDone)
         }
     }
 
@@ -683,45 +747,36 @@ private fun loadTranscript(clip: LocalClip): TranscriptDocument? {
 /** Unified representation of the two transcription forms. */
 private class TranscriptDocument(val text: String, val segments: List<AsrSegment>)
 
-private enum class ExportFormat(val ext: String, val mime: String) { M4A("m4a", "audio/mp4"), WAV("wav", "audio/wav") }
+private enum class ExportFormat(val ext: String) { M4A("m4a"), WAV("wav") }
 
 /**
- * Export: re-encode to **M4A (AAC)** or decode to **WAV (PCM)** and hand off to the share sheet.
- * Ogg‑Opus cannot be opened by most third‑party apps, so the original is never shared as-is.
+ * Export: re-encode to **M4A (AAC)** or decode to **WAV (PCM)** as a background task, then hand off to the share
+ * sheet. Ogg‑Opus cannot be opened by most third‑party apps, so the original is never shared as-is. The finished
+ * file stays on the page ("Exported — tap to share") so a long conversion isn't redone after leaving.
  */
 @Composable
-private fun ExportSection(clip: LocalClip) {
+private fun ExportSection(clip: LocalClip, vm: NomiViewModel) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var exporting by remember { mutableStateOf(false) }
+    val allJobs by vm.jobs.jobs.collectAsStateWithLifecycle()
+    val readyAny by vm.exports.ready.collectAsStateWithLifecycle()
+    val exportJobs = ClipJobs(allJobs, clip.base, JobKind.EXPORT)
     var choose by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-
-    fun run(format: ExportFormat) {
-        val src = clip.audio ?: return
-        exporting = true
-        scope.launch {
-            val result = withContext(Dispatchers.IO) {
-                runCatching {
-                    val dir = java.io.File(context.cacheDir, "exports")
-                    when (format) {
-                        ExportFormat.M4A -> AudioExporter.exportAsM4a(source = src, outDir = dir, stem = clip.base)
-                        ExportFormat.WAV -> AudioExporter.exportAsWav(source = src, outDir = dir, stem = clip.base)
-                    }
-                }
-            }
-            exporting = false
-            result
-                .onSuccess { shareFile(context, it, format.mime) }
-                .onFailure { error = it.message ?: it.javaClass.simpleName }
+    // Share automatically when the export the user just started finishes while they're still here.
+    var shareWhenReady by remember { mutableStateOf(false) }
+    val ready = readyAny?.takeIf { exportJobs.active == null }?.let { vm.exports.readyFor(clip.base) }
+    LaunchedEffect(ready, shareWhenReady) {
+        if (shareWhenReady && ready != null) {
+            shareWhenReady = false
+            shareFile(context, vm.exports.fileOf(ready), if (ready.file.endsWith(".wav")) "audio/wav" else "audio/mp4")
         }
     }
 
     Group(title = stringResource(R.string.clip_detail_export), footer = stringResource(R.string.clip_detail_export_format_footer)) {
+        val busy = exportJobs.active != null
         Row(
             Modifier
                 .fillMaxWidth()
-                .clickable(enabled = !exporting) { choose = true }
+                .clickable(enabled = !busy) { choose = true }
                 .heightIn(min = NomiDimens.rowMinHeight)
                 .padding(horizontal = NomiDimens.rowInset),
             verticalAlignment = Alignment.CenterVertically,
@@ -735,38 +790,71 @@ private fun ExportSection(clip: LocalClip) {
             Text(
                 stringResource(R.string.clip_detail_export_audio),
                 style = MaterialTheme.typography.bodyLarge,
-                color = if (exporting) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+                color = if (busy) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(start = NomiDimens.actionIconGap).weight(1f),
             )
-            if (exporting) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
         }
-    }
-    if (choose) {
-        AlertDialog(
-            onDismissRequest = { choose = false },
-            title = { Text(stringResource(R.string.clip_detail_export_audio)) },
-            text = {
-                Column {
-                    TextButton(onClick = { choose = false; run(ExportFormat.M4A) }, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.clip_detail_export_as_m4a))
-                    }
-                    TextButton(onClick = { choose = false; run(ExportFormat.WAV) }, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.clip_detail_export_as_wav))
+        exportJobs.active?.let { RowDivider(); JobProgressRow(it, stringResource(R.string.clip_detail_exporting)) }
+            ?: exportJobs.failed?.let { RowDivider(); JobFailedRow(it, vm) }
+        if (ready != null) {
+            RowDivider()
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = NomiDimens.rowMinHeight).padding(start = NomiDimens.rowInset),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    Modifier.weight(1f).clickable {
+                        shareFile(context, vm.exports.fileOf(ready), if (ready.file.endsWith(".wav")) "audio/wav" else "audio/mp4")
+                    }.padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Filled.CheckCircle, null, tint = androidx.compose.ui.graphics.Color(0xFF34C759), modifier = Modifier.size(20.dp))
+                    Column(Modifier.padding(start = 8.dp)) {
+                        Text(stringResource(R.string.clip_detail_export_ready), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            "${stringResource(R.string.clip_detail_export_ready_files, 1)} · ${formatClipBytes(ready.bytes)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
+                IconButton(onClick = { vm.exports.discard() }) {
+                    Icon(Icons.Filled.Delete, stringResource(R.string.clip_detail_clear_export_staging), tint = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+    }
+
+    if (choose) {
+        ExportFormatDialog(
+            onPick = { format ->
+                choose = false
+                shareWhenReady = true
+                vm.enqueueExport(clip, format.ext)
             },
-            confirmButton = {},
-            dismissButton = { TextButton(onClick = { choose = false }) { Text(stringResource(R.string.common_cancel)) } },
+            onDismiss = { choose = false },
         )
     }
-    error?.let { msg ->
-        AlertDialog(
-            onDismissRequest = { error = null },
-            title = { Text(stringResource(R.string.summarize_error)) },
-            text = { Text(msg) },
-            confirmButton = { TextButton(onClick = { error = null }) { Text(stringResource(R.string.common_ok)) } },
-        )
-    }
+}
+
+@Composable
+private fun ExportFormatDialog(onPick: (ExportFormat) -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.clip_detail_export_audio)) },
+        text = {
+            Column {
+                TextButton(onClick = { onPick(ExportFormat.M4A) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.clip_detail_export_as_m4a))
+                }
+                TextButton(onClick = { onPick(ExportFormat.WAV) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.clip_detail_export_as_wav))
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
 }
 
 /** Hero card: tapping anywhere opens the player sheet. Play icon · duration and size · date · file name. */

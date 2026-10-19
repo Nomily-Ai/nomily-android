@@ -1,5 +1,19 @@
 package com.nomily.app.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material3.Button
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.foundation.background
@@ -69,14 +83,16 @@ import com.nomily.app.llm.localizedTemplateSubtitle
 /**
  * Summary panel.
  *
- * First select **output language** (default "follow original", selection will be remembered), then click a template to start;
- * After running, render the Markdown ([MarkdownView]), verify it is correct before saving.
+ * Pick the **output language** (default "same as transcript", remembered), then a template tile opens its overview;
+ * "Use this template" queues the summary as a background task. The sheet can be closed while it runs — the
+ * result is written to the clip either way — and shows the result when it finishes while open.
  */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun SummarizeSheet(clip: LocalClip, vm: NomiViewModel, onDismiss: () -> Unit) {
     val templates by vm.templates.collectAsStateWithLifecycle()
     val cfg by vm.config.collectAsStateWithLifecycle()
+    val jobs by vm.jobs.jobs.collectAsStateWithLifecycle()
     var languages by remember { mutableStateOf<List<LanguageService.Language>>(emptyList()) }
     var langCode by remember { mutableStateOf(cfg.lastSummaryLang ?: "") }
     var showLangPicker by remember { mutableStateOf(false) }
@@ -89,29 +105,36 @@ fun SummarizeSheet(clip: LocalClip, vm: NomiViewModel, onDismiss: () -> Unit) {
     val langName = languages.firstOrNull { it.code == langCode }?.name
     val sameAsTranscript = stringResource(R.string.summarize_same_as_transcript)
 
-    // Four states: select template → generating → result → (failure).
-    // **Not persisted after generation**; it stays in the result state until the user clicks the top‑right “Save”, which then writes it to the database;
-    // During generation or when unsaved, swiping away / pressing the back key is prohibited (swiping would waste a model run and silently discard the result).
-    var state by remember { mutableStateOf(SummarizeState.PICKING) }
-    var result by remember { mutableStateOf("") }
-    // The result was truncated due to hitting the token limit — show an orange notice at the top of the page so a partial summary doesn't appear complete.
-    var truncated by remember { mutableStateOf(false) }
-    var errorMsg by remember { mutableStateOf<String?>(null) }
-    // Who actually wrote the result (may be a fallback) and the notes saying so; shown with the result, never hidden.
-    var usedProvider by remember { mutableStateOf<String?>(null) }
-    var notices by remember { mutableStateOf<List<String>>(emptyList()) }
-    var chunkProgress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    var previewing by remember { mutableStateOf<SummarizeTemplate?>(null) }
     var runningTemplate by remember { mutableStateOf<SummarizeTemplate?>(null) }
-    val scope = rememberCoroutineScope()
-    val guard = state == SummarizeState.RUNNING || state == SummarizeState.DONE
+    var jobId by remember { mutableStateOf<String?>(null) }
+    var result by remember { mutableStateOf<String?>(null) }
+
+    // State comes from the queue ledger, not from a callback: the job often finishes after this sheet is gone.
+    val job = jobId?.let { id -> jobs.firstOrNull { it.id == id } }
+    val state = when {
+        jobId == null -> SummarizeState.PICKING
+        job == null -> SummarizeState.FAILED
+        job.finishedAt == null -> SummarizeState.RUNNING
+        job.lastError != null -> SummarizeState.FAILED
+        else -> SummarizeState.DONE
+    }
+    LaunchedEffect(state) {
+        if (state == SummarizeState.DONE) {
+            val text = vm.readSummary(clip.base)
+            // Finished without a file: the job was cancelled from the task page — nothing to show.
+            if (text == null) onDismiss() else result = text
+        }
+    }
+    val errorMsg = when {
+        job == null && jobId != null -> stringResource(R.string.jobs_source_missing, stringResource(R.string.jobs_source_transcript))
+        else -> job?.lastError
+    }
+    BackHandler(enabled = previewing != null && state == SummarizeState.PICKING) { previewing = null }
 
     Dialog(
-        onDismissRequest = { if (!guard) onDismiss() },
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            dismissOnBackPress = !guard,
-            dismissOnClickOutside = !guard,
-        ),
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         // Card-style overlay: top leaves space for the status bar, exposing the parent view; top corners are rounded
         Surface(
@@ -120,12 +143,12 @@ fun SummarizeSheet(clip: LocalClip, vm: NomiViewModel, onDismiss: () -> Unit) {
             color = MaterialTheme.colorScheme.background,
         ) {
             Column(Modifier.fillMaxSize()) {
-                // Navigation bar: left 「Cancel」 + centered title (title changes with state); 「Save」 appears only in result state
+                val overview = previewing.takeIf { state == SummarizeState.PICKING }
                 CenterAlignedTopAppBar(
                     windowInsets = WindowInsets(0, 0, 0, 0),
                     title = {
                         Text(
-                            stringResource(
+                            overview?.let { localizedTemplateName(context, it.name, it.isBuiltIn) } ?: stringResource(
                                 when (state) {
                                     SummarizeState.PICKING -> R.string.summarize_choose_template
                                     SummarizeState.RUNNING -> R.string.summarize_summarizing
@@ -133,28 +156,34 @@ fun SummarizeSheet(clip: LocalClip, vm: NomiViewModel, onDismiss: () -> Unit) {
                                     SummarizeState.FAILED -> R.string.summarize_error
                                 },
                             ),
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         )
                     },
                     navigationIcon = {
-                        TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+                        if (overview != null) {
+                            TextButton(onClick = { previewing = null }) {
+                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, null, Modifier.size(20.dp))
+                                Text(stringResource(R.string.summarize_back_to_templates))
+                            }
+                        } else {
+                            TextButton(onClick = onDismiss) {
+                                Text(stringResource(if (state == SummarizeState.RUNNING) R.string.common_close else R.string.common_cancel))
+                            }
+                        }
                     },
                     actions = {
                         if (state == SummarizeState.DONE) {
-                            TextButton(onClick = {
-                                vm.saveSummary(clip, result, langName, usedProvider)
-                                onDismiss()
-                            }) { Text(stringResource(R.string.common_save)) }
+                            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_done)) }
                         }
                     },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background,
-                    ),
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.background),
                 )
 
                 when (state) {
                     SummarizeState.RUNNING -> {
                         Column(
-                            Modifier.fillMaxSize(),
+                            Modifier.fillMaxSize().padding(horizontal = 32.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center,
                         ) {
@@ -165,9 +194,10 @@ fun SummarizeSheet(clip: LocalClip, vm: NomiViewModel, onDismiss: () -> Unit) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(top = 16.dp),
                             )
-                            chunkProgress?.let { (done, total) ->
+                            // A long transcript runs for minutes; a changing number reads very differently from a spinner.
+                            if (job?.progressDone != null && job.progressTotal != null) {
                                 Text(
-                                    stringResource(R.string.summarize_chunk_progress, done, total),
+                                    stringResource(R.string.summarize_chunk_progress, job.progressDone, job.progressTotal),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(top = 4.dp),
@@ -181,23 +211,34 @@ fun SummarizeSheet(clip: LocalClip, vm: NomiViewModel, onDismiss: () -> Unit) {
                                     modifier = Modifier.padding(top = 4.dp),
                                 )
                             }
+                            HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 16.dp), color = MaterialTheme.colorScheme.outline)
+                            // Closing doesn't stop it — say so, or people sit and wait.
+                            Text(
+                                stringResource(R.string.jobs_can_leave_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            )
+                            OutlinedButton(onClick = onDismiss, modifier = Modifier.padding(top = 10.dp)) {
+                                Text(stringResource(R.string.common_close))
+                            }
                         }
                         return@Column
                     }
                     SummarizeState.DONE -> {
-                        // Hitting the token limit yields a **truncated summary**. It used to look exactly the
-                        // same as the full result: users saved it, and the quota was still deducted anyway.
-                        if (truncated) {
+                        // Hitting the token limit yields a truncated summary; it must not look complete.
+                        if (job?.wasTruncated == true) {
                             Text(
                                 stringResource(R.string.summarize_truncated_warning),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color(0xFFFF9500),
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                                modifier = Modifier.fillMaxWidth().background(Color(0xFFFF9500).copy(alpha = 0.12f))
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
                             )
                         }
                         // A fallback provider stood in, or the transcript was chunked: say so, don't hide the config state.
-                        if (notices.isNotEmpty()) LlmNotices(notices)
-                        MarkdownView(result, Modifier.fillMaxSize().padding(horizontal = 16.dp))
+                        job?.notes?.takeIf { it.isNotEmpty() }?.let { LlmNotices(it) }
+                        MarkdownView(result.orEmpty(), Modifier.fillMaxSize().padding(horizontal = 16.dp))
                         return@Column
                     }
                     SummarizeState.FAILED -> {
@@ -207,196 +248,56 @@ fun SummarizeSheet(clip: LocalClip, vm: NomiViewModel, onDismiss: () -> Unit) {
                             verticalArrangement = Arrangement.Center,
                         ) {
                             // Failures/degradations are always orange (red is reserved only for destructive actions and “recording”)
-                            Icon(
-                                Icons.Filled.Warning,
-                                contentDescription = null,
-                                tint = Color(0xFFFF9500),
-                                modifier = Modifier.size(40.dp),
-                            )
+                            Icon(Icons.Filled.Warning, contentDescription = null, tint = Color(0xFFFF9500), modifier = Modifier.size(40.dp))
                             Text(
-                                errorMsg ?: "",
+                                errorMsg.orEmpty(),
                                 style = MaterialTheme.typography.bodyMedium,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                 modifier = Modifier.padding(top = 12.dp),
                             )
-                            TextButton(
-                                onClick = { state = SummarizeState.PICKING },
-                                modifier = Modifier.padding(top = 8.dp),
-                            ) { Text(stringResource(R.string.common_try_again)) }
+                            TextButton(onClick = { jobId = null }, modifier = Modifier.padding(top = 8.dp)) {
+                                Text(stringResource(R.string.common_try_again))
+                            }
                         }
                         return@Column
                     }
                     SummarizeState.PICKING -> Unit
                 }
+
+                if (overview != null) {
+                    TemplateOverview(overview) {
+                        runningTemplate = overview
+                        previewing = null
+                        result = null
+                        if (vm.hasTranscript(clip.base)) {
+                            val t = if (overview.isBuiltIn) overview.copy(prompt = localizedTemplatePrompt(context, overview)) else overview
+                            jobId = vm.enqueueSummary(clip, t, langName)
+                        } else {
+                            jobId = "missing"
+                        }
+                    }
+                    return@Column
+                }
+
                 // Pre-flight: the primary can't run. Say who will stand in, with a one-tap switch, before a run fails.
                 LlmPrimaryGapBanner(cfg, vm)
-                // This summary sheet has search functionality.
-                // The one without search is the template management page; do not confuse the two interfaces. Filter by name/category.
-                var search by remember { mutableStateOf("") }
-                TextField(
-                    value = search,
-                    onValueChange = { search = it },
-                    placeholder = {
-                        Text(
-                            stringResource(R.string.summarize_search_templates),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    },
-                    leadingIcon = {
-                        Icon(
-                            Icons.Filled.Search,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    },
-                    singleLine = true,
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                    ),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                )
-                val shown = remember(search, templates) {
-                    val q = search.trim().lowercase()
-                    if (q.isEmpty()) {
-                        templates
-                    } else {
-                        templates.filter {
-                            localizedTemplateName(context, it.name, it.isBuiltIn).lowercase().contains(q) ||
-                                it.name.lowercase().contains(q) || it.category.lowercase().contains(q)
-                        }
-                    }
+                // Output language: one line + current value on the right, opening a searchable language list.
+                Row(
+                    Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)
+                        .clickable { showLangPicker = true }.padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Filled.Language, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                    Text(
+                        stringResource(R.string.summarize_output_language),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 8.dp).weight(1f),
+                    )
+                    Text(langName ?: sameAsTranscript, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.outline)
                 }
-                LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-                    // Output language: one line + current value on the right (click to open a searchable language list), selected options are saved to config
-                    item {
-                        Card(
-                            Modifier.fillMaxWidth().padding(top = 12.dp),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                        ) {
-                            Row(
-                                Modifier.fillMaxWidth().clickable { showLangPicker = true }.padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    stringResource(R.string.summarize_output_language),
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                Text(
-                                    langName ?: sameAsTranscript,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                Icon(
-                                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.outline,
-                                )
-                            }
-                        }
-                    }
-                    // Templates are categorized into cards, with inline display of "name + two-line prompt preview" — consistent with the template management page's visual style
-                    shown.categoriesInOrder().forEach { category ->
-                        item {
-                            Text(
-                                // Built-in categories/template names use localization
-                                localizedTemplateCategory(
-                                    context, category,
-                                    shown.any { it.category == category && it.isBuiltIn },
-                                ).uppercase(),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(start = 16.dp, top = 18.dp, bottom = 6.dp),
-                            )
-                        }
-                        item {
-                            val inCategory = shown.filter { it.category == category }
-                            Card(
-                                Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(10.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                            ) {
-                                inCategory.forEachIndexed { i, t ->
-                                    Row(
-                                        Modifier.fillMaxWidth()
-                                            .clickable {
-                                                runningTemplate = t
-                                                state = SummarizeState.RUNNING
-                                                chunkProgress = null
-                                                val runtimeTemplate = if (t.isBuiltIn) {
-                                                    t.copy(prompt = localizedTemplatePrompt(context, t))
-                                                } else t
-                                                scope.launch {
-                                                    runCatching {
-                                                        vm.generateSummary(clip, runtimeTemplate, langName) { done, total ->
-                                                            scope.launch { chunkProgress = done to total }
-                                                        }
-                                                    }
-                                                        .onSuccess {
-                                                            result = it.completion.text
-                                                            truncated = it.completion.truncated
-                                                            usedProvider = it.providerKey
-                                                            notices = com.nomily.app.llm.LlmClient.resultNotes(context, it, cfg)
-                                                            chunkProgress = null
-                                                            state = SummarizeState.DONE
-                                                        }
-                                                        .onFailure { e ->
-                                                            errorMsg = e.message
-                                                            state = SummarizeState.FAILED
-                                                        }
-                                                }
-                                            }
-                                            .padding(16.dp),
-                                        verticalAlignment = Alignment.Top,
-                                    ) {
-                                    // Built-in = gray document icon, Custom = accent color pencil
-                                    Icon(
-                                        if (t.isBuiltIn) {
-                                            Icons.AutoMirrored.Filled.InsertDriveFile
-                                        } else {
-                                            Icons.Filled.Edit
-                                        },
-                                        contentDescription = null,
-                                        tint = if (t.isBuiltIn) {
-                                            MaterialTheme.colorScheme.outline
-                                        } else {
-                                            MaterialTheme.colorScheme.primary
-                                        },
-                                        modifier = Modifier.size(20.dp),
-                                    )
-                                    Column(Modifier.padding(start = 12.dp)) {
-                                        Text(
-                                            localizedTemplateName(context, t.name, t.isBuiltIn),
-                                            style = MaterialTheme.typography.bodyLarge,
-                                        )
-                                        Text(
-                                            localizedTemplateSubtitle(context, t).replace(Regex("\\s+"), " ").trim(),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            maxLines = 2,
-                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                        )
-                                    }
-                                    }
-                                    if (i < inCategory.lastIndex) {
-                                        HorizontalDivider(
-                                            Modifier.padding(start = 16.dp),
-                                            color = MaterialTheme.colorScheme.outline,
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    item { Spacer(Modifier.height(24.dp)) }
-                }
+                TemplateGrid(templates, onOpen = { previewing = it })
             }
         }
     }
@@ -412,6 +313,170 @@ fun SummarizeSheet(clip: LocalClip, vm: NomiViewModel, onDismiss: () -> Unit) {
                 showLangPicker = false
             },
             onDismiss = { showLangPicker = false },
+        )
+    }
+}
+
+/**
+ * Templates as tiles by category, with a search field. A tile opens the template's overview; nothing runs from
+ * the grid itself. Shared by the summary sheet and the template settings page.
+ */
+@Composable
+fun TemplateGrid(
+    templates: List<SummarizeTemplate>,
+    onOpen: (SummarizeTemplate) -> Unit,
+    onLongPress: ((SummarizeTemplate) -> Unit)? = null,
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var search by remember { mutableStateOf("") }
+    TextField(
+        value = search,
+        onValueChange = { search = it },
+        placeholder = { Text(stringResource(R.string.summarize_search_templates), color = MaterialTheme.colorScheme.onSurfaceVariant) },
+        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+        singleLine = true,
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surface,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+        ),
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+    )
+    val shown = remember(search, templates) {
+        val q = search.trim().lowercase()
+        if (q.isEmpty()) templates else templates.filter {
+            localizedTemplateName(context, it.name, it.isBuiltIn).lowercase().contains(q) ||
+                it.name.lowercase().contains(q) || it.category.lowercase().contains(q)
+        }
+    }
+    if (shown.isEmpty()) {
+        EmptyState(R.string.summarize_no_matching_templates, R.string.summarize_search_templates, Icons.Filled.Search)
+        return
+    }
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 148.dp),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 28.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        shown.categoriesInOrder().forEach { category ->
+            val inCategory = shown.filter { it.category == category }
+            item(span = { GridItemSpan(maxLineSpan) }, key = "h:$category") {
+                Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        localizedTemplateCategory(context, category, inCategory.any { it.isBuiltIn }),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                        stringResource(R.string.summarize_template_count, inCategory.size),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.padding(start = 6.dp),
+                    )
+                }
+            }
+            items(inCategory, key = { it.id }) { t -> TemplateTile(t, onClick = { onOpen(t) }, onLongPress = onLongPress?.let { f -> { f(t) } }) }
+        }
+    }
+}
+
+@Composable
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+private fun TemplateTile(t: SummarizeTemplate, onClick: () -> Unit, onLongPress: (() -> Unit)?) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    Column(
+        Modifier.fillMaxWidth().heightIn(min = 88.dp)
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(14.dp))
+            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f), RoundedCornerShape(14.dp))
+            .combinedClickable(onClick = onClick, onLongClick = onLongPress)
+            .padding(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                if (t.isBuiltIn) Icons.AutoMirrored.Filled.InsertDriveFile else Icons.Filled.Edit,
+                contentDescription = null,
+                tint = if (t.isBuiltIn) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(14.dp),
+            )
+            Spacer(Modifier.weight(1f))
+            if (!t.isBuiltIn) Badge(stringResource(R.string.summarize_custom_badge), MaterialTheme.colorScheme.primary)
+        }
+        Text(
+            localizedTemplateName(context, t.name, t.isBuiltIn),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+            maxLines = 3,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+    }
+}
+
+@Composable
+private fun Badge(text: String, tint: Color) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelSmall,
+        color = tint,
+        modifier = Modifier.background(tint.copy(alpha = 0.14f), RoundedCornerShape(50)).padding(horizontal = 6.dp, vertical = 1.dp),
+    )
+}
+
+/** What a template is and what it asks the model — read before running it. [onUse] is the only way to start. */
+@Composable
+fun TemplateOverview(t: SummarizeTemplate, useLabel: String = stringResource(R.string.summarize_use_template), onUse: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    Column(Modifier.fillMaxSize()) {
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp)) {
+            Row(verticalAlignment = Alignment.Top) {
+                Box(
+                    Modifier.size(38.dp).background(MaterialTheme.colorScheme.surface, androidx.compose.foundation.shape.CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        if (t.isBuiltIn) Icons.AutoMirrored.Filled.InsertDriveFile else Icons.Filled.Edit, null,
+                        tint = if (t.isBuiltIn) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                Column(Modifier.padding(start = 12.dp)) {
+                    Text(localizedTemplateName(context, t.name, t.isBuiltIn), style = MaterialTheme.typography.titleMedium)
+                    Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Badge(localizedTemplateCategory(context, t.category, t.isBuiltIn), MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (t.isBuiltIn) Badge(stringResource(R.string.summarize_built_in_badge), MaterialTheme.colorScheme.onSurfaceVariant)
+                        else Badge(stringResource(R.string.summarize_custom_badge), MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+            localizedTemplateSubtitle(context, t).takeIf { t.summary != null && it.isNotBlank() }?.let {
+                LabelledBlock(stringResource(R.string.summarize_template_about), it, monospace = false)
+            }
+            LabelledBlock(stringResource(R.string.summarize_template_prompt_label), localizedTemplatePrompt(context, t), monospace = true)
+        }
+        Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(horizontal = 16.dp, vertical = 10.dp)) {
+            Button(onClick = onUse, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                Icon(Icons.Filled.AutoAwesome, null, Modifier.size(18.dp))
+                Text(useLabel, Modifier.padding(start = 6.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun LabelledBlock(label: String, text: String, monospace: Boolean) {
+    Text(
+        label,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 18.dp, bottom = 8.dp),
+    )
+    androidx.compose.foundation.text.selection.SelectionContainer {
+        Text(
+            text,
+            style = if (monospace) MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace) else MaterialTheme.typography.bodySmall,
+            modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp)).padding(12.dp),
         )
     }
 }

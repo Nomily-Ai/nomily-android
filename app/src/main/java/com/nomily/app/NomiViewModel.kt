@@ -339,6 +339,9 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     private val scanner = DeviceScanner(app)
     private val pipeline = ClipPipeline(app)
     val library = com.nomily.app.data.LibraryStore(app) { localized() }
+    /** Background tasks; declared before `init`, which registers the runners and resumes the ledger. */
+    val jobs = com.nomily.app.jobs.JobQueue(File(app.filesDir, "jobs.json"), viewModelScope)
+    val exports = com.nomily.app.audio.ExportCenter(app.filesDir)
     /** Deep‑link target for the settings page. */
     enum class SettingsTarget { ASR, LLM }
 
@@ -383,7 +386,6 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         "${str(titleId)}: ${e.message}"
 
     private var elapsedJob: Job? = null
-    private val transcribeJobs = mutableMapOf<String, Job>()
     private var client: DnoteBleClient? = null
     /** Key of the currently connected device in `config.devices` (= BLE address). Unbinding and removal should delete records using this key. */
     private var connectedAddress: String? = null
@@ -457,6 +459,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     init {
         viewModelScope.launch(Dispatchers.IO) { library.purgeExpired() }
         refreshClips()
+        registerJobRunners()
         set { it.copy(autoReconnect = configStore.config.value.autoReconnectEnabled) }
         maybeAutoReconnect()
         watchRecordingElapsed()
@@ -1115,55 +1118,12 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
      *   The user explicitly wants this segment, so it should not be blocked by a config option.
      */
     fun transcribe(clip: LocalClip, enforceMinDuration: Boolean = false, locales: List<String>? = null) {
-        val audio = clip.audio ?: return
-        if (transcribeJobs.containsKey(clip.base)) return
-        transcribeJobs[clip.base] = viewModelScope.launch {
-            set { it.copy(busy = str(R.string.device_files_transcribing), transcribing = it.transcribing + clip.base, error = null) }
-            try {
-                val outcome = withContext(Dispatchers.IO) {
-                    transcription.transcribe(
-                        audio,
-                        configStore.config.value,
-                        enforceMinDuration = enforceMinDuration,
-                        locales = locales,
-                    )
-                }
-                Log.i(TAG, "Transcription completed ${clip.base}: ${outcome.result.segments.size} segments, provider=${outcome.result.provider}")
-                // Downgrade notice is not an error, but the user should know a non‑preferred provider is being used
-                val warn = outcome.warnings.joinToString("; ").ifEmpty { null }
-                set { it.copy(busy = null, error = warn) }
-                refreshClips()
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                // User hit Cancel — back to idle without an error.
-                set { it.copy(busy = null) }
-                throw e
-            } catch (e: com.nomily.app.asr.TranscriptionService.TooShortException) {
-                Log.i(TAG, "Skipping transcription (too short): ${e.message}")
-                set { it.copy(busy = null, error = e.message) }
-            } catch (e: com.nomily.app.asr.AsrException) {
-                Log.e(TAG, "Transcription failed", e)
-                // Entries with messageRes provide a user‑visible reason using localized text; others continue to use “title: reason”
-                val msg = e.messageRes?.let { str(it) } ?: failed(R.string.device_files_operation_failed, e)
-                set { it.copy(busy = null, error = msg) }
-            } catch (e: Exception) {
-                Log.e(TAG, "Transcription failed", e)
-                set { it.copy(busy = null, error = failed(R.string.device_files_operation_failed, e)) }
-            } finally {
-                transcribeJobs.remove(clip.base)
-                set { it.copy(transcribing = it.transcribing - clip.base) }
-            }
-        }
+        if (clip.audio == null) return
+        if (jobs.jobs.value.any { it.id == "transcribe:${clip.base}" && it.finishedAt == null }) return
+        jobs.enqueue(com.nomily.app.jobs.WorkJob.transcribe(clip.base, locales, enforceMinDuration))
     }
 
-    fun cancelTranscribe(clip: LocalClip) {
-        transcribeJobs[clip.base]?.cancel()
-    }
-
-    /** The transcript as the LLM should see it — see [com.nomily.app.core.asr.AsrResult.textForSummarization]. */
-    private fun llmSourceText(clip: LocalClip): String? =
-        clip.transcriptJson?.let { f -> runCatching { com.nomily.app.core.asr.parseAsrArtefact(f.readText()) }.getOrNull()?.textForSummarization() }
-            ?.takeIf { it.isNotBlank() }
-            ?: clip.transcript?.let { runCatching { it.readText() }.getOrNull() }?.takeIf { it.isNotBlank() }
+    fun cancelTranscribe(clip: LocalClip) = jobs.cancel("transcribe:${clip.base}")
 
     // ── Wi‑Fi Fast Transfer (P1)─────────────────────────────────────────────
     //
@@ -2738,113 +2698,160 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun targetLanguages(): List<com.nomily.app.llm.LanguageService.Language> =
         withContext(Dispatchers.IO) { languageService.targetLanguages() }
 
-    /**
-     * Generate a summary:
-     * template prompt + **output language directive** → LLM → write `{base}.summary.md`;
-     * then request a short title written to `{base}.title` (**best‑effort**: title failure does not affect the summary).
-     *
-     * @param languageName Target language name in English; null = follow source language
-     */
-    /**
-     * Generate a summary **without persisting** — the result is first returned to the sheet for user review.
-     *
-     * Splitting into “generate / save” steps is a behavior change effective 2026-08-06: previously, after selecting a template the window closed,
-     * the background process wrote directly to the library, giving the user no chance to preview before deciding to keep it.
-     */
-    suspend fun generateSummary(
-        clip: LocalClip,
-        template: com.nomily.app.core.llm.SummarizeTemplate,
-        languageName: String?,
-        onChunk: ((Int, Int) -> Unit)? = null,
-    ): com.nomily.app.llm.LlmClient.Outcome {
-        val transcript = llmSourceText(clip)
-            ?: throw IllegalStateException(str(R.string.clip_detail_transcribe_first))
-        return withContext(Dispatchers.IO) {
-            val cfg = configStore.config.value
-            val system = com.nomily.app.core.llm.withLanguageInstruction(template.prompt, languageName)
-            com.nomily.app.llm.LlmClient.completeResilient(localized(), system, transcript, cfg, onChunk = onChunk)
-        }
-    }
+    // ── Background tasks: transcription, summary, translation, export ─────────
 
-    /** Write the user‑approved summary into the library, also generating a short title (title failure does not affect the summary). */
-    fun saveSummary(clip: LocalClip, summary: String, languageName: String?, preferredProvider: String? = null) {
-        val dir = File(getApplication<Application>().filesDir, "clips")
+    private fun registerJobRunners() {
+        jobs.register(com.nomily.app.jobs.JobKind.TRANSCRIBE) { job, _ -> runTranscribe(job) }
+        jobs.register(com.nomily.app.jobs.JobKind.SUMMARIZE) { job, r -> runSummarize(job, r) }
+        jobs.register(com.nomily.app.jobs.JobKind.TRANSLATE) { job, r -> runTranslate(job, r) }
+        jobs.register(com.nomily.app.jobs.JobKind.EXPORT) { job, _ -> runExport(job) }
+        // Keep the process alive while anything is queued, refresh the library as jobs finish, and mirror
+        // transcription / translation state into the UI fields the clip page already reads.
         viewModelScope.launch {
-            runCatching {
-                withContext(Dispatchers.IO) {
-                    File(dir, "${clip.base}.summary.md").writeText(summary)
-                    // The short title is a nice‑to‑have addition: on failure only log a message, the summary itself is already stored
-                    runCatching {
-                        val cfg = configStore.config.value
-                        val titleSystem = com.nomily.app.core.llm.withLanguageInstruction(
-                            com.nomily.app.core.llm.TITLE_PROMPT, languageName,
-                        )
-                        val title = com.nomily.app.llm.LlmClient
-                            .completeResilient(
-                                localized(), titleSystem, summary.take(1000), cfg,
-                                allowChunking = false, preferred = preferredProvider,
-                            )
-                            .completion.text.trim()
-                        if (title.isNotEmpty()) File(dir, "${clip.base}.title").writeText(title)
-                    }.onFailure { Log.w(TAG, "Failed to generate title (does not affect summary): ${it.message}") }
+            var hadWork = false
+            var finished = emptySet<String>()
+            jobs.jobs.collect { list ->
+                val active = list.filter { it.finishedAt == null }
+                val hasWork = active.any { it.isRunnable }
+                if (hasWork != hadWork) {
+                    if (hasWork) com.nomily.app.jobs.WorkService.start(getApplication())
+                    else com.nomily.app.jobs.WorkService.stop(getApplication())
+                    hadWork = hasWork
                 }
-            }.onFailure { e ->
-                Log.e(TAG, "Failed to save summary", e)
-                set { it.copy(error = failed(R.string.summarize_error, e)) }
+                val nowFinished = list.filter { it.finishedAt != null }.map { it.id }.toSet()
+                if ((nowFinished - finished).isNotEmpty()) refreshClips()
+                finished = nowFinished
+                set { ui ->
+                    ui.copy(
+                        transcribing = active.filter { it.kind == com.nomily.app.jobs.JobKind.TRANSCRIBE }.map { it.clip }.toSet(),
+                        translating = active.filter { it.kind == com.nomily.app.jobs.JobKind.TRANSLATE }.map {
+                            "${it.clip}:${if (it.translateTarget == "summary") ClipArtefact.SUMMARY.name else ClipArtefact.TRANSCRIPT.name}"
+                        }.toSet(),
+                    )
+                }
             }
-            refreshClips()
+        }
+        // After the constructor finishes: runners touch properties declared further down this class.
+        viewModelScope.launch { kotlinx.coroutines.yield(); jobs.resume() }
+    }
+
+    private fun clipFile(base: String, suffix: String) = File(library.dir, base + suffix)
+
+    private fun clipAudio(base: String): File? =
+        library.dir.listFiles()?.firstOrNull { ClipArtefact.of(it.name) == ClipArtefact.AUDIO && ClipArtefact.baseOf(it.name) == base }
+
+    private suspend fun runTranscribe(job: com.nomily.app.jobs.WorkJob) {
+        val audio = clipAudio(job.clip) ?: throw com.nomily.app.jobs.JobSourceMissing(str(R.string.jobs_source_missing, str(R.string.jobs_source_audio)))
+        try {
+            val outcome = withContext(Dispatchers.IO) {
+                transcription.transcribe(audio, configStore.config.value, enforceMinDuration = job.enforceMinDuration, locales = job.locales)
+            }
+            Log.i(TAG, "Transcription completed ${job.clip}: ${outcome.result.segments.size} segments, provider=${outcome.result.provider}")
+            // A fallback provider isn't an error, but the user should know a non-preferred one did the work.
+            outcome.warnings.joinToString("; ").ifEmpty { null }?.let { w -> set { it.copy(error = w) } }
+        } catch (e: com.nomily.app.asr.TranscriptionService.TooShortException) {
+            // Below the auto-transcribe threshold: nothing to retry.
+            Log.i(TAG, "Skipping transcription (too short): ${e.message}")
+            set { it.copy(error = e.message) }
+        } catch (e: com.nomily.app.asr.AsrException) {
+            throw IllegalStateException(e.messageRes?.let { str(it) } ?: failed(R.string.device_files_operation_failed, e), e)
         }
     }
 
+    private suspend fun runSummarize(job: com.nomily.app.jobs.WorkJob, reporter: com.nomily.app.jobs.JobQueue.Reporter) {
+        val prompt = job.prompt ?: throw com.nomily.app.jobs.JobSourceMissing(str(R.string.jobs_source_missing, str(R.string.jobs_source_prompt)))
+        val source = sourceText(job.clip)
+        val cfg = configStore.config.value
+        val outcome = com.nomily.app.llm.LlmClient.completeResilient(localized(), prompt, source, cfg) { done, total ->
+            reporter.progress(done, total)
+        }
+        withContext(Dispatchers.IO) { clipFile(job.clip, ".summary.md").writeText(outcome.completion.text) }
+        // The title is a nice-to-have: a failure leaves the summary standing. The provider that just worked goes first.
+        runCatching {
+            val title = com.nomily.app.llm.LlmClient.completeResilient(
+                localized(), com.nomily.app.core.llm.TITLE_PROMPT, outcome.completion.text.take(1000), cfg,
+                allowChunking = false, preferred = outcome.providerKey,
+            ).completion.text.trim()
+            if (title.isNotEmpty()) withContext(Dispatchers.IO) { clipFile(job.clip, ClipArtefact.TITLE_SUFFIX).writeText(title) }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it else Log.w(TAG, "Title failed: ${it.message}") }
+        reporter.notes(com.nomily.app.llm.LlmClient.resultNotes(localized(), outcome, cfg), outcome.completion.truncated)
+    }
+
+    private suspend fun runTranslate(job: com.nomily.app.jobs.WorkJob, reporter: com.nomily.app.jobs.JobQueue.Reporter) {
+        val language = job.languageName ?: throw com.nomily.app.jobs.JobSourceMissing(str(R.string.jobs_source_missing, str(R.string.jobs_source_language)))
+        val summary = job.translateTarget == "summary"
+        val source = if (summary) {
+            clipFile(job.clip, ".summary.md").takeIf(File::isFile)?.readText()?.takeIf { it.isNotBlank() }
+                ?: throw com.nomily.app.jobs.JobSourceMissing(str(R.string.jobs_source_missing, str(R.string.jobs_source_summary)))
+        } else sourceText(job.clip)
+        val out = com.nomily.app.llm.LlmClient.translate(localized(), source, language, configStore.config.value)
+        withContext(Dispatchers.IO) {
+            if (summary) {
+                clipFile(job.clip, ".summary.translated.md").writeText(out.text)
+            } else {
+                clipFile(job.clip, ".translated.txt").writeText(out.text)
+                // Live's `.translated.json` carries timestamps for one specific target language; a translation into
+                // another language makes it stale.
+                clipFile(job.clip, ".translated.json").delete()
+            }
+        }
+        reporter.notes(if (out.truncated) listOf(str(R.string.summarize_truncated_warning)) else emptyList(), out.truncated)
+    }
+
+    private suspend fun runExport(job: com.nomily.app.jobs.WorkJob) {
+        val src = clipAudio(job.clip) ?: throw com.nomily.app.jobs.JobSourceMissing(str(R.string.jobs_source_missing, str(R.string.jobs_source_audio)))
+        withContext(Dispatchers.IO) {
+            val dir = exports.beginNewStaging()
+            val file = when (job.exportFormat) {
+                "wav" -> com.nomily.app.audio.AudioExporter.exportAsWav(source = src, outDir = dir, stem = job.clip)
+                else -> com.nomily.app.audio.AudioExporter.exportAsM4a(source = src, outDir = dir, stem = job.clip)
+            }
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            exports.publish(dir, file, job.clip, origin = job.clip)
+        }
+    }
+
+    /** The transcript as the LLM should see it, or [JobSourceMissing] when there is none. */
+    private fun sourceText(base: String): String =
+        clipFile(base, ".asr.json").takeIf(File::isFile)
+            ?.let { f -> runCatching { com.nomily.app.core.asr.parseAsrArtefact(f.readText()) }.getOrNull()?.textForSummarization() }
+            ?.takeIf { it.isNotBlank() }
+            ?: clipFile(base, ".txt").takeIf(File::isFile)?.readText()?.takeIf { it.isNotBlank() }
+            ?: throw com.nomily.app.jobs.JobSourceMissing(str(R.string.jobs_source_missing, str(R.string.jobs_source_transcript)))
+
     /**
-     * Translate transcription or summary on demand — write `{base}.translated.txt` / `{base}.summary.translated.md`.
+     * Queue a summary. The prompt is frozen now, language instruction included — the job may run after a restart,
+     * when the template could have changed. Returns the job id for the sheet to follow.
      */
+    fun enqueueSummary(clip: LocalClip, template: com.nomily.app.core.llm.SummarizeTemplate, languageName: String?): String {
+        val job = com.nomily.app.jobs.WorkJob.summarize(
+            clip.base, com.nomily.app.core.llm.withLanguageInstruction(template.prompt, languageName), template.name,
+        )
+        jobs.enqueue(job)
+        return job.id
+    }
+
     /**
-     * @param languageCode Remembered as `last_target_lang`, the same preference Live translation starts from.
+     * Translate the transcript or summary in the background, into `{base}.translated.txt` /
+     * `{base}.summary.translated.md`. [languageCode] is remembered as `last_target_lang`, the same preference Live
+     * translation starts from.
      */
     fun translateArtefact(clip: LocalClip, which: ClipArtefact, languageName: String, languageCode: String) {
-        val src = when (which) {
-            ClipArtefact.TRANSCRIPT -> llmSourceText(clip)
-            ClipArtefact.SUMMARY -> clip.summary?.let { runCatching { it.readText() }.getOrNull() }?.takeIf { it.isNotBlank() }
-            else -> null
-        } ?: return
         configStore.update { it.copy(lastTargetLang = languageCode) }
-        val key = "${clip.base}:${which.name}"
-        val dir = File(getApplication<Application>().filesDir, "clips")
-        val out = when (which) {
-            ClipArtefact.TRANSCRIPT -> File(dir, "${clip.base}.translated.txt")
-            else -> File(dir, "${clip.base}.summary.translated.md")
-        }
-        viewModelScope.launch {
-            set { it.copy(busy = str(R.string.clip_detail_translating), translating = it.translating + key, error = null) }
-            runCatching {
-                withContext(Dispatchers.IO) {
-                    val res = com.nomily.app.llm.LlmClient
-                        .translate(localized(), src, languageName, configStore.config.value)
-                    out.writeText(res.text)
-                    // Live's `.translated.json` carries timestamps for one specific target language; an on-demand
-                    // translation to another language makes it stale, so drop it rather than let it drift.
-                    if (which == ClipArtefact.TRANSCRIPT) File(dir, "${clip.base}.translated.json").delete()
-                    res.truncated
-                }
-            }.onFailure { e ->
-                Log.e(TAG, "Translation failed", e)
-                set { it.copy(error = failed(R.string.summarize_error, e)) }
-            }.onSuccess { truncated ->
-                // When the translation hits the token limit, the result is **truncated**, and we should note it even if it gets written to disk
-                if (truncated) set { it.copy(error = str(R.string.summarize_truncated_warning)) }
-            }
-            set { it.copy(busy = null, translating = it.translating - key) }
-            refreshClips()
-        }
+        jobs.enqueue(
+            com.nomily.app.jobs.WorkJob.translate(clip.base, if (which == ClipArtefact.SUMMARY) "summary" else "transcript", languageName),
+        )
     }
 
-    /**
-     * Merge two adjacent recordings (P2 “adjacent segment merge”) — order is fixed **old first, new second**.
-     *
-     * After success **delete all artifacts of the two source segments**:
-     * The merged audio is a new file, so the old transcription/summary no longer applies; the user must run transcription again if needed.
-     */
+    suspend fun readSummary(base: String): String? = withContext(Dispatchers.IO) {
+        clipFile(base, ".summary.md").takeIf(File::isFile)?.readText()?.takeIf { it.isNotBlank() }
+    }
+
+    fun hasTranscript(base: String): Boolean = runCatching { sourceText(base) }.isSuccess
+
+    /** Convert the audio to M4A or WAV in the background; the result is offered for sharing on the clip page. */
+    fun enqueueExport(clip: LocalClip, format: String) = jobs.enqueue(com.nomily.app.jobs.WorkJob.export(clip.base, format))
+
     // ── Library: knowledge search / batch export ───────────────────────────
 
     /** Body text per base, valid while the library listing stays the same (count + newest mtime). */

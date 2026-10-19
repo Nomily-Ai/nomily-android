@@ -108,6 +108,8 @@ fun SettingsScreen(vm: NomiViewModel, onPush: (PushedPage?) -> Unit) {
     var page by remember { mutableStateOf<SettingsPage?>(null) }
     var showTemplates by remember { mutableStateOf(false) }
     var showTrash by remember { mutableStateOf(false) }
+    var showTasks by remember { mutableStateOf(false) }
+    val jobs by vm.jobs.jobs.collectAsStateWithLifecycle()
     val trashItems by vm.library.trashItems.collectAsStateWithLifecycle()
 
     // When entering via "Go to settings…" from elsewhere (live page / recording details), navigate directly to the corresponding subpage,
@@ -177,6 +179,10 @@ fun SettingsScreen(vm: NomiViewModel, onPush: (PushedPage?) -> Unit) {
         TrashPage(vm, onPush) { showTrash = false }
         return
     }
+    if (showTasks) {
+        TaskCenterPage(vm, onPush) { showTasks = false }
+        return
+    }
 
     if (page != null) {
         SubPage {
@@ -232,6 +238,12 @@ fun SettingsScreen(vm: NomiViewModel, onPush: (PushedPage?) -> Unit) {
                 stringResource(R.string.trash_settings_row),
                 value = trashItems.size.takeIf { it > 0 }?.toString(),
             ) { showTrash = true }
+            RowDivider()
+            // Like the trash row, the count only shows when work is actually unfinished.
+            NavRow(
+                stringResource(R.string.jobs_open_queue),
+                value = jobs.count { it.finishedAt == null }.takeIf { it > 0 }?.toString(),
+            ) { showTasks = true }
             RowDivider()
             // Language appears on the last row, right after "About". It does not belong to any functional domain (ASR/LLM/recording/device),
             // inserting it among earlier rows would disrupt the functional order of those four rows. The current selection is shown on the right, visible without tapping.
