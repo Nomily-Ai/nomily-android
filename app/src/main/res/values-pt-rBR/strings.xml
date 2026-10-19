@@ -160,6 +160,12 @@
     <string name="pairing_unpair_message">Desparear remove a associação do dispositivo com este aplicativo. Você precisará parear novamente antes de gravar.</string>
     <string name="pairing_pair">Parear</string>
     <string name="pairing_message">%s precisa ser pareado com este aplicativo antes de gravar. Você pode desparear a qualquer momento na tela do dispositivo.</string>
+    <string name="pairing_title">Parear este Nomi?</string>
+    <string name="pill_remove_device">Remover dispositivo</string>
+    <string name="pill_remove_named">Remover %s</string>
+    <string name="pill_remove_title">Remover dispositivo?</string>
+    <string name="pill_remove_confirm">Remover</string>
+    <string name="pill_remove_message">Isso remove a conexão salva do Nomily AI. As gravações no dispositivo não são apagadas.</string>
     <string name="pairing_status">Pareamento</string>
     <string name="pairing_paired">Pareado</string>
     <string name="pairing_not_paired">Não pareado</string>
@@ -320,6 +326,7 @@
     <string name="device_unbinding_and_removing">Removendo dispositivo…</string>
     <string name="device_files_couldnt_read_device">Não foi possível ler o dispositivo</string>
     <string name="device_files_transcribing">Transcrevendo…</string>
+    <string name="device_files_transcript_done">Transcrição → %s</string>
     <string name="device_files_delete_recording">Apagar gravação?</string>
     <string name="device_files_delete_recording_message">Remover %s permanentemente do dispositivo. Essa ação não pode ser desfeita.</string>
     <string name="fast_transfer_stage_stopping">Parando gravação…</string>
@@ -401,6 +408,7 @@
     <string name="live_repair_succeeded">Substituído pelo áudio completo</string>
     <string name="live_repair_manual_transfer">A gravação completa ainda está no seu Nomi. Transfira em Gravações.</string>
     <string name="live_view_in_library">Ver na biblioteca</string>
+    <string name="live_save_to_library">Salvar na biblioteca</string>
     <string name="live_setup_azure">Configurar Azure</string>
     <string name="live_switch_language">Mudar idioma?</string>
     <string name="live_continue">Continuar</string>

@@ -1,5 +1,7 @@
 package com.nomily.app.ui
 
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Lock
@@ -88,7 +90,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -168,6 +172,7 @@ fun NomiApp(vm: NomiViewModel) {
     var tab by remember { mutableStateOf(Tab.Recordings) }
     var showScanner by remember { mutableStateOf(false) }
     var showDevicePanel by remember { mutableStateOf(false) }
+    var pendingRemoval by remember { mutableStateOf<KnownDevice?>(null) }
     // Current pushed page (subpages report themselves) — see `PushedPage`
     var pushed by remember { mutableStateOf<PushedPage?>(null) }
     // The recording tab's sections (Device / Library) — **the action button at the top right of the navigation bar changes with it** (the Device section is 「Refresh」、
@@ -237,6 +242,8 @@ fun NomiApp(vm: NomiViewModel) {
                             isRecording = ui.info?.isRecording == true,
                             isReconnecting = ui.reconnecting,
                             knownDevices = knownDevices,
+                            // A live session holds the device: no switching or reconnecting until it stops.
+                            enabled = !ui.live.running,
                             onTapDevice = {
                                 // When not connected, **directly reconnect to the most recent one**, without showing the scan page. The scan page is only used when adding a device via the plus button/pull-down.
                                 if (ui.connectedName != null) {
@@ -252,6 +259,7 @@ fun NomiApp(vm: NomiViewModel) {
                                 //                                 // the UI does nothing, you have to wait for the download to finish before switching.
                                 if (transferring) pendingDeviceSwitch = address else vm.connectKnown(address)
                             },
+                            onRemoveDevice = { pendingRemoval = it },
                         )
                     },
                     title = {
@@ -310,6 +318,8 @@ fun NomiApp(vm: NomiViewModel) {
                     NavigationBarItem(
                         selected = tab == t,
                         onClick = {
+                            // A live session keeps the tab it started on, so nothing elsewhere (the record button) can cut it.
+                            if (ui.live.running && t != tab) return@NavigationBarItem
                             if (transferring && t != Tab.Recordings) pendingTab = t else tab = t
                         },
                         icon = { Icon(t.icon, contentDescription = null) },
@@ -350,7 +360,9 @@ fun NomiApp(vm: NomiViewModel) {
 
     // After configuring cloud ASR/LLM, **first** pop up a message 「Data will be sent to third parties」, and once accepted, don't ask again.
     // Place it here instead of at the request moment: ask as soon as the configuration changes, so the user won't be interrupted by a popup while waiting for transcription results.
-    if (cfg.usesCloudService && !cfg.cloudEgressConsented) {
+    // "Use local" closes the prompt for this session only; consent is still pending, so it asks again on the next launch.
+    var cloudPromptDeferred by rememberSaveable { mutableStateOf(false) }
+    if (cfg.usesCloudService && !cfg.cloudEgressConsented && !cloudPromptDeferred) {
         AlertDialog(
             onDismissRequest = { },
             title = { Text(stringResource(R.string.privacy_cloud_title)) },
@@ -361,7 +373,11 @@ fun NomiApp(vm: NomiViewModel) {
                 }
             },
             dismissButton = {
-                TextButton(onClick = { tab = Tab.Settings }) {
+                TextButton(onClick = {
+                    cloudPromptDeferred = true
+                    tab = Tab.Settings
+                    vm.openSettingsAt(NomiViewModel.SettingsTarget.ASR)
+                }) {
                     Text(stringResource(R.string.privacy_cloud_go_local))
                 }
             },
@@ -371,6 +387,48 @@ fun NomiApp(vm: NomiViewModel) {
     if (ui.fastTransfer != null) FastTransferSheet(ui, vm)
     if (showScanner) ScannerSheet(ui, vm) { showScanner = false }
     if (showDevicePanel) DeviceSheet(ui, vm) { showDevicePanel = false }
+
+    // These alerts come after the sheets so they open above them: an error raised inside the device panel or the
+    // scanner must not hide behind the full-screen dialog (the library's error card is on another layer).
+    if ((showDevicePanel || showScanner) && ui.error != null) {
+        AlertDialog(
+            onDismissRequest = vm::clearError,
+            title = { Text(stringResource(R.string.device_couldnt_update)) },
+            text = { Text(ui.error.orEmpty()) },
+            confirmButton = { TextButton(onClick = vm::clearError) { Text(stringResource(R.string.common_ok)) } },
+        )
+    }
+    ui.connectFailure?.let { msg ->
+        AlertDialog(
+            onDismissRequest = vm::dismissConnectFailure,
+            title = { Text(stringResource(R.string.scanner_connection_failed)) },
+            text = { Text(msg) },
+            confirmButton = { TextButton(onClick = vm::retryConnect) { Text(stringResource(R.string.common_retry)) } },
+            dismissButton = { TextButton(onClick = vm::dismissConnectFailure) { Text(stringResource(R.string.common_cancel)) } },
+        )
+    }
+    if (ui.pendingPairing && ui.connectedName != null) {
+        AlertDialog(
+            onDismissRequest = vm::dismissPairing,
+            title = { Text(stringResource(R.string.pairing_title)) },
+            text = { Text(stringResource(R.string.pairing_message, ui.connectedName.orEmpty())) },
+            confirmButton = { TextButton(onClick = { vm.dismissPairing(); vm.pairDevice() }) { Text(stringResource(R.string.pairing_pair)) } },
+            dismissButton = { TextButton(onClick = vm::dismissPairing) { Text(stringResource(R.string.common_cancel)) } },
+        )
+    }
+    pendingRemoval?.let { d ->
+        AlertDialog(
+            onDismissRequest = { pendingRemoval = null },
+            title = { Text(stringResource(R.string.pill_remove_title)) },
+            text = { Text(stringResource(R.string.pill_remove_message)) },
+            confirmButton = {
+                TextButton(onClick = { vm.removeKnownDevice(d.address); pendingRemoval = null }) {
+                    Text(stringResource(R.string.pill_remove_confirm), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { pendingRemoval = null }) { Text(stringResource(R.string.common_cancel)) } },
+        )
+    }
     if (ui.needPassphrase) {
         PassphraseDialog(
             ui,
@@ -745,7 +803,7 @@ private fun LiveTab(
         // When no device is connected, **check for existing results first**: paragraphs already transcribed in this round, or clips just saved to the library,
         // must continue to be displayed — if the transcription results were cleared the moment the device disconnects,
         // users would think this segment was recorded for nothing. Only when there are none should we show the centered empty state.
-        if (live.finals.isEmpty() && live.savedClip == null) {
+        if (live.finals.isEmpty() && live.savedClip == null && !live.canSaveToLibrary) {
             EmptyState(R.string.live_no_device, R.string.live_no_device_message, Icons.Filled.Sensors)
             return
         }
@@ -781,6 +839,7 @@ private fun LiveTab(
                     }
                 }
             }
+            LiveSaveToLibraryButton(live, vm)
         }
         return
     }
@@ -796,10 +855,11 @@ private fun LiveTab(
         // **Source language uses the ASR locale catalog** (things like `zh-CN` / `en-US`), not the translation target-language table —
         // using the wrong table has two consequences: the UI can only show the raw code (when it should show a name like "English (US)"),
         // and what gets picked from the table is a translation code like `en`, which is wrong to feed to ASR as a locale.
-        val sourceLanguages = com.nomily.app.llm.LanguageService.AZURE_MULTI_LANGUAGE_LOCALES
+        // The list follows the primary ASR provider (Azure locales / Whisper codes); the saved choice is fitted to it.
+        val sourceLanguages = com.nomily.app.llm.LanguageService.sourceLanguages(cfg.defaults.asrPrimary)
         // If not set, it defaults to en-US. The **default value must also go through the directory** to get the display name,
         // otherwise the UI will show the raw code (it should display "English (US)").
-        val sourceCode = cfg.lastSourceLang ?: "en-US"
+        val sourceCode = com.nomily.app.llm.LanguageService.liveSourceLang(cfg)
         val sourceName = sourceLanguages.firstOrNull { it.code == sourceCode }?.name ?: sourceCode
         // Switching languages during an active session requires restarting the ASR connection. Ask first.
         var pendingLang by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
@@ -981,23 +1041,49 @@ private fun LiveTab(
             }
         }
 
-        // Replace result banner (success / complete recording still on device)
+        // Replace banner: download progress, then the result (success / failed / complete recording still on device)
         if (live.repairState != NomiViewModel.RepairState.IDLE) {
             Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
                 Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        stringResource(
-                            if (live.repairState == NomiViewModel.RepairState.SUCCEEDED) {
-                                R.string.live_repair_succeeded
-                            } else {
-                                R.string.live_repair_manual_transfer
+                    if (live.repairState == NomiViewModel.RepairState.DOWNLOADING) {
+                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                stringResource(R.string.live_repair_downloading),
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            val (got, total) = live.repairProgress ?: (0L to 1L)
+                            LinearProgressIndicator(
+                                progress = { got.toFloat() / total.coerceAtLeast(1L) },
+                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                            )
+                        }
+                    } else {
+                        if (live.repairState != NomiViewModel.RepairState.SUCCEEDED) {
+                            Icon(
+                                Icons.Filled.Warning,
+                                contentDescription = null,
+                                tint = Color(0xFFFF9500),
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        Text(
+                            when (live.repairState) {
+                                NomiViewModel.RepairState.SUCCEEDED -> stringResource(R.string.live_repair_succeeded)
+                                NomiViewModel.RepairState.FAILED ->
+                                    stringResource(R.string.live_repair_failed, live.repairError.orEmpty())
+                                else -> stringResource(R.string.live_repair_manual_transfer)
                             },
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(onClick = vm::dismissRepairState) {
-                        Text(stringResource(R.string.common_close))
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 3,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(onClick = vm::dismissRepairState) {
+                            Text(stringResource(R.string.common_close))
+                        }
                     }
                 }
             }
@@ -1081,6 +1167,7 @@ private fun LiveTab(
                 }
             }
         }
+        LiveSaveToLibraryButton(live, vm)
 
         // Control bar: left provider capsule (green if connected, orange if not, 12% background color),
         // right bold status, far right is a **circular icon button** — originally two full-width text buttons ("Start" not yet translated).
@@ -1585,17 +1672,23 @@ private fun DeviceFilesList(ui: NomiViewModel.Ui, vm: NomiViewModel, modifier: M
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             ) {
                 ui.files.forEachIndexed { i, f ->
+                    val clip = ui.clips.firstOrNull { c -> c.base == f.name.substringBeforeLast(".") }
                     DeviceFileRow(
                 f = f,
                 // Progress only belongs to the currently transferring item: the global progress is claimed by `downloadingName`.
                 // Other rows do not show a progress bar or a stop button—the stop button is bound to the same
                 // `cancelFetch`, which looks like "stop this item" but actually stops the one currently transferring.
                 progress = if (f.name == ui.downloadingName) ui.progress else null,
-                downloaded = ui.clips.any { c -> c.base == f.name.substringBeforeLast(".") },
+                downloaded = clip != null,
                 enabled = !transferring,
                 onFetch = { vm.fetch(f) },
                 onCancel = vm::cancelFetch,
                 onDelete = { pendingDelete = f },
+                fetchError = ui.fetchFailures[f.name],
+                clip = clip,
+                transcribing = clip != null && clip.base in ui.transcribing,
+                transcribeError = clip?.let { ui.transcribeFailures[it.base] },
+                onTranscribe = { clip?.let { vm.transcribe(it) } },
                     )
                     if (i < ui.files.lastIndex) {
                         HorizontalDivider(
@@ -1637,11 +1730,18 @@ private fun DeviceFileRow(
     onFetch: () -> Unit,
     onCancel: () -> Unit,
     onDelete: () -> Unit,
+    fetchError: String?,
+    clip: LocalClip?,
+    transcribing: Boolean,
+    transcribeError: String?,
+    onTranscribe: () -> Unit,
 ) {
+    // The swipe state outlives recomposition: read the current callback, or a row reused after a delete targets the old file.
+    val currentOnDelete by rememberUpdatedState(onDelete)
     val dismissState = rememberSwipeToDismissBoxState(
         // Only trigger the confirmation dialog via swipe gesture, without actually removing the row — return false to snap the row back.
         confirmValueChange = { v ->
-            if (v == SwipeToDismissBoxValue.EndToStart) onDelete()
+            if (v == SwipeToDismissBoxValue.EndToStart) currentOnDelete()
             false
         },
     )
@@ -1682,6 +1782,16 @@ private fun DeviceFileRow(
                             tint = Color.Red)
                     }
                 } else {
+                    // Downloaded and not transcribed yet: transcribe right from the row.
+                    if (clip != null && clip.hasAudio && clip.transcript == null && !transcribing) {
+                        IconButton(onClick = onTranscribe) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.Message,
+                                stringResource(R.string.clip_detail_transcribe),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
                     IconButton(onClick = onFetch, enabled = enabled) {
                         Icon(
                             if (downloaded) Icons.Filled.CheckCircle else Icons.Filled.ArrowCircleDown,
@@ -1702,6 +1812,24 @@ private fun DeviceFileRow(
                 )
                 Text("${formatClipBytes(progress.first.toLong())} / ${formatClipBytes(progress.second.toLong())}",
                     style = MaterialTheme.typography.labelSmall)
+            }
+            fetchError?.takeIf { progress == null }?.let { RowNote(it, Icons.Filled.Warning, Color(0xFFFF9500)) }
+            when {
+                transcribing -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(10.dp), strokeWidth = 1.5.dp)
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        stringResource(R.string.device_files_transcribing),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                transcribeError != null -> RowNote(transcribeError, Icons.Filled.Warning, Color(0xFFFF9500))
+                clip?.transcript != null -> RowNote(
+                    stringResource(R.string.device_files_transcript_done, clip.transcript.name),
+                    Icons.AutoMirrored.Filled.Message,
+                    Color(0xFF34C759),
+                )
             }
         }
     }
@@ -2039,5 +2167,28 @@ private fun PassphraseDialog(ui: NomiViewModel.Ui, vm: NomiViewModel, rotate: Bo
                 }
             }
         }
+    }
+}
+
+/** Shown only while a failed automatic save still holds its audio; tapping retries that save. */
+@Composable
+private fun LiveSaveToLibraryButton(live: NomiViewModel.Live, vm: NomiViewModel) {
+    if (live.running || live.savedClip != null || !live.canSaveToLibrary) return
+    Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+        Button(onClick = { vm.saveLiveToLibrary() }) {
+            Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(stringResource(R.string.live_save_to_library))
+        }
+    }
+}
+
+/** A one-line status under a device file row: icon + caption in the status colour. */
+@Composable
+private fun RowNote(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, color: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+        Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(12.dp))
+        Spacer(Modifier.width(4.dp))
+        Text(text, style = MaterialTheme.typography.labelSmall, color = color, maxLines = 2)
     }
 }

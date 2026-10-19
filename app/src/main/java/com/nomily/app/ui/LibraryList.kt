@@ -64,6 +64,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -593,9 +594,12 @@ private fun LibraryRow(
     onClick: () -> Unit,
 ) {
     // "Merge adjacent" is revealed by swiping left; the gesture only opens the confirmation and the row springs back.
+    // The swipe state outlives recomposition, so read the *current* callback: a captured one would act on whichever
+    // clips sat in this row when it was first composed (after a merge or delete, the wrong pair).
+    val currentMergeWith by rememberUpdatedState(mergeWith)
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { v ->
-            if (v == SwipeToDismissBoxValue.EndToStart) mergeWith?.invoke()
+            if (v == SwipeToDismissBoxValue.EndToStart) currentMergeWith?.invoke()
             false
         },
     )

@@ -160,6 +160,12 @@
     <string name="pairing_unpair_message">Desemparejar elimina la asociación del dispositivo con esta aplicación. Tendrá que emparejarlo de nuevo antes de grabar.</string>
     <string name="pairing_pair">Emparejar</string>
     <string name="pairing_message">Es necesario emparejar %s con esta aplicación antes de poder grabar. Puede desemparejarlo en cualquier momento desde la pantalla del dispositivo.</string>
+    <string name="pairing_title">¿Emparejar este Nomi?</string>
+    <string name="pill_remove_device">Quitar dispositivo</string>
+    <string name="pill_remove_named">Quitar %s</string>
+    <string name="pill_remove_title">¿Quitar dispositivo?</string>
+    <string name="pill_remove_confirm">Quitar</string>
+    <string name="pill_remove_message">Se eliminará la conexión guardada de Nomily AI. No se borran las grabaciones del dispositivo.</string>
     <string name="pairing_status">Emparejamiento</string>
     <string name="pairing_paired">Emparejado</string>
     <string name="pairing_not_paired">No emparejado</string>
@@ -320,6 +326,7 @@
     <string name="device_unbinding_and_removing">Eliminando dispositivo…</string>
     <string name="device_files_couldnt_read_device">No se pudo leer el dispositivo</string>
     <string name="device_files_transcribing">Transcribiendo…</string>
+    <string name="device_files_transcript_done">Transcripción → %s</string>
     <string name="device_files_delete_recording">¿Eliminar grabación?</string>
     <string name="device_files_delete_recording_message">Eliminar permanentemente %s del dispositivo. Esta acción no se puede deshacer.</string>
     <string name="fast_transfer_stage_stopping">Deteniendo grabación…</string>
@@ -401,6 +408,7 @@
     <string name="live_repair_succeeded">Reemplazado con audio completo</string>
     <string name="live_repair_manual_transfer">La grabación completa sigue en tu Nomi. Transfiérela desde Grabaciones.</string>
     <string name="live_view_in_library">Ver en la biblioteca</string>
+    <string name="live_save_to_library">Guardar en la biblioteca</string>
     <string name="live_setup_azure">Configurar Azure</string>
     <string name="live_switch_language">¿Cambiar idioma?</string>
     <string name="live_continue">Continuar</string>

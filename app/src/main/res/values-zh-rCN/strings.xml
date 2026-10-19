@@ -160,6 +160,12 @@
     <string name="pairing_unpair_message">取消配对会解除设备与本应用的关联。再次录音前需要重新配对。</string>
     <string name="pairing_pair">配对</string>
     <string name="pairing_message">%s 需要先与本应用配对才能录音。您可以随时从设备页面取消配对。</string>
+    <string name="pairing_title">配对此 Nomi？</string>
+    <string name="pill_remove_device">移除设备</string>
+    <string name="pill_remove_named">移除 %s</string>
+    <string name="pill_remove_title">移除设备？</string>
+    <string name="pill_remove_confirm">移除</string>
+    <string name="pill_remove_message">这会从 Nomily AI 中删除已保存的连接，不会清除设备上的录音。</string>
     <string name="pairing_status">配对</string>
     <string name="pairing_paired">已配对</string>
     <string name="pairing_not_paired">未配对</string>
@@ -320,6 +326,7 @@
     <string name="device_unbinding_and_removing">正在解绑并移除设备…</string>
     <string name="device_files_couldnt_read_device">无法读取设备</string>
     <string name="device_files_transcribing">正在转录…</string>
+    <string name="device_files_transcript_done">转录完成 → %s</string>
     <string name="device_files_delete_recording">删除录音？</string>
     <string name="device_files_delete_recording_message">将从设备中永久删除 %s，此操作无法撤销。</string>
     <string name="fast_transfer_stage_stopping">正在停止录音…</string>
@@ -401,6 +408,7 @@
     <string name="live_repair_succeeded">已替换为完整音频</string>
     <string name="live_repair_manual_transfer">完整录音仍保存在 Nomi 上，请从「录音」标签页传输。</string>
     <string name="live_view_in_library">在资料库中查看</string>
+    <string name="live_save_to_library">保存到资料库</string>
     <string name="live_setup_azure">设置 Azure</string>
     <string name="live_switch_language">切换语言？</string>
     <string name="live_continue">继续</string>

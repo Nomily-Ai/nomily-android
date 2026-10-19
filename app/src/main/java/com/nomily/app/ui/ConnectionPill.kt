@@ -3,6 +3,7 @@ package com.nomily.app.ui
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.Icon
@@ -29,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -75,6 +77,7 @@ fun ConnectionPill(
     onTapDevice: () -> Unit,
     onAddDevice: () -> Unit,
     onSelectDevice: (String) -> Unit,
+    onRemoveDevice: (KnownDevice) -> Unit = {},
 ) {
     if (knownDevices.isEmpty()) {
         PillChrome(enabled = enabled, onClick = onAddDevice) {
@@ -89,6 +92,7 @@ fun ConnectionPill(
     }
 
     var menuOpen by remember { mutableStateOf(false) }
+    var removeMenuOpen by remember { mutableStateOf(false) }
     val activeName = connectedName ?: knownDevices.first().name
     val shape = CircleShape
 
@@ -96,6 +100,7 @@ fun ConnectionPill(
         Modifier
             // Left margin adjusted to 16dp: M3's TopAppBar provides 4dp, so add an extra 12dp here.
             .padding(start = 12.dp)
+            .alpha(if (enabled) 1f else 0.4f)
             .background(MaterialTheme.colorScheme.surfaceVariant, shape)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape),
         verticalAlignment = Alignment.CenterVertically,
@@ -199,6 +204,21 @@ fun ConnectionPill(
                     leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
                     onClick = { menuOpen = false; onAddDevice() },
                 )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.pill_remove_device)) },
+                    leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null) },
+                    onClick = { menuOpen = false; removeMenuOpen = true },
+                )
+            }
+            // Second level of the menu: which saved device to remove.
+            DropdownMenu(expanded = removeMenuOpen, onDismissRequest = { removeMenuOpen = false }) {
+                knownDevices.forEach { d ->
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.pill_remove_named, d.name), color = MaterialTheme.colorScheme.error) },
+                        leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                        onClick = { removeMenuOpen = false; onRemoveDevice(d) },
+                    )
+                }
             }
         }
     }
@@ -211,6 +231,7 @@ private fun PillChrome(enabled: Boolean, onClick: () -> Unit, content: @Composab
         Modifier
             // Left margin adjusted to 16dp: M3's TopAppBar provides 4dp, so add an extra 12dp here.
             .padding(start = 12.dp)
+            .alpha(if (enabled) 1f else 0.4f)
             .background(MaterialTheme.colorScheme.surfaceVariant, shape)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
             .clickable(enabled = enabled, onClick = onClick)

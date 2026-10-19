@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -86,6 +87,10 @@ import com.nomily.app.core.protocol.DnoteProtocol
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun DeviceSheet(ui: NomiViewModel.Ui, vm: NomiViewModel, onDismiss: () -> Unit) {
+    // Opening the panel re-reads info, switches and pairing state, so it never shows a 30 s-old poll.
+    LaunchedEffect(Unit) { vm.refreshDeviceState() }
+    // The panel belongs to a live link: when the link drops, close it instead of showing dashes.
+    LaunchedEffect(ui.connectedName) { if (ui.connectedName == null) onDismiss() }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         // Card style: top leaves space for the status bar exposing the parent view, with rounded top corners.
         // Android's full‑screen Dialog occupies the entire screen from top to bottom; side‑by‑side they appear as two different layers.
@@ -102,12 +107,16 @@ fun DeviceSheet(ui: NomiViewModel.Ui, vm: NomiViewModel, onDismiss: () -> Unit) 
                         Text(ui.connectedName ?: stringResource(R.string.device_panel))
                     },
                     navigationIcon = {
-                        IconButton(onClick = vm::refreshDeviceState) {
-                            Icon(
-                                Icons.Filled.Refresh,
-                                contentDescription = stringResource(R.string.device_refresh),
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
+                        IconButton(onClick = vm::refreshDeviceState, enabled = !ui.refreshingDevice) {
+                            if (ui.refreshingDevice) {
+                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            } else {
+                                Icon(
+                                    Icons.Filled.Refresh,
+                                    contentDescription = stringResource(R.string.device_refresh),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            }
                         }
                     },
                     actions = {
@@ -144,7 +153,7 @@ fun DeviceSheet(ui: NomiViewModel.Ui, vm: NomiViewModel, onDismiss: () -> Unit) 
                             AudioSection(sw, vm, controlsEnabled)
                             BehaviorSection(sw, vm, controlsEnabled)
                         }
-                        DangerZone(vm, controlsEnabled)
+                        DangerZone(vm, controlsEnabled, bound = ui.bound == true)
                         ConnectionSection(vm, onDismiss, controlsEnabled)
                         Spacer(Modifier.height(24.dp))
                     }
@@ -497,7 +506,7 @@ private fun IdleOffRow(sw: com.nomily.app.ble.SwitchInfo, vm: NomiViewModel, ena
 }
 
 @Composable
-private fun DangerZone(vm: NomiViewModel, enabled: Boolean) {
+private fun DangerZone(vm: NomiViewModel, enabled: Boolean, bound: Boolean) {
     var pending by remember { mutableStateOf<Danger?>(null) }
 
     Group(
@@ -514,8 +523,11 @@ private fun DangerZone(vm: NomiViewModel, enabled: Boolean) {
             pending = Danger.SHUTDOWN
         }
         RowDivider()
-        ActionRow(stringResource(R.string.pairing_unpair), icon = Icons.Filled.Cancel, enabled = enabled, destructive = true, divider = false) { pending = Danger.UNPAIR }
-        RowDivider()
+        // Unpair only makes sense on a paired card; removing the device below works either way.
+        if (bound) {
+            ActionRow(stringResource(R.string.pairing_unpair), icon = Icons.Filled.Cancel, enabled = enabled, destructive = true, divider = false) { pending = Danger.UNPAIR }
+            RowDivider()
+        }
         ActionRow(stringResource(R.string.device_unbind_and_remove), icon = Icons.Filled.DeleteForever, enabled = enabled, destructive = true, divider = false) {
             pending = Danger.UNBIND_REMOVE
         }

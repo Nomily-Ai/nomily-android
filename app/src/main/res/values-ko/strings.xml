@@ -160,6 +160,12 @@
     <string name="pairing_unpair_message">페어링을 해제하면 기기와 앱의 연결이 제거됩니다. 다시 녹음하려면 재페어링이 필요합니다.</string>
     <string name="pairing_pair">페어링</string>
     <string name="pairing_message">녹음하려면 먼저 %s를 이 앱과 페어링해야 합니다. 기기 화면에서 언제든지 해제할 수 있습니다.</string>
+    <string name="pairing_title">이 Nomi와 페어링하시겠어요?</string>
+    <string name="pill_remove_device">기기 제거</string>
+    <string name="pill_remove_named">%s 제거</string>
+    <string name="pill_remove_title">기기를 제거할까요?</string>
+    <string name="pill_remove_confirm">제거</string>
+    <string name="pill_remove_message">Nomily AI에서 저장된 연결을 제거합니다. 기기의 녹음은 지워지지 않습니다.</string>
     <string name="pairing_status">페어링</string>
     <string name="pairing_paired">페어링됨</string>
     <string name="pairing_not_paired">페어링되지 않음</string>
@@ -320,6 +326,7 @@
     <string name="device_unbinding_and_removing">기기 제거 중…</string>
     <string name="device_files_couldnt_read_device">기기를 읽을 수 없습니다</string>
     <string name="device_files_transcribing">전사 중…</string>
+    <string name="device_files_transcript_done">전사 완료 → %s</string>
     <string name="device_files_delete_recording">녹음을 삭제하시겠습니까?</string>
     <string name="device_files_delete_recording_message">기기에서 %s을(를) 영구적으로 삭제합니다. 이 작업은 되돌릴 수 없습니다.</string>
     <string name="fast_transfer_stage_stopping">녹음 중지 중…</string>
@@ -401,6 +408,7 @@
     <string name="live_repair_succeeded">완전한 오디오로 교체됨</string>
     <string name="live_repair_manual_transfer">전체 녹음이 Nomi에 남아 있습니다. 녹음 탭에서 전송하세요.</string>
     <string name="live_view_in_library">라이브러리에서 보기</string>
+    <string name="live_save_to_library">라이브러리에 저장</string>
     <string name="live_setup_azure">Azure 설정</string>
     <string name="live_switch_language">언어를 변경하시겠습니까?</string>
     <string name="live_continue">계속</string>

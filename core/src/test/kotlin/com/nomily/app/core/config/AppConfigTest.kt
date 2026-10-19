@@ -192,4 +192,16 @@ class AppConfigTest {
         assertTrue((azure["verified_fingerprint"] as String).length == 64)
         assertTrue(!(azure["verified_fingerprint"] as String).contains(key))
     }
+
+    @Test
+    fun firstConfiguredLlmBecomesPrimary() {
+        val p = AppConfig.LlmProviders()
+        val one = p.copy(ollama = AppConfig.LlmProviders.Endpoint(endpoint = "http://h:11434")).autoSelectPrimaryIfFirst()
+        assertEquals("ollama", one.primary)
+        // A second provider does not take over the primary.
+        val two = one.copy(openai = AppConfig.LlmProviders.Keyed("sk")).autoSelectPrimaryIfFirst()
+        assertEquals("ollama", two.primary)
+        // Nothing configured: unchanged.
+        assertNull(p.autoSelectPrimaryIfFirst().primary)
+    }
 }

@@ -127,6 +127,10 @@ data class AppConfig(
                 ollama?.let { if (it.endpoint.isNotEmpty()) add("ollama" to "Ollama") }
                 custom?.let { if (it.endpoint.isNotEmpty()) add("custom" to "Custom") }
             }
+
+        /** After a provider edit: when exactly one provider is configured, it becomes the primary, so a first setup works without a second step. */
+        fun autoSelectPrimaryIfFirst(): LlmProviders =
+            configuredProviders.singleOrNull()?.let { copy(primary = it.first) } ?: this
     }
 
     /** Device hotspot credentials: two fields, ssid and psk. */

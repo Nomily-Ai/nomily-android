@@ -160,6 +160,12 @@
     <string name="pairing_unpair_message">Разрыв связи удаляет привязку устройства к этому приложению. Перед следующей записью потребуется повторное связывание.</string>
     <string name="pairing_pair">Связать</string>
     <string name="pairing_message">%s необходимо связать с этим приложением, прежде чем оно сможет записывать. Вы можете разорвать связь в любой момент на экране устройства.</string>
+    <string name="pairing_title">Связать этот Nomi?</string>
+    <string name="pill_remove_device">Удалить устройство</string>
+    <string name="pill_remove_named">Удалить %s</string>
+    <string name="pill_remove_title">Удалить устройство?</string>
+    <string name="pill_remove_confirm">Удалить</string>
+    <string name="pill_remove_message">Сохранённое подключение будет удалено из Nomily AI. Записи на устройстве не стираются.</string>
     <string name="pairing_status">Связывание</string>
     <string name="pairing_paired">Связан</string>
     <string name="pairing_not_paired">Не связан</string>
@@ -320,6 +326,7 @@
     <string name="device_unbinding_and_removing">Удаление устройства…</string>
     <string name="device_files_couldnt_read_device">Не удалось прочитать устройство</string>
     <string name="device_files_transcribing">Транскрибирование…</string>
+    <string name="device_files_transcript_done">Транскрипция → %s</string>
     <string name="device_files_delete_recording">Удалить запись?</string>
     <string name="device_files_delete_recording_message">Безвозвратно удалить %s с устройства. Это действие нельзя отменить.</string>
     <string name="fast_transfer_stage_stopping">Остановка записи…</string>
@@ -401,6 +408,7 @@
     <string name="live_repair_succeeded">Заменено полным аудио</string>
     <string name="live_repair_manual_transfer">Полная запись осталась на Nomi. Перенесите её из вкладки «Записи».</string>
     <string name="live_view_in_library">Открыть в медиатеке</string>
+    <string name="live_save_to_library">Сохранить в библиотеку</string>
     <string name="live_setup_azure">Настроить Azure</string>
     <string name="live_switch_language">Сменить язык?</string>
     <string name="live_continue">Продолжить</string>

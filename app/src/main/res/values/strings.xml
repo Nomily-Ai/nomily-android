@@ -173,6 +173,12 @@
     <string name="pairing_unpair_message">Unpair removes the device\'s pairing with this app. You\'ll need to pair again before recording.</string>
     <string name="pairing_pair">Pair</string>
     <string name="pairing_message">%s needs to be paired with this app before it can record. You can unpair any time from the Device screen.</string>
+    <string name="pairing_title">Pair this Nomi?</string>
+    <string name="pill_remove_device">Remove device</string>
+    <string name="pill_remove_named">Remove %s</string>
+    <string name="pill_remove_title">Remove device?</string>
+    <string name="pill_remove_confirm">Remove</string>
+    <string name="pill_remove_message">This removes the saved connection from Nomily AI. It does not erase recordings on the device.</string>
     <string name="pairing_status">Pairing</string>
     <string name="pairing_paired">Paired</string>
     <string name="pairing_not_paired">Not paired</string>
@@ -348,6 +354,7 @@
     <string name="device_unbinding_and_removing">Removing device…</string>
     <string name="device_files_couldnt_read_device">Couldn\'t read the device</string>
     <string name="device_files_transcribing">Transcribing…</string>
+    <string name="device_files_transcript_done">Transcript → %s</string>
     <string name="device_files_delete_recording">Delete recording?</string>
     <string name="device_files_delete_recording_message">Permanently remove %s from the device. This can\'t be undone.</string>
     <string name="fast_transfer_stage_stopping">Stopping recording…</string>
@@ -433,6 +440,7 @@
     <string name="live_repair_succeeded">Replaced with complete audio</string>
     <string name="live_repair_manual_transfer">Complete recording is still on your Nomi. Transfer it from Recordings.</string>
     <string name="live_view_in_library">View in Library</string>
+    <string name="live_save_to_library">Save to Library</string>
     <string name="live_setup_azure">Set up Azure</string>
     <string name="live_switch_language">Switch language?</string>
     <string name="live_continue">Continue</string>

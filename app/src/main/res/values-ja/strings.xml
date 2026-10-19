@@ -160,6 +160,12 @@
     <string name="pairing_unpair_message">ペアリングを解除すると、デバイスとこのアプリの関連付けが取り消されます。録音前に再度ペアリングが必要です。</string>
     <string name="pairing_pair">ペアリング</string>
     <string name="pairing_message">録音するには、まず %s をこのアプリとペアリングする必要があります。デバイス画面からいつでもペアリングを解除できます。</string>
+    <string name="pairing_title">この Nomi をペアリングしますか？</string>
+    <string name="pill_remove_device">デバイスを削除</string>
+    <string name="pill_remove_named">%s を削除</string>
+    <string name="pill_remove_title">デバイスを削除しますか？</string>
+    <string name="pill_remove_confirm">削除</string>
+    <string name="pill_remove_message">Nomily AI から保存済みの接続を削除します。デバイス上の録音は消去されません。</string>
     <string name="pairing_status">ペアリング</string>
     <string name="pairing_paired">ペアリング済み</string>
     <string name="pairing_not_paired">未ペアリング</string>
@@ -320,6 +326,7 @@
     <string name="device_unbinding_and_removing">デバイスを削除中…</string>
     <string name="device_files_couldnt_read_device">デバイスを読み取れませんでした</string>
     <string name="device_files_transcribing">文字起こし中…</string>
+    <string name="device_files_transcript_done">文字起こし完了 → %s</string>
     <string name="device_files_delete_recording">録音を削除しますか？</string>
     <string name="device_files_delete_recording_message">%s をデバイスから完全に削除します。この操作は取り消せません。</string>
     <string name="fast_transfer_stage_stopping">録音を停止中…</string>
@@ -401,6 +408,7 @@
     <string name="live_repair_succeeded">完全な音声に置き換えました</string>
     <string name="live_repair_manual_transfer">完全な録音は Nomi に残っています。「録音」タブから転送してください。</string>
     <string name="live_view_in_library">ライブラリで表示</string>
+    <string name="live_save_to_library">ライブラリに保存</string>
     <string name="live_setup_azure">Azure を設定</string>
     <string name="live_switch_language">言語を切り替えますか？</string>
     <string name="live_continue">続ける</string>

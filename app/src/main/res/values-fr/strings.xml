@@ -160,6 +160,12 @@
     <string name="pairing_unpair_message">Dissocier supprime l\'association de l\'appareil avec cette application. Vous devrez l\'associer à nouveau avant d\'enregistrer.</string>
     <string name="pairing_pair">Associer</string>
     <string name="pairing_message">%s doit être associé à cette application avant de pouvoir enregistrer. Vous pouvez le dissocier à tout moment depuis l\'écran de l\'appareil.</string>
+    <string name="pairing_title">Associer ce Nomi ?</string>
+    <string name="pill_remove_device">Retirer l\'appareil</string>
+    <string name="pill_remove_named">Retirer %s</string>
+    <string name="pill_remove_title">Retirer l\'appareil ?</string>
+    <string name="pill_remove_confirm">Retirer</string>
+    <string name="pill_remove_message">La connexion enregistrée sera supprimée de Nomily AI. Les enregistrements sur l\'appareil ne sont pas effacés.</string>
     <string name="pairing_status">Association</string>
     <string name="pairing_paired">Associé</string>
     <string name="pairing_not_paired">Non associé</string>
@@ -320,6 +326,7 @@
     <string name="device_unbinding_and_removing">Suppression de l\'appareil…</string>
     <string name="device_files_couldnt_read_device">Impossible de lire l\'appareil</string>
     <string name="device_files_transcribing">Transcription en cours…</string>
+    <string name="device_files_transcript_done">Transcription → %s</string>
     <string name="device_files_delete_recording">Supprimer l\'enregistrement ?</string>
     <string name="device_files_delete_recording_message">Supprime définitivement %s de l\'appareil. Cette action est irréversible.</string>
     <string name="fast_transfer_stage_stopping">Arrêt de l\'enregistrement…</string>
@@ -401,6 +408,7 @@
     <string name="live_repair_succeeded">Remplacé par l\'audio complet</string>
     <string name="live_repair_manual_transfer">L\'enregistrement complet est encore sur votre Nomi. Transférez-le depuis Enregistrements.</string>
     <string name="live_view_in_library">Voir dans la bibliothèque</string>
+    <string name="live_save_to_library">Enregistrer dans la bibliothèque</string>
     <string name="live_setup_azure">Configurer Azure</string>
     <string name="live_switch_language">Changer de langue ?</string>
     <string name="live_continue">Continuer</string>

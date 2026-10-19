@@ -113,6 +113,12 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         val switches: com.nomily.app.ble.SwitchInfo? = null,
         val encryptionOn: Boolean? = null,
         val bound: Boolean? = null,
+        /** The connected card is not paired with this app: ask before pairing ("Pair this Nomi?"). */
+        val pendingPairing: Boolean = false,
+        /** A connect the user started failed; shown as an alert with Retry. */
+        val connectFailure: String? = null,
+        /** The device panel is re-reading info, switches and pairing state. */
+        val refreshingDevice: Boolean = false,
         val files: List<DnoteBleClient.DeviceFile> = emptyList(),
         /**
          * Reading the device file list — only for the refresh button in the top bar.
@@ -132,6 +138,10 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         val busy: String? = null,
         /** Bases of the clips being transcribed — drives the per-clip progress row and its Cancel button. */
         val transcribing: Set<String> = emptySet(),
+        /** Clip base → last error, for transcriptions the queue gave up on (shown on the device file row). */
+        val transcribeFailures: Map<String, String> = emptyMap(),
+        /** Device file name → why its last download failed, shown on that row (cleared when it is fetched again). */
+        val fetchFailures: Map<String, String> = emptyMap(),
         /** `"{base}:{artefact}"` keys of translations in flight, so the transcript and summary sections spin independently. */
         val translating: Set<String> = emptySet(),
         val progress: Pair<Int, Int>? = null,
@@ -207,6 +217,10 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         val pendingRepair: PendingRepair? = null,
         /** Replacement result banner: success / “The device’s version remains; retrieve it yourself.” */
         val repairState: RepairState = RepairState.IDLE,
+        /** Bytes received / total while [repairState] is DOWNLOADING. */
+        val repairProgress: Pair<Long, Long>? = null,
+        /** Why the replacement failed, while [repairState] is FAILED. */
+        val repairError: String? = null,
         val provider: String = "",
         val partial: String = "",
         /** Temporary translation during live translation (the same sentence as [partial] in another language). */
@@ -227,6 +241,8 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
          * so it is a gray banner rather than [error].
          */
         val translationNotice: String? = null,
+        /** The automatic save after stopping failed and its audio is still held: the page offers "Save to Library" to retry it. */
+        val canSaveToLibrary: Boolean = false,
     )
 
     enum class LiveStatus { IDLE, CONNECTING, READY, STREAMING, FAILED, RECONNECTING }
@@ -267,7 +283,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     )
 
     /** Final state of gap replacement. */
-    enum class RepairState { IDLE, SUCCEEDED, NEEDS_MANUAL_TRANSFER }
+    enum class RepairState { IDLE, DOWNLOADING, FAILED, SUCCEEDED, NEEDS_MANUAL_TRANSFER }
 
     /** A segment in the transcription stream: original text + (translation when live translation is enabled). */
     /**
@@ -575,7 +591,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                     .first()
                 Log.i(TAG, "Auto-reconnect hit sid=$wantSid (${target.name})")
                 set { it.copy(reconnecting = false) }
-                connect(target)
+                connect(target, manual = false)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -623,11 +639,27 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
             set { it.copy(reconnecting = false) }
             if (target == null) {
                 Log.i(TAG, "Connecting capsule to ${rec.name}: no response within ${KNOWN_CONNECT_TIMEOUT_MS}ms, giving up")
+                // Not advertising within the window almost always means the card is asleep: say how to wake it, offer Retry.
+                lastManualTarget = null
+                lastManualAddress = address
+                set { it.copy(connectFailure = str(R.string.scanner_wake_and_retry)) }
                 return@launch
             }
             connect(target)
         }
     }
+
+    /** What the connect-failure alert's Retry reconnects to: the scanned device, else the known address the pill tried. */
+    private var lastManualTarget: DeviceScanner.Discovered? = null
+    private var lastManualAddress: String? = null
+
+    fun retryConnect() {
+        set { it.copy(connectFailure = null) }
+        lastManualTarget?.let { connect(it); return }
+        lastManualAddress?.let { connectKnown(it) }
+    }
+
+    fun dismissConnectFailure() = set { it.copy(connectFailure = null) }
 
     fun setAutoReconnect(enabled: Boolean) {
         configStore.setAutoReconnect(enabled)
@@ -688,8 +720,9 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
 
     // ── Connection ──────────────────────────────────────────────────────────
 
-    fun connect(d: DeviceScanner.Discovered) {
+    fun connect(d: DeviceScanner.Discovered, manual: Boolean = true) {
         stopScan()
+        if (manual) lastManualTarget = d
         viewModelScope.launch {
             // The spinner should start **before the first await**: the subsequent getDeviceInfo must be queued after the transmission command lock, and this waiting period is the only feedback the user sees.
             set { it.copy(busy = str(R.string.fast_transfer_stage_connecting), error = null) }
@@ -731,18 +764,11 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 configStore.rememberDevice(d.address, d.name, d.adv.deviceSidHex)
                 connectedAddress = d.address
 
-                val bond = c.queryBondState()
-                val justBound = !bond.bound
-                if (!bond.bound) {
-                    // v1.47+: without a bond, the device refuses recording. Here we only bond when needed, without altering other states.
-                    set { it.copy(busy = str(R.string.pairing_pairing_now)) }
-                    // **Reuse the stored bond_id.** A fresh bond_id per reconnection looks like a “new phone” each time and overwrites the device’s bond record. Use the existing one if stored; generate one only when none exists.
-                    val stored = configStore.config.value.devices[d.address]?.bondId
-                    val bondId = stored?.let { hex -> runCatching { hexToBytes(hex) }.getOrNull() }
-                        ?: ByteArray(16).also { java.security.SecureRandom().nextBytes(it) }
-                    c.bindDevice(bondId)
-                    configStore.setBondId(d.address, d.name, bondId.toHexLower())
-                }
+                // v1.47+: without a bond, the device refuses recording. Pairing is never silent: an unbound card raises the
+                // "Pair this Nomi?" prompt, and the user's confirmation runs [pairDevice].
+                val bound = runCatching { c.queryBondState().bound }
+                    .onFailure { Log.w(TAG, "Bond state query after connect failed: ${it.message}") }
+                    .getOrNull()
 
                 // Retrieve the previously derived key from the Keystore — this is the user‑visible half of P0 #8:
                 // After restarting the app, no need to wait 1.6 s for Argon2 or re‑enter the passphrase.
@@ -763,16 +789,12 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                         deviceInfo = "v${info.optString("v")} · ${info.optInt("bat")}% · " +
                             "${info.optInt("df")}/${info.optInt("total_df")} free",
                         info = com.nomily.app.ble.DeviceInfo(info),
-                        bound = true,
+                        bound = bound,
+                        pendingPairing = bound == false,
                         encryptionOn = enc,
                         hasLocalKey = hasKey,
                         busy = null,
                     )
-                }
-                // Firmware v1.50 automatically enables encryption during bonding, so the first thing after bonding is to direct the user to set a passphrase:
-// We cannot first land on the recording‑enabled home page, because anything recorded during that period would never be decryptable on this phone (rv7my090). The user may dismiss it and set it later — the recording entry remains disabled until the passphrase is set, and the banner at the top of the library provides a shortcut back to this step.
-                if (justBound && enc == true && !hasKey) {
-                    set { it.copy(needPassphrase = true, passphraseMode = PassphraseMode.SET, passphraseFirstBind = true) }
                 }
                 // Synchronize time upon connection. Failures should not block the main flow —
                 // Inaccurate time only affects filenames, not usability.
@@ -784,12 +806,14 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) {
                 Log.e(TAG, "Connection failed", e)
                 // A connect timeout almost always means the card is asleep and not advertising: say how to wake it.
-                val msg = if (e is kotlinx.coroutines.TimeoutCancellationException) {
-                    str(R.string.scanner_wake_and_retry)
-                } else {
-                    failed(R.string.scanner_connection_failed, e)
+                val timedOut = e is kotlinx.coroutines.TimeoutCancellationException
+                // The manual alert is already titled "Connection failed"; its body carries only the reason.
+                val msg = when {
+                    timedOut -> str(R.string.scanner_wake_and_retry)
+                    manual -> e.message ?: e.javaClass.simpleName
+                    else -> failed(R.string.scanner_connection_failed, e)
                 }
-                set { it.copy(busy = null, error = msg) }
+                set { if (manual) it.copy(busy = null, connectFailure = msg) else it.copy(busy = null, error = msg) }
             }
         }
     }
@@ -918,15 +942,30 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Re-read 0x80 + 0x81 — the panel's “refresh”. */
+    /** Re-read 0x80 + 0x81 + pairing state — the panel's “refresh”, also run each time the panel opens. */
     fun refreshDeviceState() {
         val c = client ?: return
+        if (_ui.value.refreshingDevice) return
+        set { it.copy(refreshingDevice = true) }
         viewModelScope.launch {
             runCatching {
-                val j = withContext(Dispatchers.IO) { c.getDeviceInfo() }
-                set { it.copy(info = com.nomily.app.ble.DeviceInfo(j)) }
-            }.onFailure { Log.w(TAG, "Failed to read device info: ${it.message}") }
-            refreshSwitches()
+                withContext(Dispatchers.IO) {
+                    val j = c.getDeviceInfo()
+                    val sw = c.getSwitchInfo()
+                    val bound = runCatching { c.queryBondState().bound }.getOrNull()
+                    if (c === client) set {
+                        it.copy(
+                            info = com.nomily.app.ble.DeviceInfo(j),
+                            switches = com.nomily.app.ble.SwitchInfo(sw),
+                            bound = bound ?: it.bound,
+                        )
+                    }
+                }
+            }.onFailure { e ->
+                Log.w(TAG, "Failed to refresh device state: ${e.message}")
+                set { it.copy(error = failed(R.string.device_couldnt_update, e)) }
+            }
+            set { it.copy(refreshingDevice = false) }
         }
     }
 
@@ -994,11 +1033,29 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
             ?: ByteArray(16).also { java.security.SecureRandom().nextBytes(it) }
         c.bindDevice(bondId)
         if (addr != null) configStore.setBondId(addr, _ui.value.connectedName ?: "", bondId.toHexLower())
-        set { it.copy(bound = true) }
+        // Firmware v1.50 turns encryption on when bonding, so the first thing after pairing is the passphrase:
+        // anything recorded before it is set could never be decrypted on this phone (rv7my090). The user may dismiss it
+        // and set it later — recording stays disabled until then, and the library banner leads back to this step.
+        val enc = runCatching { c.getEncryptionState() }.getOrNull()
+        set {
+            it.copy(
+                bound = true,
+                pendingPairing = false,
+                encryptionOn = enc ?: it.encryptionOn,
+                needPassphrase = it.needPassphrase || (enc == true && !it.hasLocalKey),
+                passphraseMode = if (enc == true && !it.hasLocalKey) PassphraseMode.SET else it.passphraseMode,
+                passphraseFirstBind = it.passphraseFirstBind || (enc == true && !it.hasLocalKey),
+            )
+        }
     }
 
+    fun dismissPairing() = set { it.copy(pendingPairing = false) }
+
     /** Unbond: the device returns to “unbonded”; after v1.47 it will reject recording until re‑bonded. */
-    fun unbindDevice() = deviceOp(R.string.pairing_unpairing, after = { disconnectNow() }) { it.unbindDevice() }
+    fun unbindDevice() = deviceOp(R.string.pairing_unpairing) {
+        it.unbindDevice()
+        set { ui -> ui.copy(bound = false) }
+    }
 
     /**
      * Unbond and remove device — four steps, order must not change:
@@ -1079,6 +1136,8 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         val c = client ?: return
         if (recordJob?.isActive == true) return
         val recording = _ui.value.info?.isRecording == true
+        // An unpaired card refuses to record (v1.47+): offer pairing instead of sending a command that will fail.
+        if (!recording && _ui.value.bound == false) { set { it.copy(pendingPairing = true) }; return }
         recordJob = viewModelScope.launch {
             set { it.copy(busy = if (recording) "Stopping recording…" else "Recording…", error = null) }
             try {
@@ -1804,6 +1863,18 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     /** Forget a paired device (delete from Settings → “Known Devices”). */
     fun forgetDevice(id: String) = updateConfig { it.copy(devices = it.devices - id) }
 
+    /** Remove a saved device from the pill: drop the link first when it is the connected one. Recordings on the card stay. */
+    fun removeKnownDevice(address: String) {
+        if (address == connectedAddress) {
+            if (_ui.value.info?.isRecording == true) {
+                set { it.copy(error = str(R.string.device_unavailable_while_recording)) }
+                return
+            }
+            disconnectNow()
+        }
+        forgetDevice(address)
+    }
+
     /**
      * Tiered batch cleanup (Settings → Danger Zone):
      * `target == null` means “all”, otherwise only delete that category of artefacts.
@@ -1844,7 +1915,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         fetchJob?.cancel()
         fetchJob = viewModelScope.launch {
             try {
-                set { it.copy(downloadingName = file.name) }
+                set { it.copy(downloadingName = file.name, fetchFailures = it.fetchFailures - file.name) }
                 val res = withContext(Dispatchers.IO) {
                     pipeline.fetch(c, file, sn, key) { stage, got, total ->
                         set { it.copy(busy = stage.label, progress = if (total > 0) got to total else null) }
@@ -1871,7 +1942,9 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Retrieval failed", e)
-                set { it.copy(busy = null, progress = null, downloadingName = null, error = downloadFailureReason(file.name, key, e)) }
+                // The reason stays on that file's row (like iOS), not in the page-wide error card.
+                val reason = downloadFailureReason(file.name, key, e)
+                set { it.copy(busy = null, progress = null, downloadingName = null, fetchFailures = it.fetchFailures + (file.name to reason)) }
             }
         }
     }
@@ -1986,6 +2059,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     fun startLive(assumeIdle: Boolean = false) {
         val c = client ?: return
         if (_ui.value.live.running) return
+        if (_ui.value.bound == false) { set { it.copy(pendingPairing = true) }; return }
         // The foreground-service notification is the only sign the session is still running once the user leaves the app;
         // on API 33+ showing it needs POST_NOTIFICATIONS. A refusal doesn't stop the session, so ask once and carry on either way.
         if (!liveNotificationAsked && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
@@ -2013,6 +2087,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         liveDidPause = false
         liveAttachedToExisting = false
         preSessionFiles = null
+        pendingLiveSave = null
         // Write temporary files while receiving: after the session ends, package into Ogg and store in the library
         liveBufferFile = File(getApplication<Application>().cacheDir, "live-stream.opus.raw").also { f ->
             f.delete()
@@ -2272,8 +2347,13 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 pipeline.ingestRaw(raw, name, key = null).oggFile
             }
         }.onFailure { Log.e(TAG, "Failed to store real-time segment", it) }.getOrNull()
+        if (saved == null) {
+            // Keep the bytes: until the next session starts, "Save to Library" retries this exact save.
+            pendingLiveSave = PendingLiveSave(c, buffer, stopInfo)
+            set { it.copy(live = it.live.copy(canSaveToLibrary = true)) }
+            return
+        }
         buffer.delete()
-        if (saved == null) return
         library.manifest.recordDownload(name, saved.length(), "stream", localName = saved.name)
 
         // Persist the transcription as well: live lines become the clip's transcript (txt + segmented json),
@@ -2293,7 +2373,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                             com.nomily.app.core.asr.AsrResult(text, liveSegments(items), provider, locale).toJsonString(),
                         )
                     }
-                    val source = cfg.lastSourceLang ?: "en-US"
+                    val source = com.nomily.app.llm.LanguageService.liveSourceLang(cfg)
                     write("$base.txt", "$base.asr.json", lines.map { it.text to it.at }, provider, source)
                     val translated = lines.filter { it.translation.isNotEmpty() }
                     if (translated.isNotEmpty()) {
@@ -2326,6 +2406,25 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         } else if (deviceName != null && configStore.config.value.autoDeleteAfterTransfer) {
             runCatching { withContext(Dispatchers.IO) { c.deleteFile(deviceName) } }
                 .onFailure { Log.w(TAG, "Failed to delete device file after real-time session: ${it.message}") }
+        }
+    }
+
+    private class PendingLiveSave(val client: DnoteBleClient, val buffer: File, val stopInfo: org.json.JSONObject?)
+
+    /** A live session whose automatic save failed; held until the user retries or a new session starts. */
+    private var pendingLiveSave: PendingLiveSave? = null
+
+    /**
+     * Retry the failed automatic save of the last live session, unchanged. No pause-repair prompt on this path:
+     * the user asked to keep what was captured, not to start another dialog.
+     */
+    fun saveLiveToLibrary() {
+        val p = pendingLiveSave ?: return
+        pendingLiveSave = null
+        set { it.copy(live = it.live.copy(canSaveToLibrary = false)) }
+        viewModelScope.launch {
+            saveLiveClip(p.client, p.buffer, p.stopInfo, hadPauses = false)
+            loadFiles()
         }
     }
 
@@ -2366,11 +2465,18 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         val c = client ?: return
         val sn = _ui.value.deviceSn
         viewModelScope.launch {
-            set { it.copy(busy = str(R.string.live_repair_downloading), error = null) }
+            set {
+                it.copy(
+                    busy = str(R.string.live_repair_downloading),
+                    error = null,
+                    live = it.live.copy(repairState = RepairState.DOWNLOADING, repairProgress = null, repairError = null),
+                )
+            }
             runCatching {
                 withContext(Dispatchers.IO) {
                     val blob = c.downloadFile(repair.deviceFileName, repair.expectedSize) { got, total ->
-                        set { it.copy(progress = if (total > 0) got to total else null) }
+                        val p = if (total > 0) got.toLong() to total.toLong() else null
+                        set { it.copy(progress = if (total > 0) got to total else null, live = it.live.copy(repairProgress = p)) }
                     }
                     val res = pipeline.ingestRaw(blob, repair.deviceFileName, sn?.let { pipeline.cachedKeyFor(it) })
                     // “Fixed” must mean **a truly playable file was produced**. An empty artefact doesn’t count as success,
@@ -2383,7 +2489,9 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }.onFailure { e ->
                 Log.w(TAG, "Replacement failed — device file ${repair.deviceFileName} left unchanged", e)
-                set { it.copy(error = str(R.string.live_repair_failed, e.message ?: "")) }
+                set {
+                    it.copy(live = it.live.copy(repairState = RepairState.FAILED, repairError = e.message ?: ""))
+                }
             }.onSuccess {
                 if (configStore.config.value.autoDeleteAfterTransfer) {
                     runCatching { withContext(Dispatchers.IO) { c.deleteFile(repair.deviceFileName) } }
@@ -2415,7 +2523,9 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Dismiss the replacement result banner. */
-    fun dismissRepairState() = set { it.copy(live = it.live.copy(repairState = RepairState.IDLE)) }
+    fun dismissRepairState() = set {
+        it.copy(live = it.live.copy(repairState = RepairState.IDLE, repairProgress = null, repairError = null))
+    }
 
     private fun onLiveEvent(ev: com.nomily.app.asr.LiveAsrEvent) {
         when (ev) {
@@ -2506,7 +2616,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     private fun newLiveAsr(cfg: com.nomily.app.core.config.AppConfig): com.nomily.app.asr.LiveAsr {
         liveSawResult = false
         val target = cfg.lastTargetLang
-        val source = cfg.lastSourceLang ?: "en-US"
+        val source = com.nomily.app.llm.LanguageService.liveSourceLang(cfg)
         // Only translate when the target language **differs** from the source; if identical (or not selected) only perform recognition.
         val wantTranslation = !target.isNullOrEmpty() &&
             target.substringBefore('-').lowercase() != source.substringBefore('-').lowercase()
@@ -2730,6 +2840,9 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 set { ui ->
                     ui.copy(
                         transcribing = active.filter { it.kind == com.nomily.app.jobs.JobKind.TRANSCRIBE }.map { it.clip }.toSet(),
+                        transcribeFailures = active
+                            .filter { it.kind == com.nomily.app.jobs.JobKind.TRANSCRIBE && !it.isRunnable }
+                            .associate { it.clip to (it.lastError ?: "") },
                         translating = active.filter { it.kind == com.nomily.app.jobs.JobKind.TRANSLATE }.map {
                             "${it.clip}:${if (it.translateTarget == "summary") ClipArtefact.SUMMARY.name else ClipArtefact.TRANSCRIPT.name}"
                         }.toSet(),

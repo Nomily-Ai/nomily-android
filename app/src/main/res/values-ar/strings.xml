@@ -160,6 +160,12 @@
     <string name="pairing_unpair_message">إلغاء الإقران يزيل ارتباط الجهاز بهذا التطبيق. ستحتاج إلى إعادة الإقران قبل التسجيل.</string>
     <string name="pairing_pair">إقران</string>
     <string name="pairing_message">يجب إقران %s بهذا التطبيق قبل أن يتمكن من التسجيل. يمكنك إلغاء الإقران في أي وقت من شاشة الجهاز.</string>
+    <string name="pairing_title">هل تريد إقران Nomi هذا؟</string>
+    <string name="pill_remove_device">إزالة الجهاز</string>
+    <string name="pill_remove_named">إزالة %s</string>
+    <string name="pill_remove_title">إزالة الجهاز؟</string>
+    <string name="pill_remove_confirm">إزالة</string>
+    <string name="pill_remove_message">سيؤدي هذا إلى إزالة الاتصال المحفوظ من Nomily AI. لن تُمحى التسجيلات الموجودة على الجهاز.</string>
     <string name="pairing_status">الإقران</string>
     <string name="pairing_paired">مقترن</string>
     <string name="pairing_not_paired">غير مقترن</string>
@@ -320,6 +326,7 @@
     <string name="device_unbinding_and_removing">جارٍ إزالة الجهاز…</string>
     <string name="device_files_couldnt_read_device">تعذّرت قراءة الجهاز</string>
     <string name="device_files_transcribing">جارٍ النسخ…</string>
+    <string name="device_files_transcript_done">النسخ → %s</string>
     <string name="device_files_delete_recording">حذف التسجيل؟</string>
     <string name="device_files_delete_recording_message">حذف %s نهائيًا من الجهاز. لا يمكن التراجع عن هذا الإجراء.</string>
     <string name="fast_transfer_stage_stopping">جارٍ إيقاف التسجيل…</string>
@@ -401,6 +408,7 @@
     <string name="live_repair_succeeded">تم الاستبدال بالصوت الكامل</string>
     <string name="live_repair_manual_transfer">التسجيل الكامل لا يزال على Nomi. انقله من تبويب التسجيلات.</string>
     <string name="live_view_in_library">عرض في المكتبة</string>
+    <string name="live_save_to_library">حفظ في المكتبة</string>
     <string name="live_setup_azure">إعداد Azure</string>
     <string name="live_switch_language">تغيير اللغة؟</string>
     <string name="live_continue">متابعة</string>

@@ -746,19 +746,19 @@ private fun LlmSection(cfg: AppConfig, vm: NomiViewModel) {
     OpenRouterCard(cfg, vm)
     KeyedProvider("OpenAI", "gpt-4.1", cfg.llmProviders.openai,
         { k, _ -> com.nomily.app.llm.LlmModelService.openai(k) }) { p ->
-        vm.updateConfig { it.copy(llmProviders = it.llmProviders.copy(openai = p)) }
+        vm.updateConfig { it.copy(llmProviders = it.llmProviders.copy(openai = p).autoSelectPrimaryIfFirst()) }
     }
     KeyedProvider("Claude", "claude-opus-4-0-20250514", cfg.llmProviders.claude,
         { k, _ -> com.nomily.app.llm.LlmModelService.claude(k) }) { p ->
-        vm.updateConfig { it.copy(llmProviders = it.llmProviders.copy(claude = p)) }
+        vm.updateConfig { it.copy(llmProviders = it.llmProviders.copy(claude = p).autoSelectPrimaryIfFirst()) }
     }
     KeyedProvider("Gemini", "gemini-2.5-pro", cfg.llmProviders.gemini,
         { k, _ -> com.nomily.app.llm.LlmModelService.gemini(k) }) { p ->
-        vm.updateConfig { it.copy(llmProviders = it.llmProviders.copy(gemini = p)) }
+        vm.updateConfig { it.copy(llmProviders = it.llmProviders.copy(gemini = p).autoSelectPrimaryIfFirst()) }
     }
     EndpointProvider("Ollama", "qwen2.5:3b", cfg.llmProviders.ollama,
         fetchModels = { ctx, _, e -> com.nomily.app.llm.LlmModelService.ollama(ctx, e) }) { p ->
-        vm.updateConfig { it.copy(llmProviders = it.llmProviders.copy(ollama = p)) }
+        vm.updateConfig { it.copy(llmProviders = it.llmProviders.copy(ollama = p).autoSelectPrimaryIfFirst()) }
     }
     CustomEndpointCard(cfg, vm)
 }
@@ -1117,7 +1117,7 @@ private fun ModelListField(
 private fun OpenRouterCard(cfg: AppConfig, vm: NomiViewModel) {
     val p = cfg.llmProviders.openRouter
     val save = { np: AppConfig.LlmProviders.Endpoint? ->
-        vm.updateConfig { it.copy(llmProviders = it.llmProviders.copy(openRouter = np)) }
+        vm.updateConfig { it.copy(llmProviders = it.llmProviders.copy(openRouter = np).autoSelectPrimaryIfFirst()) }
     }
     Group("Open Router") {
         val v = remember { VerifyState() }
@@ -1148,7 +1148,7 @@ private fun OpenRouterCard(cfg: AppConfig, vm: NomiViewModel) {
 private fun CustomEndpointCard(cfg: AppConfig, vm: NomiViewModel) {
     val p = cfg.llmProviders.custom
     val save = { np: AppConfig.LlmProviders.Endpoint? ->
-        vm.updateConfig { it.copy(llmProviders = it.llmProviders.copy(custom = np)) }
+        vm.updateConfig { it.copy(llmProviders = it.llmProviders.copy(custom = np).autoSelectPrimaryIfFirst()) }
     }
     val probe = rememberEndpointProbe(p?.endpoint ?: "") { ctx, ep ->
         com.nomily.app.llm.LlmModelService.custom(ctx, ep, p?.apiKey)
