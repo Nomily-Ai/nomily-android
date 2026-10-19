@@ -8,13 +8,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 // Neutral gray-white background; group cards use a gray one shade lighter/darker than the background.
-// The accent color is the dark cyan #00475A defined by this palette
-// (not the default blue #007AFF).
-// The dark variant is a brightened version of the same hue: #00475A on #1C1C1E has only 1.66:1 contrast.
-// In dark mode, text and icons using the accent color are barely readable (WCAG requires 4.5:1 for body text).
-// Switch to #0097BF (5.0:1 contrast against #1C1C1E).
-private val AppAccent = Color(0xFF00475A)
-private val AppAccentDark = Color(0xFF0097BF)
+// The accent color is the brand red #E41D25 (not the default blue #007AFF).
+// The dark variant is the lighter #FF6669 so accent text and icons stay readable on #1C1C1E.
+private val AppAccent = Color(0xFFE41D25)
+private val AppAccentDark = Color(0xFFFF6669)
 /** The switch color is fixed to this green, independent of the accent color; Material defaults to using primary, so it must be explicitly overridden. */
 val AppSwitchGreen = Color(0xFF34C759)
 private val AppGroupedBg = Color(0xFFF2F2F7)     // Group page background
