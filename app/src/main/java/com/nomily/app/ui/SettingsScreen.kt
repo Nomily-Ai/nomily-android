@@ -107,6 +107,8 @@ fun SettingsScreen(vm: NomiViewModel, onPush: (PushedPage?) -> Unit) {
     // Each entry pushes a subpage.
     var page by remember { mutableStateOf<SettingsPage?>(null) }
     var showTemplates by remember { mutableStateOf(false) }
+    var showTrash by remember { mutableStateOf(false) }
+    val trashItems by vm.library.trashItems.collectAsStateWithLifecycle()
 
     // When entering via "Go to settings…" from elsewhere (live page / recording details), navigate directly to the corresponding subpage,
     // do not leave the user on the settings home to find it. Clear the flag immediately after consumption, otherwise back navigation will jump again.
@@ -171,6 +173,10 @@ fun SettingsScreen(vm: NomiViewModel, onPush: (PushedPage?) -> Unit) {
         TemplateManagerPage(vm, onPush) { showTemplates = false }
         return
     }
+    if (showTrash) {
+        TrashPage(vm, onPush) { showTrash = false }
+        return
+    }
 
     if (page != null) {
         SubPage {
@@ -220,6 +226,12 @@ fun SettingsScreen(vm: NomiViewModel, onPush: (PushedPage?) -> Unit) {
             NavRow(stringResource(R.string.settings_summarize_templates)) { showTemplates = true }
             RowDivider()
             NavRow(stringResource(SettingsPage.DevicesLibrary.titleRes)) { page = SettingsPage.DevicesLibrary }
+            RowDivider()
+            // The count only shows when something is actually in the trash.
+            NavRow(
+                stringResource(R.string.trash_settings_row),
+                value = trashItems.size.takeIf { it > 0 }?.toString(),
+            ) { showTrash = true }
             RowDivider()
             // Language appears on the last row, right after "About". It does not belong to any functional domain (ASR/LLM/recording/device),
             // inserting it among earlier rows would disrupt the functional order of those four rows. The current selection is shown on the right, visible without tapping.

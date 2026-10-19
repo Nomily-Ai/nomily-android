@@ -102,6 +102,8 @@ fun ClipDetail(
 ) {
     // The title bar is not drawn here — it is reported to the outer navigation bar (see `PushedPage`), otherwise two title bars would appear on screen.
     val cfg by vm.config.collectAsStateWithLifecycle()
+    // Opening the clip clears its unread dot in the list.
+    LaunchedEffect(clip.base) { vm.markSeen(clip) }
     var showVad by remember { mutableStateOf(false) }
     var showPlayer by remember { mutableStateOf(false) }
     val title = clip.title ?: RecordingName.displayTitle(clip.name)

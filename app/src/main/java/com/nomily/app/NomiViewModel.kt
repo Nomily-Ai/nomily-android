@@ -19,6 +19,7 @@ import com.nomily.app.ble.DnoteBleClient
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -317,7 +318,16 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         val recordedAt: Date?,
         /** Custom/LLM short title stored in `{base}.title`; if missing, use the recording time as the title. */
         val title: String?,
+        /** Where it came from (manifest); no entry = imported. */
+        val source: com.nomily.app.core.clips.ClipManifest.Source =
+            com.nomily.app.core.clips.ClipManifest.Source(com.nomily.app.core.clips.ClipManifest.Source.Kind.IMPORTED),
+        /** Not opened since it arrived — a red dot in the list. */
+        val unread: Boolean = false,
     ) {
+        fun seen() = LocalClip(
+            base, audio, transcript, transcriptJson, summary, transcriptTranslation, summaryTranslation,
+            durationMs, recordedAt, title, source, unread = false,
+        )
         val name: String get() = audio?.name ?: base
         val hasAudio: Boolean get() = audio != null
         val sizeBytes: Long get() = audio?.length() ?: 0L
@@ -328,6 +338,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
 
     private val scanner = DeviceScanner(app)
     private val pipeline = ClipPipeline(app)
+    val library = com.nomily.app.data.LibraryStore(app) { localized() }
     /** Deep‑link target for the settings page. */
     enum class SettingsTarget { ASR, LLM }
 
@@ -352,8 +363,20 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
      * Retrieve localized strings.
      * Here we fetch values by key only — previously these locations contained English literals, which would appear on the Chinese UI.
      */
-    private fun str(@StringRes id: Int, vararg args: Any): String =
-        getApplication<Application>().getString(id, *args)
+    private fun str(@StringRes id: Int, vararg args: Any): String = localized().getString(id, *args)
+
+    /**
+     * Application context in the **in-app language**. Only the Activity's context is wrapped by [AppLocale.wrap];
+     * the bare application context follows the system language, so messages built here would come out in the wrong
+     * language whenever the two differ. Rebuilt when the language setting changes.
+     */
+    private var localizedCtx: Pair<String?, android.content.Context>? = null
+
+    fun localized(): android.content.Context {
+        val tag = configStore.config.value.appLanguage
+        localizedCtx?.takeIf { it.first == tag }?.let { return it.second }
+        return com.nomily.app.data.AppLocale.wrap(getApplication()).also { localizedCtx = tag to it }
+    }
 
     /** "Header: Reason" (header is localized, reason comes from the exception). */
     private fun failed(@StringRes titleId: Int, e: Throwable): String =
@@ -432,6 +455,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     init {
+        viewModelScope.launch(Dispatchers.IO) { library.purgeExpired() }
         refreshClips()
         set { it.copy(autoReconnect = configStore.config.value.autoReconnectEnabled) }
         maybeAutoReconnect()
@@ -1285,6 +1309,9 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                             ftFile(f.name) { it.copy(status = FtFileStatus.FAILED, error = downloadFailureReason(f.name, key, e)) }
                             continue
                         }
+                        library.manifest.recordDownload(
+                            f.name, bytes.size.toLong(), "wifi", sn, _ui.value.connectedName, res.oggFile.name,
+                        )
                         ftFile(f.name) { it.copy(status = FtFileStatus.DONE, got = it.size) }
                         saved += res.oggFile.name.substringBeforeLast('.')
                         // Same as recorder: after successful save, delete from the device over the same TCP channel.
@@ -1827,12 +1854,16 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         // so “cleanup complete” was **unconditionally** announced — the files were actually still present.
         var failed = 0
         dir.listFiles()?.forEach { f ->
+            // The trash and the bookkeeping dot-files aren't library content.
+            if (f.isDirectory || f.name.startsWith(".")) return@forEach
             val hit = target?.let { ClipArtefact.of(f.name) == it } ?: true
             if (hit && !f.delete()) {
                 failed++
                 Log.w(TAG, "Failed to delete ${f.name} during cleanup")
             }
         }
+        // The manifest tracks downloaded audio; with the audio gone, forget it so the device list offers it again.
+        if (target == null || target == ClipArtefact.AUDIO) library.manifest.clear()
         // Only the sidecar `.title` remains, which would resurrect an empty segment in the library — sweep it away.
         val left = dir.listFiles()?.map { it.name } ?: emptyList()
         ClipArtefact.orphanTitles(left).forEach { if (!File(dir, it).delete()) failed++ }
@@ -1859,6 +1890,9 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                         set { it.copy(busy = stage.label, progress = if (total > 0) got to total else null) }
                     }
                 }
+                library.manifest.recordDownload(
+                    file.name, file.size.toLong(), "ble", sn, _ui.value.connectedName, res.oggFile.name,
+                )
                 set { it.copy(busy = null, progress = null, downloadingName = null) }
                 refreshClips()
                 Log.i(TAG, "Retrieved ${res.oggFile.name}: ${res.durationMs / 1000.0}s, encrypted=${res.wasEncrypted}")
@@ -2274,6 +2308,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         }.onFailure { Log.e(TAG, "Failed to store real-time segment", it) }.getOrNull()
         buffer.delete()
         if (saved == null) return
+        library.manifest.recordDownload(name, saved.length(), "stream", localName = saved.name)
 
         // Persist the transcription as well: live lines become the clip's transcript (txt + segmented json),
         // and their translations the clip's translation — the same files batch transcription writes.
@@ -2377,6 +2412,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                     if (!res.oggFile.isFile || res.oggFile.length() <= 0L) {
                         throw IllegalStateException(str(R.string.live_repair_not_playable))
                     }
+                    library.manifest.recordDownload(repair.deviceFileName, blob.size.toLong(), "ble", localName = res.oggFile.name)
                     res
                 }
             }.onFailure { e ->
@@ -2613,7 +2649,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         try {
             val out = withContext(Dispatchers.IO) {
                 com.nomily.app.llm.LlmClient.translate(
-                    getApplication(), source, target, configStore.config.value, allowFallback = false,
+                    localized(), source, target, configStore.config.value, allowFallback = false,
                 ).text.trim()
             }
             if (out.isEmpty()) return
@@ -2643,7 +2679,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         try {
             val out = withContext(Dispatchers.IO) {
                 com.nomily.app.llm.LlmClient.translate(
-                    getApplication(), source, target, configStore.config.value, allowFallback = false,
+                    localized(), source, target, configStore.config.value, allowFallback = false,
                 ).text.trim()
             }
             // Only if the partial is still the same text — otherwise the previous sentence's translation would sit under the next one.
@@ -2726,7 +2762,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         return withContext(Dispatchers.IO) {
             val cfg = configStore.config.value
             val system = com.nomily.app.core.llm.withLanguageInstruction(template.prompt, languageName)
-            com.nomily.app.llm.LlmClient.completeResilient(getApplication(), system, transcript, cfg, onChunk = onChunk)
+            com.nomily.app.llm.LlmClient.completeResilient(localized(), system, transcript, cfg, onChunk = onChunk)
         }
     }
 
@@ -2745,7 +2781,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                         )
                         val title = com.nomily.app.llm.LlmClient
                             .completeResilient(
-                                getApplication(), titleSystem, summary.take(1000), cfg,
+                                localized(), titleSystem, summary.take(1000), cfg,
                                 allowChunking = false, preferred = preferredProvider,
                             )
                             .completion.text.trim()
@@ -2784,7 +2820,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
             runCatching {
                 withContext(Dispatchers.IO) {
                     val res = com.nomily.app.llm.LlmClient
-                        .translate(getApplication(), src, languageName, configStore.config.value)
+                        .translate(localized(), src, languageName, configStore.config.value)
                     out.writeText(res.text)
                     // Live's `.translated.json` carries timestamps for one specific target language; an on-demand
                     // translation to another language makes it stale, so drop it rather than let it drift.
@@ -2809,6 +2845,85 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
      * After success **delete all artifacts of the two source segments**:
      * The merged audio is a new file, so the old transcription/summary no longer applies; the user must run transcription again if needed.
      */
+    // ── Library: knowledge search / batch export ───────────────────────────
+
+    /** Body text per base, valid while the library listing stays the same (count + newest mtime). */
+    private var knowledgeStamp: String? = null
+    private val knowledgeDocs = HashMap<String, String>()
+
+    /**
+     * Search transcripts and summaries of [clips]; returns `base → snippet` for the matches. Bodies are read once per
+     * library state and cached, so typing doesn't re-read every file.
+     */
+    suspend fun searchKnowledge(query: String, clips: List<LocalClip>): Map<String, String> = withContext(Dispatchers.IO) {
+        val dir = library.dir
+        val stamp = "${clips.size}@${clips.maxOfOrNull { (it.audio ?: it.transcript ?: it.summary)?.lastModified() ?: 0L }}"
+        synchronized(knowledgeDocs) {
+            if (stamp != knowledgeStamp) { knowledgeDocs.clear(); knowledgeStamp = stamp }
+        }
+        val hits = HashMap<String, String>()
+        for (c in clips) {
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            if (c.transcript == null && c.summary == null) continue
+            val text = synchronized(knowledgeDocs) { knowledgeDocs[c.base] } ?: com.nomily.app.core.text.KnowledgeSearch.SUFFIXES
+                .mapNotNull { File(dir, c.base + it).takeIf(File::isFile)?.let { f -> runCatching { f.readText().trim() }.getOrNull() } }
+                .filter { it.isNotEmpty() }
+                .joinToString("\n")
+                .also { synchronized(knowledgeDocs) { knowledgeDocs[c.base] = it } }
+            com.nomily.app.core.text.KnowledgeSearch.snippet(text, query)?.let { hits[c.base] = it }
+        }
+        hits
+    }
+
+    /**
+     * Copy [clips] into the folder the user picked: one sub-folder per clip, named by its title, holding the audio
+     * (original name) and readable text (`Transcript.txt`, `Summary.md`, …). Returns the failures as "title: reason".
+     */
+    suspend fun exportClips(clips: List<LocalClip>, tree: android.net.Uri): List<String> = withContext(Dispatchers.IO) {
+        val resolver = getApplication<Application>().contentResolver
+        val root = android.provider.DocumentsContract.buildDocumentUriUsingTree(
+            tree, android.provider.DocumentsContract.getTreeDocumentId(tree),
+        )
+        val failures = mutableListOf<String>()
+        val taken = mutableSetOf<String>()
+        fun create(parent: android.net.Uri, mime: String, name: String) =
+            android.provider.DocumentsContract.createDocument(resolver, parent, mime, name)
+                ?: throw java.io.IOException("Couldn't create $name")
+        for (c in clips) {
+            val title = clipTitle(c)
+            try {
+                val folder = create(root, android.provider.DocumentsContract.Document.MIME_TYPE_DIR, exportFolderName(c, title, taken))
+                val files = listOfNotNull(c.audio?.let { it to it.name }) + listOf(
+                    ".txt" to "Transcript.txt",
+                    ".translated.txt" to "Transcript (translated).txt",
+                    ".summary.md" to "Summary.md",
+                    ".summary.translated.md" to "Summary (translated).md",
+                ).mapNotNull { (suffix, name) -> File(library.dir, c.base + suffix).takeIf(File::isFile)?.let { it to name } }
+                for ((src, name) in files) {
+                    val mime = if (src == c.audio) "audio/*" else "text/plain"
+                    val out = create(folder, mime, name)
+                    resolver.openOutputStream(out)?.use { o -> src.inputStream().use { it.copyTo(o) } }
+                        ?: throw java.io.IOException("Couldn't write $name")
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Export of ${c.base} failed", e)
+                failures += "$title: ${e.message}"
+            }
+        }
+        failures
+    }
+
+    /** Folder name from the display title; path separators stripped, clashes become "Title (2)". */
+    private fun exportFolderName(c: LocalClip, title: String, taken: MutableSet<String>): String {
+        val base = title.replace('/', '-').replace(':', '-').trim().ifEmpty { c.base }.take(80)
+        var candidate = base
+        var n = 2
+        while (!taken.add(candidate)) candidate = "$base (${n++})"
+        return candidate
+    }
+
     fun mergeClips(older: LocalClip, newer: LocalClip) {
         val dir = File(getApplication<Application>().filesDir, "clips")
         viewModelScope.launch {
@@ -2870,9 +2985,11 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
             .groupBy { ClipArtefact.baseOf(it.name) ?: it.name }
 
         val durations = DurationCache(File(dir, ".durations.json"))
+        val sources = library.manifest.sources()
 
         val list = byBase.map { (base, group) ->
             val audio = group.firstOrNull { ClipArtefact.of(it.name) == ClipArtefact.AUDIO }
+            val name = audio?.name ?: base
             LocalClip(
                 base = base,
                 audio = audio,
@@ -2896,6 +3013,10 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 title = byName["$base${ClipArtefact.TITLE_SUFFIX}"]
                     ?.let { f -> runCatching { f.readText().trim() }.getOrNull() }
                     ?.takeIf { t -> t.isNotEmpty() },
+                source = sources[name] ?: com.nomily.app.core.clips.ClipManifest.Source(
+                    com.nomily.app.core.clips.ClipManifest.Source.Kind.IMPORTED,
+                ),
+                unread = library.reads.isUnread(name, (audio ?: group.first()).lastModified()),
             )
         }.sortedByDescending { it.recordedAt?.time ?: 0L }   // Sort by recording time, not by file‑creation time
 
@@ -3008,13 +3129,63 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
      * Each of the three artifact types can be deleted independently — deleting audio leaves transcription and summary untouched. After deletion, scan once for orphaned titles.
      */
     fun deleteArtefact(clip: LocalClip, what: ClipArtefact) {
-        val dir = File(getApplication<Application>().filesDir, "clips")
         if (clip.audio?.name == _ui.value.playing) stopPlayback()
-        dir.listFiles()
-            ?.filter { ClipArtefact.baseOf(it.name) == clip.base && ClipArtefact.of(it.name) == what }
-            ?.forEach { it.delete() }
-        refreshClips()
+        val others = when (what) {
+            ClipArtefact.AUDIO -> clip.transcript != null || clip.summary != null
+            ClipArtefact.TRANSCRIPT -> clip.hasAudio || clip.summary != null
+            ClipArtefact.SUMMARY -> clip.hasAudio || clip.transcript != null
+        }
+        val files = com.nomily.app.data.LibraryStore.artefactFiles(library.dir, clip.base, what, others)
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                library.moveToTrash(
+                    listOf(
+                        com.nomily.app.data.LibraryStore.TrashRequest(
+                            clip.name, clipTitle(clip), files, takesAudio = what == ClipArtefact.AUDIO,
+                        ),
+                    ),
+                )
+            }
+            refreshClips()
+        }
     }
+
+    /**
+     * Move whole clips (audio, text, sidecars) into the trash. Returns the titles of clips that couldn't be moved.
+     */
+    suspend fun trashClips(clips: List<LocalClip>): List<String> {
+        if (clips.any { it.audio?.name == _ui.value.playing }) stopPlayback()
+        val requests = clips.map {
+            com.nomily.app.data.LibraryStore.TrashRequest(
+                it.name, clipTitle(it),
+                com.nomily.app.core.clips.ClipTrash.wholeClipFiles(library.dir, it.base, it.audio),
+                takesAudio = true,
+            )
+        }
+        withContext(Dispatchers.IO) { library.moveToTrash(requests) }
+        refreshClips()
+        return requests.filter { r -> r.files.any { it.exists() } }.map { it.title }
+    }
+
+    fun restoreFromTrash(items: List<com.nomily.app.core.clips.ClipTrash.Item>): Boolean {
+        val ok = items.map { library.restore(it) }.all { it }
+        refreshClips()
+        return ok
+    }
+
+    fun purgeTrash(items: List<com.nomily.app.core.clips.ClipTrash.Item>) = items.forEach(library::purge)
+
+    fun purgeAllTrash() = library.purgeAll()
+
+    fun purgeExpiredTrash() = library.purgeExpired()
+
+    fun markSeen(clip: LocalClip) {
+        if (!clip.unread) return
+        library.reads.markSeen(clip.name)
+        set { ui -> ui.copy(clips = ui.clips.map { if (it.base == clip.base) it.seen() else it }) }
+    }
+
+    private fun clipTitle(c: LocalClip): String = c.title ?: com.nomily.app.ble.RecordingName.displayTitle(c.name)
 
     /** Base name format like `20260730155017`; returns null if parsing fails (imported external files may not follow this pattern). */
     private fun parseRecordedAt(stem: String): Date? {

@@ -173,6 +173,9 @@ fun NomiApp(vm: NomiViewModel) {
     // The recording tab's sections (Device / Library) — **the action button at the top right of the navigation bar changes with it** (the Device section is 「Refresh」、
     //     // the Library section is 「Import Audio」), so the state must be placed where the navigation bar can see it.
     var segment by remember { mutableStateOf(Segment.Device) }
+    // Library multi-select; hoisted here because the navigation bar shows Select / Cancel for it.
+    var librarySelecting by remember { mutableStateOf(false) }
+    LaunchedEffect(tab) { if (tab != Tab.Recordings) librarySelecting = false }
     // The recording tab is segmented (Device / Library) — **the action button at the top right of the navigation bar changes accordingly** (the Device segment is “Refresh”, 
     // the Library segment is “Import Audio”), so the state must be placed where it’s visible in the navigation bar. 
     // Switching tabs during a transfer will prompt 「Cancel transfer and switch?」, it won’t switch silently nor abort silently.
@@ -270,7 +273,13 @@ fun NomiApp(vm: NomiViewModel) {
                             // client directly returns —— equivalent to a button that does nothing when clicked.
                             if (segment == Segment.Device) {
                                 if (ui.connectedName != null) RefreshAction(ui, vm)
+                            } else if (librarySelecting) {
+                                TextButton(onClick = { librarySelecting = false }) { Text(stringResource(R.string.common_cancel)) }
                             } else {
+                                TextButton(
+                                    onClick = { librarySelecting = true },
+                                    enabled = ui.clips.isNotEmpty(),
+                                ) { Text(stringResource(R.string.library_select)) }
                                 ImportAction(vm)
                             }
                         }
@@ -322,7 +331,9 @@ fun NomiApp(vm: NomiViewModel) {
                 Tab.Recordings -> RecordingsTab(
                     ui, vm,
                     segment = segment,
-                    onSegment = { segment = it },
+                    onSegment = { segment = it; librarySelecting = false },
+                    librarySelecting = librarySelecting,
+                    onLibrarySelecting = { librarySelecting = it },
                     onPush = { pushed = it },
                     onOpenSettings = { tab = Tab.Settings },
                 )
@@ -479,6 +490,8 @@ private fun RecordingsTab(
     vm: NomiViewModel,
     segment: Segment,
     onSegment: (Segment) -> Unit,
+    librarySelecting: Boolean,
+    onLibrarySelecting: (Boolean) -> Unit,
     onPush: (PushedPage?) -> Unit,
     onOpenSettings: () -> Unit,
 ) {
@@ -610,7 +623,7 @@ private fun RecordingsTab(
                     }
                 }
             }
-            Segment.Library -> LibrarySection(ui, vm) { base -> openBase = base }
+            Segment.Library -> LibraryList(ui, vm, librarySelecting, onLibrarySelecting) { base -> openBase = base }
         }
         }
     }
@@ -638,7 +651,7 @@ private enum class Segment(val titleRes: Int) {
 }
 
 @Composable
-private fun EmptyState(titleRes: Int, messageRes: Int, icon: ImageVector = Icons.Filled.GraphicEq) {
+internal fun EmptyState(titleRes: Int, messageRes: Int, icon: ImageVector = Icons.Filled.GraphicEq) {
     // Just decode the resource ID into a string — the drawing method is in ui/components, shared with the settings page and other places.
     SharedEmptyState(stringResource(titleRes), stringResource(messageRes), icon)
 }
@@ -1724,77 +1737,6 @@ private fun FastTransferBar(ui: NomiViewModel.Ui, vm: NomiViewModel) {
     }
 }
 
-/** Library section - row fields: title + badge / date · size · duration. */
-@Composable
-private fun LibrarySection(ui: NomiViewModel.Ui, vm: NomiViewModel, onOpenClip: (String) -> Unit) {
-    if (ui.clips.isEmpty()) {
-        EmptyState(R.string.recordings_no_clips, R.string.recordings_no_clips_message)
-        return
-    }
-    var pendingMerge by remember { mutableStateOf<Pair<LocalClip, LocalClip>?>(null) }
-    // The database is a **white card embedded on a gray background**,
-    // The fragment count and total size are gray footnotes **outside** the card, not full-width tiled rows.
-    LazyColumn(Modifier.fillMaxWidth()) {
-        item {
-            Card(
-                Modifier.fillMaxWidth().padding(top = 8.dp),
-                shape = RoundedCornerShape(10.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-            ) {
-                ui.clips.forEachIndexed { index, c ->
-                    ClipRow(
-                        c,
-                        // The list is ordered from new to old, so "the adjacent older item" is the next row
-                        mergeWith = adjacentOlder(ui.clips, index)?.let { older -> { pendingMerge = older to c } },
-                    ) { onOpenClip(c.base) }
-                    if (index < ui.clips.lastIndex) {
-                        HorizontalDivider(
-                            Modifier.padding(start = 16.dp),
-                            color = MaterialTheme.colorScheme.outline,
-                        )
-                    }
-                }
-            }
-            Text(
-                stringResource(
-                    if (ui.clips.size == 1) R.string.recordings_clip_count_one
-                    else R.string.recordings_clip_count_other,
-                    ui.clips.size,
-                    formatClipBytes(ui.clips.sumOf { it.sizeBytes }),
-                ),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 16.dp, top = 6.dp, bottom = 12.dp),
-            )
-        }
-    }
-
-    pendingMerge?.let { (older, newer) ->
-        AlertDialog(
-            onDismissRequest = { pendingMerge = null },
-            title = { Text(stringResource(R.string.library_merge_confirm_title)) },
-            text = {
-                Text(
-                    stringResource(
-                        R.string.library_merge_confirm_message,
-                        RecordingName.displayTitle(older.name),
-                        RecordingName.displayTitle(newer.name),
-                    ),
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { vm.mergeClips(older, newer); pendingMerge = null }) {
-                    Text(stringResource(R.string.library_merge))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingMerge = null }) { Text(stringResource(R.string.common_cancel)) }
-            },
-        )
-    }
-}
-
 /**
  * Entry point for "Import audio" — toolbar import button + confirmation dialog + file picker.
  *
@@ -1870,116 +1812,6 @@ private fun ImportAction(vm: NomiViewModel) {
     }
 }
 
-/**
- * Adjacency check: the gap between **the end of the previous recording** and **the start of this one**
- * counts as adjacent if it falls within −2s ~ 10min.
- *
- * The −2s negative tolerance isn't arbitrary: timestamps in filenames are only precise to the second, so two recordings
- * that truly play back-to-back can appear to overlap slightly due to rounding.
- */
-private fun adjacentOlder(clips: List<LocalClip>, index: Int): LocalClip? {
-    val newer = clips.getOrNull(index) ?: return null
-    val older = clips.getOrNull(index + 1) ?: return null
-    if (!newer.hasAudio || !older.hasAudio) return null
-    val newerStart = newer.recordedAt?.time ?: return null
-    val olderStart = older.recordedAt?.time ?: return null
-    val olderEnd = olderStart + (older.durationMs ?: return null)
-    val gapSec = (newerStart - olderEnd) / 1000.0
-    return if (gapSec >= -2 && gapSec <= 10 * 60) older else null
-}
-
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-@Composable
-private fun ClipRow(
-    c: LocalClip,
-    mergeWith: (() -> Unit)? = null,
-    onOpen: () -> Unit,
-) {
-    // "Merge adjacent" is revealed via **swipe left**, not a button that permanently lives in the row.
-    // It was originally an inline TextButton, which added an extra button to every row in the Android library.
-    val dismissState = rememberSwipeToDismissBoxState(
-        // Same-device file row: only borrow the gesture to trigger the confirmation dialog; returning false bounces the row back without actually swiping it away.
-        confirmValueChange = { v ->
-            if (v == SwipeToDismissBoxValue.EndToStart) mergeWith?.invoke()
-            false
-        },
-    )
-    SwipeToDismissBox(
-        state = dismissState,
-        enableDismissFromStartToEnd = false,
-        gesturesEnabled = mergeWith != null,
-        backgroundContent = {
-            if (mergeWith != null) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surface)
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        stringResource(R.string.library_merge),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = androidx.compose.ui.graphics.Color(0xFF5856D6),
-                    )
-                }
-            }
-        },
-    ) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
-            .clickable(onClick = onOpen)   // The entire row is clickable to view details
-            .testTag(CLIP_ROW_TAG)
-            // Left edge of card text = Card edge + 16
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(c.title ?: RecordingName.displayTitle(c.name),
-                    style = MaterialTheme.typography.bodyLarge, maxLines = 2)
-                // P0 #7: Size / duration. **The date no longer appears again on the second line** — the title itself is the recording time
-                // (the date is only added to the second line when a custom title is used). Duration is read from the last Ogg page granule, without decoding.
-                Text(
-                    listOfNotNull(
-                        // Only pad the second line with the date when a custom title is used — otherwise the title itself is the recording time
-                        c.title?.let { RecordingName.displayTitle(c.name) },
-                        if (c.hasAudio) formatClipBytes(c.sizeBytes) else null,
-                        c.durationMs?.let { formatDuration(it) },
-                    ).joinToString("  ·  "),
-                    style = MaterialTheme.typography.labelSmall,
-                )
-            }
-            // Badge: no audio (waveform slash) / has transcription (green bubble); playback control is in the detail page, not in the feed
-            if (!c.hasAudio) {
-                Icon(Icons.Filled.VoiceOverOff, stringResource(R.string.clip_detail_text_only),
-                    tint = MaterialTheme.colorScheme.outline)
-            }
-            if (c.transcript != null) {
-                Icon(
-                    Icons.AutoMirrored.Filled.Message,
-                    contentDescription = stringResource(R.string.clip_detail_transcript),
-                    tint = androidx.compose.ui.graphics.Color(0xFF34C759),
-                    modifier = Modifier.padding(start = 6.dp),
-                )
-            }
-            // Arrow icon pressed to 16dp and faded: Material's default 24dp arrow looks much thicker when placed side by side.
-            Icon(
-                Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                // Use secondaryLabel instead of separator: Material's arrow stroke is thin,
-            // so using the same color makes it appear lighter; a darker shade provides equivalent visual weight.
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 4.dp).size(16.dp),
-            )
-        }
-    }
-    }
-}
-
-private fun formatDuration(ms: Int): String = formatClipDuration(ms)
 
 /**
  * Human-readable byte count — decimal 1000-based, KB/MB/GB. Previously, raw byte values (e.g., `361494 B`) were used directly in various places, causing platform inconsistencies.
