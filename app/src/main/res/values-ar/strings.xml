@@ -360,6 +360,7 @@
     <string name="fast_transfer_stage_join_failed">فشل الاتصال بشبكة Wi-Fi</string>
     <string name="fast_transfer_stage_cleanup">جارٍ التنظيف…</string>
     <string name="fast_transfer_hint_polling">قد يستغرق الجهاز من 30 إلى 45 ثانية لتشغيل نقطة الوصول (أطول عند العمل بالبطارية).</string>
+    <string name="fast_transfer_hint_joining">قد يطلب Android الاتصال بشبكة Wi-Fi الخاصة بالجهاز — اخترها للمتابعة.</string>
     <string name="fast_transfer_hint_join_failed">انقر على \"إعادة المحاولة\" للاتصال بشبكة Wi-Fi الخاصة بالجهاز مجددًا.</string>
     <string name="fast_transfer_ap_not_broadcasting">قَبِل الجهاز أمر تشغيل نقطة الوصول، لكنها لم تظهر. أعد المحاولة، وإذا استمر الفشل فأعد تشغيل الجهاز.</string>
     <string name="fast_transfer_invalid_psk">يجب أن تتكون كلمة مرور نقطة اتصال الجهاز من 8 إلى 63 حرفًا. غيّرها من الإعدادات ← التسجيل والنقل ← Wi-Fi AP ثم أعد المحاولة.</string>

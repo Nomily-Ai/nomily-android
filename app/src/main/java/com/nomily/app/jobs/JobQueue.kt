@@ -70,7 +70,7 @@ class JobSourceMissing(message: String) : Exception(message)
 /**
  * Persistent queue for transcription, summaries, translations and audio exports (`filesDir/jobs.json`).
  *
- * Two lanes run side by side — transcription, and everything else — each one job at a time. A failure is retried
+ * One job runs at a time, **newest first**: what the user just asked for runs next. A failure is retried
  * with backoff up to [MAX_ATTEMPTS], then the job stays in the ledger as "gave up" with its error and a retry
  * button. Finished jobs are kept a day so the task page and the clip page can show the outcome.
  */
@@ -87,7 +87,7 @@ class JobQueue(private val file: File, private val scope: CoroutineScope) {
     val running: StateFlow<Set<String>> = _running.asStateFlow()
 
     private val runners = mutableMapOf<JobKind, suspend (WorkJob, Reporter) -> Unit>()
-    private val lanes = mutableMapOf<Boolean, CoJob>()
+    private var lane: CoJob? = null
     private val handles = mutableMapOf<String, CoJob>()
 
     init { prune() }
@@ -141,19 +141,15 @@ class JobQueue(private val file: File, private val scope: CoroutineScope) {
 
     @Synchronized
     private fun drain() {
-        for (transcribeLane in listOf(true, false)) {
-            if (lanes[transcribeLane]?.isActive == true) continue
-            if (_jobs.value.none { it.isRunnable && (it.kind == JobKind.TRANSCRIBE) == transcribeLane }) continue
-            lanes[transcribeLane] = scope.launch { runLane(transcribeLane) }
-        }
+        if (lane?.isActive == true) return
+        if (_jobs.value.none { it.isRunnable }) return
+        lane = scope.launch { runLane() }
     }
 
-    private suspend fun runLane(transcribeLane: Boolean) {
+    private suspend fun runLane() {
         while (true) {
-            // Oldest first: the ledger is newest first.
-            val job = synchronized(this) {
-                _jobs.value.lastOrNull { it.isRunnable && (it.kind == JobKind.TRANSCRIBE) == transcribeLane }
-            } ?: return
+            // Newest first: the ledger is already newest first.
+            val job = synchronized(this) { _jobs.value.firstOrNull { it.isRunnable } } ?: return
             val runner = runners[job.kind]
             if (runner == null) {
                 finish(job.id, "No runner for ${job.kind}")

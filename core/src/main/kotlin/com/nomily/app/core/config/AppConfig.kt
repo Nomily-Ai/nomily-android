@@ -187,10 +187,11 @@ data class AppConfig(
                     it["verified_ok"] as? Boolean,
                 )
             }
-            // A local record without a host is junk: it can't connect to any service, but it causes the port field to display a number no one entered. In older versions, entering a number in an empty port field would store {host: "", port: 1}.
+            // A half-filled record (port but no host) is kept, so the settings page can keep asking for the host after a restart;
+            // only an entirely empty one is dropped. It never counts as configured: that needs a host (see hasConfiguredProvider).
             val lo = (m["local"] as? Map<*, *>)?.let {
                 AppConfig.AsrProviders.Local(it["host"] as? String ?: "", (it["port"] as? Number)?.toInt() ?: 0)
-            }?.takeIf { it.host.isNotEmpty() }
+            }?.takeIf { it.host.isNotEmpty() || it.port > 0 }
             return AppConfig.AsrProviders(az, lo, m.unknownKeys(KNOWN_ASR))
         }
 

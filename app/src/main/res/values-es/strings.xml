@@ -360,6 +360,7 @@
     <string name="fast_transfer_stage_join_failed">Error al conectar a Wi-Fi</string>
     <string name="fast_transfer_stage_cleanup">Limpiando…</string>
     <string name="fast_transfer_hint_polling">El dispositivo puede tardar de 30 a 45 s en activar el AP (más con batería).</string>
+    <string name="fast_transfer_hint_joining">Android puede pedirte que te conectes a la Wi-Fi del dispositivo; elígela para continuar.</string>
     <string name="fast_transfer_hint_join_failed">Toca \"Reintentar\" para intentar conectarte al Wi-Fi del dispositivo de nuevo.</string>
     <string name="fast_transfer_ap_not_broadcasting">El dispositivo aceptó el comando de inicio del AP, pero el AP nunca apareció. Inténtalo de nuevo; si sigue fallando, reinicia el dispositivo.</string>
     <string name="fast_transfer_invalid_psk">La contraseña del punto de acceso del dispositivo debe tener entre 8 y 63 caracteres. Cámbiala en Ajustes → Grabación y transferencia → Wi-Fi AP e inténtalo de nuevo.</string>

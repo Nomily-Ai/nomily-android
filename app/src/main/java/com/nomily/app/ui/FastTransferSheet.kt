@@ -65,6 +65,8 @@ fun FastTransferSheet(ui: NomiViewModel.Ui, vm: NomiViewModel) {
     val finished = ft.stage == NomiViewModel.FtStage.DONE ||
         ft.stage == NomiViewModel.FtStage.FAILED ||
         ft.stage == NomiViewModel.FtStage.JOIN_FAILED
+    // A transfer can take minutes; the screen going to sleep would background the app mid-download.
+    KeepScreenOn(!finished)
     val canRetry = ft.stage == NomiViewModel.FtStage.JOIN_FAILED || ft.stage == NomiViewModel.FtStage.FAILED
 
     Dialog(
@@ -150,6 +152,7 @@ fun FastTransferSheet(ui: NomiViewModel.Ui, vm: NomiViewModel) {
                             // Stage hint: waiting for hotspot / join failure each has a line
                             val hint = when (ft.stage) {
                                 NomiViewModel.FtStage.POLLING_AP -> R.string.fast_transfer_hint_polling
+                                NomiViewModel.FtStage.JOINING -> R.string.fast_transfer_hint_joining
                                 NomiViewModel.FtStage.CONNECTING -> R.string.fast_transfer_hint_connecting
                                 NomiViewModel.FtStage.JOIN_FAILED -> R.string.fast_transfer_hint_join_failed
                                 else -> null

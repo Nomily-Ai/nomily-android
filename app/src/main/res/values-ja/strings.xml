@@ -360,6 +360,7 @@
     <string name="fast_transfer_stage_join_failed">Wi-Fi 接続に失敗</string>
     <string name="fast_transfer_stage_cleanup">クリーンアップ中…</string>
     <string name="fast_transfer_hint_polling">AP の起動に 30〜45 秒かかることがあります（バッテリー駆動時はさらに長くなります）。</string>
+    <string name="fast_transfer_hint_joining">Android がデバイスの Wi-Fi への接続を確認することがあります。そのネットワークを選んで続行してください。</string>
     <string name="fast_transfer_hint_join_failed">「再試行」をタップしてデバイスの Wi-Fi に再接続してください。</string>
     <string name="fast_transfer_ap_not_broadcasting">デバイスはホットスポットの起動コマンドを受け付けましたが、ホットスポットが表示されませんでした。もう一度お試しください。それでも失敗する場合は、デバイスを再起動してください。</string>
     <string name="fast_transfer_invalid_psk">デバイスのホットスポットのパスワードは 8〜63 文字である必要があります。「設定 → 録音と転送 → Wi-Fi AP」で変更してから再試行してください。</string>

@@ -388,6 +388,7 @@
     <string name="fast_transfer_stage_join_failed">Wi-Fi join failed</string>
     <string name="fast_transfer_stage_cleanup">Cleaning up…</string>
     <string name="fast_transfer_hint_polling">The device can take 30-45 s to bring the AP up (longer on battery).</string>
+    <string name="fast_transfer_hint_joining">Android may ask you to connect to the device\'s Wi-Fi — choose it to continue.</string>
     <string name="fast_transfer_hint_join_failed">Tap \"Retry\" to try joining the device\'s Wi-Fi again.</string>
     <string name="fast_transfer_ap_not_broadcasting">Device accepted the AP-start command but the AP never came up. Try again; if it keeps failing, restart the device.</string>
     <string name="fast_transfer_invalid_psk">The device hotspot password must be 8\u201363 characters. Change it in Settings \u2192 Recording &amp; transfer \u2192 Wi-Fi AP, then try again.</string>

@@ -360,6 +360,7 @@
     <string name="fast_transfer_stage_join_failed">Échec de la connexion Wi-Fi</string>
     <string name="fast_transfer_stage_cleanup">Nettoyage…</string>
     <string name="fast_transfer_hint_polling">L\'appareil peut mettre 30 à 45 s pour démarrer l\'AP (plus longtemps sur batterie).</string>
+    <string name="fast_transfer_hint_joining">Android peut vous demander de vous connecter au Wi-Fi de l\'appareil — sélectionnez-le pour continuer.</string>
     <string name="fast_transfer_hint_join_failed">Appuyez sur \"Réessayer\" pour retenter la connexion au Wi-Fi de l\'appareil.</string>
     <string name="fast_transfer_ap_not_broadcasting">L\'appareil a accepté la commande de démarrage de l\'AP, mais celui-ci n\'est jamais apparu. Réessayez ; si l\'échec persiste, redémarrez l\'appareil.</string>
     <string name="fast_transfer_invalid_psk">Le mot de passe du point d\'accès de l\'appareil doit comporter 8 à 63 caractères. Modifiez-le dans Réglages → Enregistrement et transfert → Wi-Fi AP, puis réessayez.</string>

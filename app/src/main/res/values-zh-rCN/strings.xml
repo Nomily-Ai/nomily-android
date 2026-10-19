@@ -360,6 +360,7 @@
     <string name="fast_transfer_stage_join_failed">Wi-Fi 连接失败</string>
     <string name="fast_transfer_stage_cleanup">正在清理…</string>
     <string name="fast_transfer_hint_polling">设备启动 AP 可能需要 30-45 秒（使用电池时更久）。</string>
+    <string name="fast_transfer_hint_joining">Android 可能会弹窗询问是否连接设备的 Wi-Fi，请选择该网络以继续。</string>
     <string name="fast_transfer_hint_join_failed">点击\"重试\"再次尝试加入设备的 Wi-Fi。</string>
     <string name="fast_transfer_ap_not_broadcasting">设备已接受开启热点的命令，但热点始终没有出现。请重试；若仍然失败，重启设备后再试。</string>
     <string name="fast_transfer_invalid_psk">设备热点密码必须为 8–63 个字符。请到「设置 → 录音与传输 → Wi-Fi AP」修改后重试。</string>

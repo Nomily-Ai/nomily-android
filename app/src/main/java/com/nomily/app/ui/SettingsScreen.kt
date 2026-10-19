@@ -1480,9 +1480,9 @@ private fun EncryptionSection(ui: NomiViewModel.Ui, vm: NomiViewModel) {
         ) {
             vm.needPassphrase(true, NomiViewModel.PassphraseMode.SET)
         }
-        var confirmRotate by remember { mutableStateOf(false) }
+        // Straight to the rotate sheet: it carries the irreversibility warning, and the final confirm counts the recordings at risk.
         ActionRow(stringResource(R.string.encryption_rotate_button), enabled = connected) {
-            confirmRotate = true
+            vm.needPassphrase(true, NomiViewModel.PassphraseMode.ROTATE)
         }
         ActionRow(
             stringResource(R.string.encryption_clear_button),
@@ -1491,25 +1491,6 @@ private fun EncryptionSection(ui: NomiViewModel.Ui, vm: NomiViewModel) {
             divider = false,
         ) { vm.clearLocalKey() }
 
-        // Rotation is irreversible: previously encrypted recordings on the device will become permanently undecipherable, so display the warning verbatim first.
-        if (confirmRotate) {
-            AlertDialog(
-                onDismissRequest = { confirmRotate = false },
-                title = { Text(stringResource(R.string.encryption_sheet_title_rotate)) },
-                text = { Text(stringResource(R.string.encryption_footer_rotate)) },
-                confirmButton = {
-                    TextButton(onClick = {
-                        confirmRotate = false
-                        vm.needPassphrase(true, NomiViewModel.PassphraseMode.ROTATE)
-                    }) { Text(stringResource(R.string.encryption_action_rotate)) }
-                },
-                dismissButton = {
-                    TextButton(onClick = { confirmRotate = false }) {
-                        Text(stringResource(R.string.encryption_action_cancel))
-                    }
-                },
-            )
-        }
     }
     GroupFooter(stringResource(R.string.encryption_section_footer))
 }

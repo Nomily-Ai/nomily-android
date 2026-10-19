@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SdStorage
 import androidx.compose.material.icons.filled.SettingsBackupRestore
@@ -56,6 +57,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
@@ -218,6 +220,17 @@ private fun HeroCard(ui: NomiViewModel.Ui) {
                         "$bat%",
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.padding(start = 6.dp),
+                    )
+                }
+            }
+            if (info?.isRecording == true) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                    Icon(Icons.Filled.RadioButtonChecked, contentDescription = null, tint = Color.Red, modifier = Modifier.size(16.dp))
+                    Text(
+                        stringResource(R.string.common_recording),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = Color.Red,
+                        modifier = Modifier.padding(start = 4.dp),
                     )
                 }
             }

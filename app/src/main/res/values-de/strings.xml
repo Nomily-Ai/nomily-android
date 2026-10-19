@@ -360,6 +360,7 @@
     <string name="fast_transfer_stage_join_failed">Wi-Fi-Verbindung fehlgeschlagen</string>
     <string name="fast_transfer_stage_cleanup">Bereinigung…</string>
     <string name="fast_transfer_hint_polling">Das Gerät kann 30–45 s benötigen, um den AP zu starten (länger im Akkubetrieb).</string>
+    <string name="fast_transfer_hint_joining">Android fragt möglicherweise, ob du dich mit dem WLAN des Geräts verbinden möchtest – wähle es aus, um fortzufahren.</string>
     <string name="fast_transfer_hint_join_failed">Tippen Sie auf \"Erneut versuchen\", um die Wi-Fi-Verbindung zum Gerät erneut herzustellen.</string>
     <string name="fast_transfer_ap_not_broadcasting">Das Gerät hat den AP-Startbefehl akzeptiert, aber der AP ist nie erschienen. Versuchen Sie es erneut; wenn es weiterhin fehlschlägt, starten Sie das Gerät neu.</string>
     <string name="fast_transfer_invalid_psk">Das Hotspot-Passwort des Geräts muss 8–63 Zeichen lang sein. Ändern Sie es unter Einstellungen → Aufnahme &amp; Übertragung → Wi-Fi AP und versuchen Sie es erneut.</string>

@@ -360,6 +360,7 @@
     <string name="fast_transfer_stage_join_failed">Wi-Fi 연결 실패</string>
     <string name="fast_transfer_stage_cleanup">정리 중…</string>
     <string name="fast_transfer_hint_polling">AP 시작에 30~45초가 소요될 수 있습니다(배터리 사용 시 더 오래 걸림).</string>
+    <string name="fast_transfer_hint_joining">Android에서 기기의 Wi-Fi에 연결할지 물을 수 있습니다. 해당 네트워크를 선택해 계속하세요.</string>
     <string name="fast_transfer_hint_join_failed">\'재시도\'를 탭하여 기기의 Wi-Fi에 다시 연결하세요.</string>
     <string name="fast_transfer_ap_not_broadcasting">기기가 핫스팟 시작 명령을 수락했지만 핫스팟이 나타나지 않았습니다. 다시 시도하세요. 계속 실패하면 기기를 재시작하세요.</string>
     <string name="fast_transfer_invalid_psk">기기 핫스팟 비밀번호는 8~63자여야 합니다. 설정 → 녹음 및 전송 → Wi-Fi AP에서 변경한 후 다시 시도하세요.</string>

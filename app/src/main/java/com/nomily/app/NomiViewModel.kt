@@ -55,6 +55,8 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
 
         /** When tapping the connect capsule for a known device, give up after not finding it for up to 10 seconds. */
         private const val KNOWN_CONNECT_TIMEOUT_MS = 10_000L
+        /** Pauses between reconnect attempts after an unexpected drop: three attempts, 1 s then 3 s apart, as on iOS. */
+        private val DROP_RECONNECT_BACKOFF_MS = listOf(1_000L, 3_000L)
 
         /** 0x80 polling interval. 30 seconds — enough for battery/space to be reliable without wasting BLE. */
         private const val DEVICE_POLL_INTERVAL_MS = 30_000L
@@ -124,8 +126,12 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
          * (an empty string means "library only", after a fast transfer).
          */
         val showInLibrary: String? = null,
+        /** Device files waiting for the BLE link, in order. */
+        val queuedDownloads: List<String> = emptyList(),
         /** The library search box has text; multi-select is off while results shift under the user's typing. */
         val librarySearching: Boolean = false,
+        /** Phone Bluetooth adapter is on; with no saved device the pill says so instead of offering "Add Device". */
+        val bluetoothOn: Boolean = true,
         /** Audio file name → why it couldn't be loaded for playback; the player shows this instead of a dead play button. */
         val playError: Pair<String, String>? = null,
         val files: List<DnoteBleClient.DeviceFile> = emptyList(),
@@ -494,6 +500,8 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         maybeAutoReconnect()
         watchRecordingElapsed()
         registerAdapterStateReceiver()
+        val btManager = app.getSystemService(Context.BLUETOOTH_SERVICE) as? android.bluetooth.BluetoothManager
+        set { it.copy(bluetoothOn = btManager?.adapter?.isEnabled == true) }
     }
 
     // ── Phone Bluetooth Switch ──────────────────────────────────────────────────
@@ -511,7 +519,9 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 if (intent?.action != BluetoothAdapter.ACTION_STATE_CHANGED) return
-                when (intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)) {
+                val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
+                set { it.copy(bluetoothOn = state == BluetoothAdapter.STATE_ON) }
+                when (state) {
                     BluetoothAdapter.STATE_OFF, BluetoothAdapter.STATE_TURNING_OFF ->
                         onAdapterUnavailable()
                     BluetoothAdapter.STATE_ON -> {
@@ -585,33 +595,46 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
      *
      * MAC addresses can be randomized on some Android models and will change when switching phones; `device_sid` comes from the manufacturer’s broadcast data and is **the card’s own identity**.
      */
-    fun maybeAutoReconnect() {
+    fun maybeAutoReconnect(afterDrop: Boolean = false) {
         if (!configStore.config.value.autoReconnectEnabled) return
         if (client != null) return
-        val (_, rec) = configStore.config.value.mostRecentDevice() ?: return
-        val wantSid = rec.deviceSid ?: run {
-            // Old records lack SID (`device_sid` was added later) — if unrecognizable, do not connect arbitrarily
-            Log.i(TAG, "Recent device ${rec.name} has no device_sid, skipping auto-reconnect")
-            return
-        }
+        val (address, rec) = configStore.config.value.mostRecentDevice() ?: return
 
         reconnectJob?.cancel()
         reconnectJob = viewModelScope.launch {
             set { it.copy(reconnecting = true, error = null) }
+            // After a drop the card may be mid power-cycle and not advertising yet: retry on a short, **bounded**
+            // schedule, then stop rather than scan forever and drain the battery (the pill goes grey; a tap retries).
+            // At launch or when Bluetooth comes back, one attempt.
+            val pauses = if (afterDrop) DROP_RECONNECT_BACKOFF_MS else emptyList()
             try {
-                // Connect as soon as the target is scanned; if not found, keep waiting (user manual action will cancel this job)
-                val target = scanner.scan()
-                    .mapNotNull { list -> list.firstOrNull { it.adv.deviceSidHex == wantSid } }
-                    .first()
-                Log.i(TAG, "Auto-reconnect hit sid=$wantSid (${target.name})")
-                set { it.copy(reconnecting = false) }
-                connect(target, manual = false)
+                for (attempt in 0..pauses.size) {
+                    if (client != null) break
+                    // Match by device_sid (survives MAC randomisation); records saved before the SID existed fall back to the address.
+                    val target = kotlinx.coroutines.withTimeoutOrNull(KNOWN_CONNECT_TIMEOUT_MS) {
+                        scanner.scan()
+                            .mapNotNull { list ->
+                                list.firstOrNull { d ->
+                                    rec.deviceSid?.let { d.adv.deviceSidHex == it } ?: (d.address == address)
+                                }
+                            }
+                            .first()
+                    }
+                    if (target != null) {
+                        Log.i(TAG, "Auto-reconnect found ${target.name} (attempt ${attempt + 1})")
+                        set { it.copy(reconnecting = false) }
+                        connect(target, manual = false)
+                        return@launch
+                    }
+                    pauses.getOrNull(attempt)?.let { kotlinx.coroutines.delay(it) }
+                }
+                Log.i(TAG, "Auto-reconnect gave up on ${rec.name}")
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Log.w(TAG, "Auto-reconnect abandoned: ${e.message}")
-                set { it.copy(reconnecting = false) }
             }
+            set { it.copy(reconnecting = false) }
         }
     }
 
@@ -889,7 +912,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 error = if (it.autoReconnect) null else str(R.string.device_disconnected),
             )
         }
-        maybeAutoReconnect()
+        maybeAutoReconnect(afterDrop = true)
     }
 
     /**
@@ -988,29 +1011,30 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
      * `after` is for actions that need to “do and then disconnect” (shutdown / unbond).
      */
     private fun deviceOp(
-        @StringRes labelId: Int,
+        /** Busy-pill text; null for quick settings (switches, sliders) that apply silently — the control itself shows the change. */
+        @StringRes labelId: Int?,
         after: (() -> Unit)? = null,
         op: suspend (DnoteBleClient) -> Unit,
     ) {
         val c = client ?: return
         viewModelScope.launch {
-            set { it.copy(busy = str(labelId), error = null) }
+            set { it.copy(busy = labelId?.let(::str) ?: it.busy, error = null) }
             try {
                 withContext(Dispatchers.IO) { op(c) }
-                set { it.copy(busy = null) }
+                if (labelId != null) set { it.copy(busy = null) }
                 if (after != null) after() else refreshSwitches()
             } catch (e: Exception) {
-                Log.e(TAG, "Device command failed: ${str(labelId)}", e)
-                set { it.copy(busy = null, error = failed(R.string.device_couldnt_update, e)) }
+                Log.e(TAG, "Device command failed", e)
+                set { it.copy(busy = if (labelId != null) null else it.busy, error = failed(R.string.device_couldnt_update, e)) }
             }
         }
     }
 
-    fun setSwitch(name: String, on: Boolean) = deviceOp(R.string.encryption_progress_working) { it.setSwitch(name, on) }
+    fun setSwitch(name: String, on: Boolean) = deviceOp(null) { it.setSwitch(name, on) }
 
-    fun setMicGain(level: Int) = deviceOp(R.string.encryption_progress_working) { it.setMicGain(level) }
+    fun setMicGain(level: Int) = deviceOp(null) { it.setMicGain(level) }
 
-    fun setNrLevel(level: Int) = deviceOp(R.string.encryption_progress_working) { it.setNrLevel(level) }
+    fun setNrLevel(level: Int) = deviceOp(null) { it.setNrLevel(level) }
 
     fun setIdleOff(seconds: Int) = deviceOp(R.string.device_saving_idle_off) { it.setIdleOff(seconds) }
 
@@ -1333,6 +1357,11 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                     cycleAp(c, ssid, psk)
                 }
 
+                // List again over Wi-Fi, as iOS does: recordings made after the tap are included, and anything already
+                // in the library is skipped. If the listing fails, the list taken over Bluetooth still stands.
+                val files = listForFastTransfer(wifi, files)
+                set { u -> u.copy(fastTransfer = u.fastTransfer?.copy(files = files.map { f -> FtFile(f.name, f.size) })) }
+
                 var done = 0
                 val saved = mutableListOf<String>()
                 ftStage(FtStage.DOWNLOADING)
@@ -1587,6 +1616,19 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Close the fast‑transfer panel; if a transfer is in progress, cancel it as well. */
+    private suspend fun listForFastTransfer(
+        wifi: com.nomily.app.wifi.WifiClient,
+        fallback: List<DnoteBleClient.DeviceFile>,
+    ): List<DnoteBleClient.DeviceFile> {
+        val remote = runCatching { withContext(Dispatchers.IO) { wifi.listFiles() } }
+            .onFailure { Log.w(TAG, "Wi-Fi listing failed, using the Bluetooth list: ${it.message}") }
+            .getOrNull() ?: return fallback
+        val inLibrary = _ui.value.clips.map { it.base }.toSet()
+        return remote
+            .filter { it.name.substringBeforeLast('.') !in inLibrary }
+            .map { DnoteBleClient.DeviceFile(it.index, it.name, it.size) }
+    }
+
     fun dismissFastTransfer(cancel: Boolean) {
         if (cancel) fetchJob?.cancel()
         // Closing a finished transfer goes to the library, where the clips now are.
@@ -1900,7 +1942,8 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         set { it.copy(passphraseAdoptOffer = null) }
         if (!accept || pending == null) return
         set { it.copy(passphraseMode = PassphraseMode.ROTATE) }
-        submitPassphrase(pending)
+        // Accepting the offer *is* the confirmation (the device holds no recordings to lose): write the key straight away.
+        submitPassphrase(pending, rotateConfirmed = true)
     }
 
     /** User has acknowledged “data will be sent to a third party” — record once and don’t ask again. */
@@ -1958,7 +2001,14 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
             set { it.copy(needPassphrase = true) }
             return
         }
-        fetchJob?.cancel()
+        // The BLE link carries one transfer at a time: further taps queue up and run in order, each row showing its own state.
+        if (fetchJob?.isActive == true) {
+            if (_ui.value.downloadingName != file.name && downloadQueue.none { it.name == file.name }) {
+                downloadQueue += file
+                publishDownloadQueue()
+            }
+            return
+        }
         fetchJob = viewModelScope.launch {
             try {
                 set { it.copy(downloadingName = file.name, fetchFailures = it.fetchFailures - file.name) }
@@ -1994,8 +2044,31 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 // The reason stays on that file's row (like iOS), not in the page-wide error card.
                 val reason = downloadFailureReason(file.name, key, e)
                 set { it.copy(busy = null, progress = null, downloadingName = null, fetchFailures = it.fetchFailures + (file.name to reason)) }
+            } finally {
+                // Next queued file (cancelling one row moves on to the next; cancelFetch empties the queue first).
+                downloadQueue.removeFirstOrNull()?.let { next ->
+                    publishDownloadQueue()
+                    fetchJob = null   // this job is ending; without this, fetch() would see it active and re-queue
+                    fetch(next)
+                }
             }
         }
+    }
+
+    private val downloadQueue = mutableListOf<DnoteBleClient.DeviceFile>()
+
+    private fun publishDownloadQueue() = set { it.copy(queuedDownloads = downloadQueue.map { f -> f.name }) }
+
+    /** Take a waiting file out of the download queue. */
+    fun cancelQueued(name: String) {
+        downloadQueue.removeAll { it.name == name }
+        publishDownloadQueue()
+    }
+
+    /** Stop only the file transferring now; queued files carry on. */
+    fun cancelCurrentDownload() {
+        fetchJob?.cancel()
+        set { it.copy(busy = null, progress = null, downloadingName = null) }
     }
 
     // ── Local Segments / Playback ───────────────────────────────────────────────
@@ -3374,6 +3447,8 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     fun settingsTargetHandled() = set { it.copy(settingsTarget = null) }
 
     fun cancelFetch() {
+        downloadQueue.clear()
+        publishDownloadQueue()
         fetchJob?.cancel()
         fetchJob = null
         set { it.copy(busy = null, progress = null, downloadingName = null) }

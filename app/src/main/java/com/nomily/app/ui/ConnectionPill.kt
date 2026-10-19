@@ -5,6 +5,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.UnfoldMore
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.HorizontalDivider
@@ -78,7 +79,21 @@ fun ConnectionPill(
     onAddDevice: () -> Unit,
     onSelectDevice: (String) -> Unit,
     onRemoveDevice: (KnownDevice) -> Unit = {},
+    bluetoothOn: Boolean = true,
 ) {
+    if (knownDevices.isEmpty() && !bluetoothOn) {
+        // Nothing to connect to and no way to scan: say why instead of offering "Add Device".
+        PillChrome(enabled = enabled, onClick = onAddDevice) {
+            Icon(Icons.Filled.Warning, contentDescription = null, tint = Color(0xFFFF9500), modifier = Modifier.size(16.dp))
+            Text(
+                stringResource(R.string.scanner_bluetooth_unavailable),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(start = 6.dp),
+                maxLines = 1,
+            )
+        }
+        return
+    }
     if (knownDevices.isEmpty()) {
         PillChrome(enabled = enabled, onClick = onAddDevice) {
             Text("+", style = PillText)

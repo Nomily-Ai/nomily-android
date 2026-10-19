@@ -360,6 +360,7 @@
     <string name="fast_transfer_stage_join_failed">Не удалось подключиться к Wi-Fi</string>
     <string name="fast_transfer_stage_cleanup">Завершение…</string>
     <string name="fast_transfer_hint_polling">Запуск AP на устройстве может занять 30–45 с (дольше при работе от батареи).</string>
+    <string name="fast_transfer_hint_joining">Android может предложить подключиться к Wi-Fi устройства — выберите эту сеть, чтобы продолжить.</string>
     <string name="fast_transfer_hint_join_failed">Нажмите \"Повторить\", чтобы снова подключиться к Wi-Fi устройства.</string>
     <string name="fast_transfer_ap_not_broadcasting">Устройство приняло команду запуска AP, но AP так и не появился. Повторите попытку; если ошибка повторяется, перезагрузите устройство.</string>
     <string name="fast_transfer_invalid_psk">Пароль точки доступа устройства должен содержать от 8 до 63 символов. Измените его в «Настройки → Запись и передача → Wi-Fi AP» и повторите попытку.</string>

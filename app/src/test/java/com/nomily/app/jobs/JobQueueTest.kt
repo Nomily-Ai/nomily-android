@@ -72,4 +72,21 @@ class JobQueueTest {
         delay(50)
         assertNull(q.awaitFinished("export:c3").lastError)
     }
+
+    @Test
+    fun oneAtATimeNewestFirst() = runBlocking {
+        val q = queue()
+        val order = mutableListOf<String>()
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        q.register(JobKind.SUMMARIZE) { j, _ -> if (j.clip == "first") gate.await(); synchronized(order) { order += j.clip } }
+        q.register(JobKind.TRANSCRIBE) { j, _ -> synchronized(order) { order += j.clip } }
+        q.enqueue(WorkJob.summarize("first", "p", "t"))
+        delay(100)   // "first" is running and holds the single lane
+        q.enqueue(WorkJob.transcribe("older", null, false))
+        q.enqueue(WorkJob.summarize("newer", "p", "t"))
+        gate.complete(Unit)
+        q.awaitFinished("transcribe:older")
+        // Transcription shares the lane, and what was asked for last runs next.
+        assertEquals(listOf("first", "newer", "older"), order)
+    }
 }

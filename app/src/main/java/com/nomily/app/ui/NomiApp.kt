@@ -1,6 +1,7 @@
 package com.nomily.app.ui
 
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -267,6 +268,7 @@ fun NomiApp(vm: NomiViewModel) {
                                 if (transferring) pendingDeviceSwitch = address else vm.connectKnown(address)
                             },
                             onRemoveDevice = { pendingRemoval = it },
+                            bluetoothOn = ui.bluetoothOn,
                         )
                     },
                     title = {
@@ -832,6 +834,8 @@ private fun LiveTab(
     onOpenSettings: () -> Unit,
     onViewInLibrary: () -> Unit,
 ) {
+    // A live session runs from the screen: keep it on so the phone doesn't sleep mid-session.
+    KeepScreenOn(ui.live.running)
     val live = ui.live
     val connected = ui.connectedName != null
     if (!connected) {
@@ -1711,13 +1715,14 @@ private fun DeviceFilesList(ui: NomiViewModel.Ui, vm: NomiViewModel, modifier: M
                     DeviceFileRow(
                 f = f,
                 // Progress only belongs to the currently transferring item: the global progress is claimed by `downloadingName`.
-                // Other rows do not show a progress bar or a stop button—the stop button is bound to the same
-                // `cancelFetch`, which looks like "stop this item" but actually stops the one currently transferring.
+                // Other rows can still be tapped: they queue behind it and show "Waiting" with their own cancel.
                 progress = if (f.name == ui.downloadingName) ui.progress else null,
                 downloaded = clip != null,
-                enabled = !transferring,
+                enabled = f.name != ui.downloadingName,
                 onFetch = { vm.fetch(f) },
-                onCancel = vm::cancelFetch,
+                onCancel = vm::cancelCurrentDownload,
+                queued = f.name in ui.queuedDownloads,
+                onCancelQueued = { vm.cancelQueued(f.name) },
                 onDelete = { pendingDelete = f },
                 fetchError = ui.fetchFailures[f.name],
                 clip = clip,
@@ -1765,6 +1770,8 @@ private fun DeviceFileRow(
     onFetch: () -> Unit,
     onCancel: () -> Unit,
     onDelete: () -> Unit,
+    queued: Boolean,
+    onCancelQueued: () -> Unit,
     fetchError: String?,
     clip: LocalClip?,
     transcribing: Boolean,
@@ -1808,7 +1815,16 @@ private fun DeviceFileRow(
                     Text(RecordingName.displayTitle(f.name), style = MaterialTheme.typography.bodyMedium)
                     Text(formatClipBytes(f.size.toLong()), style = MaterialTheme.typography.labelSmall)
                 }
-                if (progress != null) {
+                if (queued) {
+                    Text(
+                        stringResource(R.string.jobs_status_waiting),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    IconButton(onClick = onCancelQueued) {
+                        Icon(Icons.Filled.Close, stringResource(R.string.common_cancel), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else if (progress != null) {
                     // P0 #4 "Stop button". Cancellation is not just local — the client sends a 0x70 cmd=0
                     // to tell the device to stop pushing, then drains residual packets; otherwise,
                     // fragments will collide with the next command.
@@ -2225,5 +2241,15 @@ private fun RowNote(text: String, icon: androidx.compose.ui.graphics.vector.Imag
         Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(12.dp))
         Spacer(Modifier.width(4.dp))
         Text(text, style = MaterialTheme.typography.labelSmall, color = color, maxLines = 2)
+    }
+}
+
+/** Keeps the display awake while [on]; released when [on] turns false or the caller leaves composition. */
+@Composable
+internal fun KeepScreenOn(on: Boolean) {
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.DisposableEffect(view, on) {
+        view.keepScreenOn = on
+        onDispose { view.keepScreenOn = false }
     }
 }
