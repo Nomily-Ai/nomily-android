@@ -186,6 +186,9 @@
     <string name="library_merge_failed">병합 실패</string>
     <string name="library_merge_confirm_title">인접한 클립을 병합하시겠습니까?</string>
     <string name="library_merge_confirm_message">%1$s와(과) %2$s이(가) 하나의 새 녹음(M4A)으로 병합됩니다. 원본 클립과 해당 전사, 요약, 번역은 삭제되며 되돌릴 수 없습니다.</string>
+    <string name="library_export_ready">마지막 내보내기가 완료되었습니다</string>
+    <string name="library_export_ready_footer">파일은 이미 이 휴대폰에 있습니다. 위 행을 탭하면 공유할 수 있습니다. 새로 내보내면 이 사본은 대체되며, 3일 후 자동으로 삭제됩니다.</string>
+    <string name="library_clear_export_staging">내보낸 파일 삭제</string>
     <string name="library_import_audio">오디오 가져오기</string>
     <string name="library_import_confirm_title">오디오 파일 가져오기</string>
     <string name="library_import_choose_file">파일 선택…</string>
@@ -369,6 +372,7 @@
     <string name="clip_detail_view_full_translation">전체 번역 보기</string>
     <string name="clip_detail_view_full_translated_summary">번역된 요약 전체 보기</string>
     <string name="clip_detail_transcribing">전사 중...</string>
+    <string name="clip_detail_playback_failed">이 녹음을 재생할 수 없습니다: %s</string>
     <string name="azure_guide_title">Azure Speech 설정</string>
     <string name="azure_guide_step">%1$d단계: %2$s</string>
     <string name="azure_guide_step1_title">Azure 계정 만들기</string>

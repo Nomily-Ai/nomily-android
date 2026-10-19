@@ -348,7 +348,9 @@ fun TemplateGrid(
         val q = search.trim().lowercase()
         if (q.isEmpty()) templates else templates.filter {
             localizedTemplateName(context, it.name, it.isBuiltIn).lowercase().contains(q) ||
-                it.name.lowercase().contains(q) || it.category.lowercase().contains(q)
+                it.name.lowercase().contains(q) || it.category.lowercase().contains(q) ||
+                // The one-line description too, so "interview" finds templates that only mention it there.
+                (it.summary != null && localizedTemplateSubtitle(context, it).lowercase().contains(q))
         }
     }
     if (shown.isEmpty()) {

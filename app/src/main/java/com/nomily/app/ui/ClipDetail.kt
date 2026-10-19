@@ -1,5 +1,6 @@
 package com.nomily.app.ui
 
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -939,6 +940,20 @@ private fun PlayerSheet(clip: LocalClip, ui: NomiViewModel.Ui, vm: NomiViewModel
                 }
             }
             Spacer(Modifier.padding(top = 24.dp))
+            // The file couldn't be loaded: say why instead of showing a play button that does nothing.
+            ui.playError?.takeIf { it.first == audio.name }?.let { (_, reason) ->
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 24.dp)) {
+                    Icon(androidx.compose.material.icons.Icons.Filled.Block, contentDescription = null, tint = androidx.compose.ui.graphics.Color(0xFFFF9500), modifier = Modifier.size(40.dp))
+                    Text(
+                        stringResource(R.string.clip_detail_playback_failed, reason),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
+                return@Column
+            }
             // The hit area is larger than the drawn circle so the padding around it doesn't swallow taps.
             Box(
                 Modifier.size(140.dp).clickable(onClick = { vm.togglePlay(audio) }),

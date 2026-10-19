@@ -178,6 +178,13 @@ fun NomiApp(vm: NomiViewModel) {
     // The recording tab's sections (Device / Library) — **the action button at the top right of the navigation bar changes with it** (the Device section is 「Refresh」、
     //     // the Library section is 「Import Audio」), so the state must be placed where the navigation bar can see it.
     var segment by remember { mutableStateOf(Segment.Device) }
+    // A finished transfer asks for the library (RecordingsTab then opens the clip, when one is named).
+    LaunchedEffect(ui.showInLibrary) {
+        val target = ui.showInLibrary ?: return@LaunchedEffect
+        tab = Tab.Recordings
+        segment = Segment.Library
+        if (target.isEmpty()) vm.showInLibraryHandled()
+    }
     // Library multi-select; hoisted here because the navigation bar shows Select / Cancel for it.
     var librarySelecting by remember { mutableStateOf(false) }
     LaunchedEffect(tab) { if (tab != Tab.Recordings) librarySelecting = false }
@@ -286,7 +293,8 @@ fun NomiApp(vm: NomiViewModel) {
                             } else {
                                 TextButton(
                                     onClick = { librarySelecting = true },
-                                    enabled = ui.clips.isNotEmpty(),
+                                    // Not while searching: a ticked row could vanish from the results on the next keystroke.
+                                    enabled = ui.clips.isNotEmpty() && !ui.librarySearching,
                                 ) { Text(stringResource(R.string.library_select)) }
                                 ImportAction(vm)
                             }
@@ -556,6 +564,14 @@ private fun RecordingsTab(
     // The detail page is a **pushed page**: it covers the entire content area (even the segmented control is hidden).
     // So this state lives at the tab level, rather than being stuffed into the library list.
     var openBase by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(ui.showInLibrary, ui.clips) {
+        val base = ui.showInLibrary?.takeIf { it.isNotEmpty() } ?: return@LaunchedEffect
+        // Wait for the rescan that picks up the new clip before opening it.
+        if (ui.clips.any { it.base == base }) {
+            openBase = base
+            vm.showInLibraryHandled()
+        }
+    }
     ui.clips.firstOrNull { it.base == openBase }?.let { c ->
         ClipDetail(c, ui, vm, onOpenSettings, onPush) { openBase = null }
         return
@@ -724,6 +740,25 @@ private fun RecordControl(ui: NomiViewModel.Ui, vm: NomiViewModel) {
     // Recording can't **start** until the passphrase is fully set (an in-progress recording must still be stoppable). The command layer
     // `DnoteBleClient.startRecording` is the real gate; here we just keep the button from looking clickable.
     val startBlocked = !recording && ui.encryptionOn == true && !ui.hasLocalKey
+    // Elapsed time beside the button while recording. The device's own counter (`recd`) anchors a local clock that
+    // ticks every second, so the display moves smoothly between polls and stays right for button-started recordings.
+    val deviceMs = ui.recordingElapsedMs
+    if (recording && deviceMs != null) {
+        val anchor = remember(deviceMs) { System.currentTimeMillis() - deviceMs }
+        var now by remember { mutableStateOf(System.currentTimeMillis()) }
+        LaunchedEffect(anchor) {
+            while (true) {
+                now = System.currentTimeMillis()
+                kotlinx.coroutines.delay(1000 - now % 1000)
+            }
+        }
+        Text(
+            formatElapsed((now - anchor).toInt().coerceAtLeast(0)),
+            style = MaterialTheme.typography.labelLarge,
+            fontFamily = FontFamily.Monospace,
+            color = Color.Red,
+        )
+    }
     IconButton(onClick = vm::toggleRecording, enabled = connected && !startBlocked) {
         Icon(
             imageVector = if (recording) Icons.Filled.StopCircle else Icons.Filled.RadioButtonChecked,

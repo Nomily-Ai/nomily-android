@@ -186,6 +186,9 @@
     <string name="library_merge_failed">فشل الدمج</string>
     <string name="library_merge_confirm_title">دمج المقاطع المتجاورة؟</string>
     <string name="library_merge_confirm_message">سيتم دمج %1$s و%2$s في تسجيل جديد واحد (M4A). ستُحذف المقاطع الأصلية وما يتصل بها من النصوص والملخصات والترجمات، ولا يمكن التراجع عن هذا الإجراء.</string>
+    <string name="library_export_ready">آخر تصدير جاهز</string>
+    <string name="library_export_ready_footer">الملف موجود بالفعل على هذا الهاتف — انقر على الصف أعلاه لمشاركته. يستبدل التصدير الجديد هذه النسخة، وتُحذف تلقائيًا بعد 3 أيام.</string>
+    <string name="library_clear_export_staging">حذف الملف المُصدَّر</string>
     <string name="library_import_audio">استيراد صوت</string>
     <string name="library_import_confirm_title">استيراد ملف صوتي</string>
     <string name="library_import_choose_file">اختر ملفاً…</string>
@@ -369,6 +372,7 @@
     <string name="clip_detail_view_full_translation">عرض الترجمة الكاملة</string>
     <string name="clip_detail_view_full_translated_summary">عرض الملخص المترجم كاملًا</string>
     <string name="clip_detail_transcribing">جارٍ النسخ...</string>
+    <string name="clip_detail_playback_failed">تعذّر تشغيل هذا التسجيل: %s</string>
     <string name="azure_guide_title">إعداد Azure Speech</string>
     <string name="azure_guide_step">الخطوة %1$d: %2$s</string>
     <string name="azure_guide_step1_title">إنشاء حساب Azure</string>

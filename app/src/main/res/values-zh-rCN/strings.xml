@@ -186,6 +186,9 @@
     <string name="library_merge_failed">合并失败</string>
     <string name="library_merge_confirm_title">合并相邻的两段？</string>
     <string name="library_merge_confirm_message">将把 %1$s 与 %2$s 合并为一段新的录音（M4A 格式）。两段原始录音及其转录、摘要、翻译会一并删除，无法撤销。</string>
+    <string name="library_export_ready">上次导出已完成</string>
+    <string name="library_export_ready_footer">文件已经存在这台手机上，点上面那一行就能分享。开始新的导出会替换这一份，放着不动 3 天后自动清理。</string>
+    <string name="library_clear_export_staging">清理导出文件</string>
     <string name="library_import_audio">导入音频</string>
     <string name="library_import_confirm_title">导入音频文件</string>
     <string name="library_import_choose_file">选择文件…</string>
@@ -369,6 +372,7 @@
     <string name="clip_detail_view_full_translation">查看完整翻译</string>
     <string name="clip_detail_view_full_translated_summary">查看完整翻译</string>
     <string name="clip_detail_transcribing">正在转录...</string>
+    <string name="clip_detail_playback_failed">无法播放这段录音：%s</string>
     <string name="azure_guide_title">Azure Speech 设置</string>
     <string name="azure_guide_step">第 %1$d 步：%2$s</string>
     <string name="azure_guide_step1_title">创建 Azure 帐户</string>

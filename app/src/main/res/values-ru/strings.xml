@@ -186,6 +186,9 @@
     <string name="library_merge_failed">Ошибка объединения</string>
     <string name="library_merge_confirm_title">Объединить смежные записи?</string>
     <string name="library_merge_confirm_message">%1$s и %2$s будут объединены в одну новую запись (M4A). Исходные записи, а также их расшифровки, сводки и переводы будут удалены. Отменить это действие нельзя.</string>
+    <string name="library_export_ready">Последний экспорт готов</string>
+    <string name="library_export_ready_footer">Файл уже на этом телефоне — нажмите на строку выше, чтобы поделиться им. Новый экспорт заменит эту копию; через 3 дня она удаляется автоматически.</string>
+    <string name="library_clear_export_staging">Удалить экспортированный файл</string>
     <string name="library_import_audio">Импорт аудио</string>
     <string name="library_import_confirm_title">Импорт аудиофайла</string>
     <string name="library_import_choose_file">Выбрать файл…</string>
@@ -369,6 +372,7 @@
     <string name="clip_detail_view_full_translation">Полный перевод</string>
     <string name="clip_detail_view_full_translated_summary">Показать полный перевод сводки</string>
     <string name="clip_detail_transcribing">Транскрибирование...</string>
+    <string name="clip_detail_playback_failed">Не удаётся воспроизвести запись: %s</string>
     <string name="azure_guide_title">Настройка Azure Speech</string>
     <string name="azure_guide_step">Шаг %1$d: %2$s</string>
     <string name="azure_guide_step1_title">Создать учётную запись Azure</string>

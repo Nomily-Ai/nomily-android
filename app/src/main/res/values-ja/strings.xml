@@ -186,6 +186,9 @@
     <string name="library_merge_failed">結合に失敗しました</string>
     <string name="library_merge_confirm_title">隣接するクリップを結合しますか？</string>
     <string name="library_merge_confirm_message">%1$s と %2$s を 1 つの新しい録音（M4A）に結合します。元のクリップおよびそれらの文字起こし・要約・翻訳は削除され、取り消せません。</string>
+    <string name="library_export_ready">前回のエクスポートが完了しました</string>
+    <string name="library_export_ready_footer">ファイルはすでにこのスマートフォンにあります。上の行をタップすると共有できます。新しくエクスポートするとこのコピーは置き換えられ、3 日後に自動で削除されます。</string>
+    <string name="library_clear_export_staging">エクスポートしたファイルを削除</string>
     <string name="library_import_audio">音声を読み込む</string>
     <string name="library_import_confirm_title">音声ファイルを読み込む</string>
     <string name="library_import_choose_file">ファイルを選択…</string>
@@ -369,6 +372,7 @@
     <string name="clip_detail_view_full_translation">全文を表示</string>
     <string name="clip_detail_view_full_translated_summary">翻訳全文を表示</string>
     <string name="clip_detail_transcribing">文字起こし中...</string>
+    <string name="clip_detail_playback_failed">この録音を再生できません：%s</string>
     <string name="azure_guide_title">Azure Speech セットアップ</string>
     <string name="azure_guide_step">ステップ %1$d：%2$s</string>
     <string name="azure_guide_step1_title">Azure アカウントを作成</string>

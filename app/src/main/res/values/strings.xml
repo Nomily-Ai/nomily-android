@@ -204,6 +204,9 @@
     <string name="library_merge_failed">Merge Failed</string>
     <string name="library_merge_confirm_title">Merge Adjacent Clips?</string>
     <string name="library_merge_confirm_message">%1$s and %2$s will be combined into a single new recording (M4A). The original clips and their transcripts, summaries, and translations will be deleted. This can\'t be undone.</string>
+    <string name="library_export_ready">Your last export is ready</string>
+    <string name="library_export_ready_footer">The file is already on this phone — tap the row above to share it. A new export replaces this copy, and it\'s cleaned up automatically after 3 days.</string>
+    <string name="library_clear_export_staging">Delete exported file</string>
     <string name="library_import_audio">Import Audio</string>
     <string name="library_import_confirm_title">Import Audio File</string>
     <string name="library_import_choose_file">Choose File…</string>
@@ -397,6 +400,7 @@
     <string name="clip_detail_view_full_translation">View Full Translation</string>
     <string name="clip_detail_view_full_translated_summary">View Full Translated Summary</string>
     <string name="clip_detail_transcribing">Transcribing...</string>
+    <string name="clip_detail_playback_failed">Can\'t play this recording: %s</string>
 
     <!-- P2: Azure guidance / Language selection / Wi-Fi credentials / Encryption banner / No provider guide -->
     <string name="azure_guide_title">Azure Speech Setup</string>

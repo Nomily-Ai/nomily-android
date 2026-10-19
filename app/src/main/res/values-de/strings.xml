@@ -186,6 +186,9 @@
     <string name="library_merge_failed">Zusammenfügen fehlgeschlagen</string>
     <string name="library_merge_confirm_title">Benachbarte Clips zusammenfügen?</string>
     <string name="library_merge_confirm_message">%1$s und %2$s werden zu einer neuen Aufnahme (M4A) zusammengefügt. Die ursprünglichen Clips sowie deren Transkripte, Zusammenfassungen und Übersetzungen werden gelöscht. Dies kann nicht rückgängig gemacht werden.</string>
+    <string name="library_export_ready">Dein letzter Export ist fertig</string>
+    <string name="library_export_ready_footer">Die Datei liegt bereits auf diesem Telefon – tippe auf die Zeile oben, um sie zu teilen. Ein neuer Export ersetzt diese Kopie; nach 3 Tagen wird sie automatisch entfernt.</string>
+    <string name="library_clear_export_staging">Exportierte Datei löschen</string>
     <string name="library_import_audio">Audio importieren</string>
     <string name="library_import_confirm_title">Audiodatei importieren</string>
     <string name="library_import_choose_file">Datei auswählen…</string>
@@ -369,6 +372,7 @@
     <string name="clip_detail_view_full_translation">Vollständige Übersetzung anzeigen</string>
     <string name="clip_detail_view_full_translated_summary">Vollständige übersetzte Zusammenfassung anzeigen</string>
     <string name="clip_detail_transcribing">Transkription läuft...</string>
+    <string name="clip_detail_playback_failed">Diese Aufnahme kann nicht abgespielt werden: %s</string>
     <string name="azure_guide_title">Azure Speech einrichten</string>
     <string name="azure_guide_step">Schritt %1$d: %2$s</string>
     <string name="azure_guide_step1_title">Ein Azure-Konto erstellen</string>

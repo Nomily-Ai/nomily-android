@@ -69,6 +69,14 @@ object AudioMerger {
                 out.delete()
                 throw MergeException("Merged file is empty, discarded, source files not deleted")
             }
+            // Non-empty isn't enough: a truncated result would still replace two good recordings. Its length must
+            // match both halves (1.5 s slack for encoder padding) before the caller is allowed to retire the sources.
+            val expected = a.durationSec + b.durationSec
+            val actual = durationSec(out)
+            if (actual != null && kotlin.math.abs(actual - expected) > 1.5) {
+                out.delete()
+                throw MergeException("Merged length %.1fs doesn't match %.1fs, discarded, source files not deleted".format(actual, expected))
+            }
             Log.i(TAG, "Merged ${older.name} + ${newer.name} → ${out.name} (%.1fs + %.1fs, %dB)"
                 .format(a.durationSec, b.durationSec, out.length()))
             return out
@@ -78,6 +86,20 @@ object AudioMerger {
         } finally {
             tmpA.delete()
             tmpB.delete()
+        }
+    }
+
+    /** Container-reported duration, or null when it can't be read (then only the non-empty check applies). */
+    private fun durationSec(f: File): Double? {
+        // Not `use {}`: MediaMetadataRetriever is AutoCloseable only from API 29 (minSdk is 24).
+        val r = android.media.MediaMetadataRetriever()
+        return try {
+            r.setDataSource(f.path)
+            r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toDoubleOrNull()?.div(1000)
+        } catch (e: Exception) {
+            null
+        } finally {
+            r.release()
         }
     }
 }

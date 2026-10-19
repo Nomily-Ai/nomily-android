@@ -1,5 +1,6 @@
 package com.nomily.app.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -143,6 +144,8 @@ fun LibraryList(
 
     val clips = ui.clips
     val searchActive = query.isNotBlank()
+    LaunchedEffect(searchActive) { vm.setLibrarySearching(searchActive) }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { vm.setLibrarySearching(false) } }
 
     // Knowledge search: re-run when the query, scope or library changes; typing fast cancels the previous run.
     LaunchedEffect(query, clips) {
@@ -238,6 +241,7 @@ fun LibraryList(
                     CircularProgressIndicator(Modifier.align(Alignment.Center).size(32.dp))
                 sections.isEmpty() -> EmptyState(R.string.library_search_empty_title, R.string.library_search_empty_message, Icons.Filled.Search)
                 else -> LazyColumn(Modifier.fillMaxSize()) {
+                    item(key = "export-ready") { ExportReadyBanner(vm) }
                     items(sections, key = { it.id }) { section ->
                         SectionHeader(section)
                         Card(
@@ -382,7 +386,8 @@ fun LibraryList(
             },
             confirmButton = {
                 TextButton(onClick = { vm.mergeClips(older, newer); pendingMerge = null }) {
-                    Text(stringResource(R.string.library_merge))
+                    // Destructive styling: the two originals leave the library (to Recently Deleted).
+                    Text(stringResource(R.string.library_merge), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
@@ -440,7 +445,10 @@ private fun buildSections(
             val keep = when (scope) {
                 SearchScope.KNOWLEDGE -> inBody
                 // "All" also matches titles of clips that have no text yet.
-                SearchScope.ALL -> inBody || (c.title ?: RecordingName.displayTitle(c.name)).contains(query.trim(), ignoreCase = true)
+                // "All" also matches by name — the file name or the displayed title — since untranscribed clips have no text.
+                SearchScope.ALL -> inBody ||
+                    com.nomily.app.core.text.KnowledgeSearch.matches(c.name, query) ||
+                    com.nomily.app.core.text.KnowledgeSearch.matches(c.title ?: RecordingName.displayTitle(c.name), query)
             }
             if (!keep) return@forEachIndexed
         }
@@ -610,11 +618,11 @@ private fun LibraryRow(
         backgroundContent = {
             if (mergeWith != null) {
                 Row(
-                    Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).padding(horizontal = 16.dp),
+                    Modifier.fillMaxSize().background(Color(0xFF5856D6)).padding(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(stringResource(R.string.library_merge), style = MaterialTheme.typography.labelLarge, color = Color(0xFF5856D6))
+                    Text(stringResource(R.string.library_merge), style = MaterialTheme.typography.labelLarge, color = Color.White)
                 }
             }
         },
@@ -709,3 +717,55 @@ private fun sourceIcon(kind: ClipManifest.Source.Kind): ImageVector = when (kind
     ClipManifest.Source.Kind.PHONE -> Icons.Filled.PhoneAndroid
     ClipManifest.Source.Kind.IMPORTED -> Icons.Filled.FileDownload
 }
+
+/**
+ * "Your last export is ready": a long export can finish while the user is elsewhere; without a trace here the only
+ * idea left is to export again. Tapping the row shares the staged file; the trash icon frees the staged copy only.
+ */
+@Composable
+private fun ExportReadyBanner(vm: NomiViewModel) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val ready by vm.exports.ready.collectAsStateWithLifecycle()
+    val r = ready?.takeIf { vm.exports.fileOf(it).isFile } ?: return
+    Column(Modifier.padding(top = 12.dp)) {
+        Card(
+            Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(10.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        ) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        shareFile(context, vm.exports.fileOf(r), if (r.file.endsWith(".wav")) "audio/wav" else "audio/mp4")
+                    }
+                    .padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = Color(0xFF34C759), modifier = Modifier.size(24.dp))
+                Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                    Text(stringResource(R.string.library_export_ready), style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "${exportTitle(vm, r)} · ${formatClipBytes(r.bytes)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(onClick = { vm.exports.discard() }) {
+                    Icon(Icons.Filled.Delete, stringResource(R.string.library_clear_export_staging), tint = Color.Red)
+                }
+            }
+        }
+        Text(
+            stringResource(R.string.library_export_ready_footer),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+        )
+    }
+}
+
+/** The exported clip's current title (it may have been renamed since), else the staged name rendered as a date. */
+private fun exportTitle(vm: NomiViewModel, r: com.nomily.app.audio.ExportCenter.Ready): String =
+    vm.ui.value.clips.firstOrNull { it.base == r.origin }?.title ?: RecordingName.displayTitle(r.title)

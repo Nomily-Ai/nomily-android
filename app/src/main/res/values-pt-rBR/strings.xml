@@ -186,6 +186,9 @@
     <string name="library_merge_failed">Falha na mesclagem</string>
     <string name="library_merge_confirm_title">Mesclar clipes adjacentes?</string>
     <string name="library_merge_confirm_message">%1$s e %2$s serão combinados em uma nova gravação (M4A). Os clipes originais e suas transcrições, resumos e traduções serão apagados. Esta ação não pode ser desfeita.</string>
+    <string name="library_export_ready">Sua última exportação está pronta</string>
+    <string name="library_export_ready_footer">O arquivo já está neste telefone — toque na linha acima para compartilhar. Uma nova exportação substitui esta cópia, que é apagada automaticamente após 3 dias.</string>
+    <string name="library_clear_export_staging">Apagar arquivo exportado</string>
     <string name="library_import_audio">Importar áudio</string>
     <string name="library_import_confirm_title">Importar arquivo de áudio</string>
     <string name="library_import_choose_file">Escolher arquivo…</string>
@@ -369,6 +372,7 @@
     <string name="clip_detail_view_full_translation">Ver tradução completa</string>
     <string name="clip_detail_view_full_translated_summary">Ver resumo traduzido completo</string>
     <string name="clip_detail_transcribing">Transcrevendo...</string>
+    <string name="clip_detail_playback_failed">Não é possível reproduzir esta gravação: %s</string>
     <string name="azure_guide_title">Configuração do Azure Speech</string>
     <string name="azure_guide_step">Etapa %1$d: %2$s</string>
     <string name="azure_guide_step1_title">Criar uma conta Azure</string>

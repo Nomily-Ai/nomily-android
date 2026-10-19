@@ -1,6 +1,7 @@
 package com.nomily.app.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -117,7 +118,13 @@ fun TaskCenterPage(vm: NomiViewModel, onPush: (PushedPage?) -> Unit, onDismiss: 
 
 @Composable
 private fun JobRow(job: WorkJob, title: String, state: JobQueue.State, vm: NomiViewModel) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = NomiDimens.rowInset, vertical = 10.dp)) {
+    // Tapping a task opens its recording (when the clip still exists).
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clickable { vm.openInLibrary(job.clip) }
+            .padding(horizontal = NomiDimens.rowInset, vertical = 10.dp),
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(kindIcon(job.kind), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
             Text(

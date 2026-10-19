@@ -186,6 +186,9 @@
     <string name="library_merge_failed">Échec de la fusion</string>
     <string name="library_merge_confirm_title">Fusionner les clips voisins ?</string>
     <string name="library_merge_confirm_message">%1$s et %2$s seront fusionnés en un seul nouvel enregistrement (M4A). Les clips d’origine, ainsi que leurs transcriptions, résumés et traductions seront supprimés. Cette action est irréversible.</string>
+    <string name="library_export_ready">Votre dernier export est prêt</string>
+    <string name="library_export_ready_footer">Le fichier est déjà sur ce téléphone : touchez la ligne ci-dessus pour le partager. Un nouvel export remplace cette copie, supprimée automatiquement après 3 jours.</string>
+    <string name="library_clear_export_staging">Supprimer le fichier exporté</string>
     <string name="library_import_audio">Importer de l’audio</string>
     <string name="library_import_confirm_title">Importer un fichier audio</string>
     <string name="library_import_choose_file">Choisir un fichier…</string>
@@ -369,6 +372,7 @@
     <string name="clip_detail_view_full_translation">Voir la traduction complète</string>
     <string name="clip_detail_view_full_translated_summary">Voir le résumé traduit complet</string>
     <string name="clip_detail_transcribing">Transcription en cours...</string>
+    <string name="clip_detail_playback_failed">Impossible de lire cet enregistrement : %s</string>
     <string name="azure_guide_title">Configuration d\'Azure Speech</string>
     <string name="azure_guide_step">Étape %1$d : %2$s</string>
     <string name="azure_guide_step1_title">Créer un compte Azure</string>

@@ -119,6 +119,15 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         val connectFailure: String? = null,
         /** The device panel is re-reading info, switches and pairing state. */
         val refreshingDevice: Boolean = false,
+        /**
+         * A transfer finished and the device copy is gone: show the library, opening this clip base when set
+         * (an empty string means "library only", after a fast transfer).
+         */
+        val showInLibrary: String? = null,
+        /** The library search box has text; multi-select is off while results shift under the user's typing. */
+        val librarySearching: Boolean = false,
+        /** Audio file name → why it couldn't be loaded for playback; the player shows this instead of a dead play button. */
+        val playError: Pair<String, String>? = null,
         val files: List<DnoteBleClient.DeviceFile> = emptyList(),
         /**
          * Reading the device file list — only for the refresh button in the top bar.
@@ -1580,7 +1589,9 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     /** Close the fast‑transfer panel; if a transfer is in progress, cancel it as well. */
     fun dismissFastTransfer(cancel: Boolean) {
         if (cancel) fetchJob?.cancel()
-        set { it.copy(fastTransfer = null) }
+        // Closing a finished transfer goes to the library, where the clips now are.
+        val done = _ui.value.fastTransfer?.stage == FtStage.DONE
+        set { it.copy(fastTransfer = null, showInLibrary = if (done) "" else it.showInLibrary) }
     }
 
     /**
@@ -1591,16 +1602,27 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
      *
      * Deletion failure does not count as retrieval failure: the file is safely stored locally, but the original remains on the device; a simple note suffices ("saved locally, but the device kept the original").
      */
-    private suspend fun maybeDeleteFromDevice(c: DnoteBleClient, deviceFileName: String) {
-        if (!configStore.config.value.autoDeleteAfterTransfer) return
-        try {
+    private suspend fun maybeDeleteFromDevice(c: DnoteBleClient, deviceFileName: String): Boolean {
+        if (!configStore.config.value.autoDeleteAfterTransfer) return false
+        return try {
             withContext(Dispatchers.IO) { c.deleteFile(deviceFileName) }
             Log.i(TAG, "Deleted $deviceFileName from device after retrieval")
             loadFiles()
+            true
         } catch (e: Exception) {
             Log.w(TAG, "Failed to delete $deviceFileName after retrieval", e)
             set { it.copy(error = str(R.string.device_files_kept_on_device, deviceFileName, describe(e))) }
+            false
         }
+    }
+
+    fun showInLibraryHandled() = set { it.copy(showInLibrary = null) }
+
+    fun setLibrarySearching(on: Boolean) = set { it.copy(librarySearching = on) }
+
+    /** Switch to the library and open this clip's detail page; ignored when the clip no longer exists. */
+    fun openInLibrary(base: String) {
+        if (_ui.value.clips.any { it.base == base }) set { it.copy(showInLibrary = base) }
     }
 
     /** Poll the `wifiap` bit of 0x80, waiting up to 60 seconds. */
@@ -1954,7 +1976,10 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 // P3 “Automatically delete device file after transfer”. **Reaching this point guarantees a playable artefact** ——
                 // Missing key or decryption failure throws an exception in the pipeline, never reaching this branch,
                 // so the issue of “deleting an undecrypted original from the device” cannot occur.
-                maybeDeleteFromDevice(c, file.name)
+                // The row just left the device list: take the user to the clip (its detail page) in the library.
+                if (maybeDeleteFromDevice(c, file.name)) {
+                    set { it.copy(showInLibrary = res.oggFile.name.substringBeforeLast(".")) }
+                }
                 // P1 “Auto-transcribe after download”: when the switch is off, nothing happens; when on, it’s still subject to the minimum duration threshold.
                 if (configStore.config.value.autoTranscribeAfterDownload) {
                     val base = res.oggFile.name.substringBeforeLast(".")
@@ -3377,6 +3402,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         // Recreate the player only when switching to a different file; the same file uses resume (preserves position and saves a prepare call)
         if (player != null && _ui.value.playing == f.name) { resume(); return }
         stopPlayback()
+        set { it.copy(playError = null) }
         try {
             val mp = MediaPlayer().apply {
                 setDataSource(f.absolutePath)
@@ -3411,7 +3437,10 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Playback failed", e)
-            set { it.copy(error = failed(R.string.device_files_operation_failed, e)) }
+            runCatching { player?.release() }
+            player = null
+            // Inline in the player sheet; the library card covers playback started from a list row.
+            set { it.copy(playError = f.name to describe(e), error = failed(R.string.device_files_operation_failed, e)) }
         }
     }
 
