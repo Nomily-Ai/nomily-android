@@ -2223,6 +2223,12 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                     stopInfo = runCatching { withContext(Dispatchers.IO) { c.stopRecording() } }
                         .onFailure { Log.w(TAG, "Failed to stop recording: ${it.message}") }
                         .getOrNull()
+                    // Clear `rec` as soon as the stop is acknowledged; otherwise the pill's red dot lingers until the next 30 s poll.
+                    if (stopInfo != null) set { ui ->
+                        val raw = ui.info?.raw ?: return@set ui
+                        raw.put("rec", 0)
+                        ui.copy(info = com.nomily.app.ble.DeviceInfo(raw))
+                    }
                 }
                 flushLiveTranslation()
                 saveLiveClip(c, buffer, stopInfo, hadPauses)
