@@ -63,6 +63,12 @@
     <string name="asr_auto_transcribe_footer">A transcrição é executada após cada download. Clipes mais curtos que a duração mínima são ignorados. O outro provedor é usado automaticamente como alternativa quando configurado.</string>
     <string name="asr_local_vad">Remover silêncio antes do envio</string>
     <string name="asr_local_vad_footer">A detecção de atividade de voz é executada no dispositivo e remove trechos silenciosos antes de enviar o áudio ao provedor de transcrição. Reduz o tamanho do upload e o custo do ASR.</string>
+    <string name="asr_background_keep_alive">Continuar em segundo plano</string>
+    <string name="asr_background_keep_alive_footer">Ativado, a transcrição, os resumos e outras tarefas continuam ao sair do app ou bloquear a tela, com uma notificação de progresso. Desativado, elas pausam em segundo plano e continuam quando você voltar.</string>
+    <string name="asr_queue_title">Fila de transcrição</string>
+    <string name="asr_queue_running">%d em andamento</string>
+    <string name="asr_queue_stuck">%d abandonadas</string>
+    <string name="asr_queue_stuck_detail">%1$s falhou %2$d vezes e não será mais tentado: %3$s</string>
     <string name="asr_azure_speech">Azure Speech</string>
     <string name="asr_azure_purpose_footer">O Azure Speech faz a transcrição, a transcrição ao vivo e a tradução ao vivo. Usa a sua própria chave da Azure; o áudio é enviado à Microsoft para processamento e pode gerar custos. Ele não gera os resumos de IA — esses usam o serviço de LLM configurado à parte.</string>
     <string name="asr_local_server">Servidor ASR local</string>
@@ -287,6 +293,7 @@
     <string name="live_repair_replace">Substituir</string>
     <string name="live_saved_to_library">Salvo na biblioteca: %s</string>
     <string name="device_files_stop_recording">Parar gravação</string>
+    <string name="device_files_kept_on_device">%1$s: salvo neste telefone, mas o dispositivo manteve o original (%2$s)</string>
     <string name="device_files_reading_file_list">Lendo lista de arquivos…</string>
     <string name="device_files_device_is_recording">O dispositivo está gravando</string>
     <string name="device_files_recording_unavailable_message">A lista de arquivos não está disponível durante a gravação. Pare a gravação para navegar nos arquivos.</string>
@@ -447,6 +454,8 @@
     <string name="language_footer">Por padrão, o app segue o idioma do sistema. Se ele não for compatível, o inglês é usado.</string>
     <string name="ble_error_timeout">O dispositivo não respondeu a tempo.</string>
     <string name="device_unavailable_while_recording">Pare a gravação antes de executar operações no dispositivo.</string>
+    <string name="device_disconnected">Dispositivo desconectado</string>
+    <string name="recording_starting">Iniciando gravação…</string>
     <string name="bluetooth_permission_title">Permissão de Bluetooth necessária</string>
     <string name="bluetooth_permission_message">Permita o acesso ao Bluetooth para localizar e conectar seu D·NOTE.</string>
     <string name="bluetooth_permission_settings_message">O acesso ao Bluetooth está desativado. Ative a permissão Dispositivos próximos nas configurações do sistema.</string>

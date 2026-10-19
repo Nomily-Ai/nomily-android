@@ -63,6 +63,12 @@
     <string name="asr_auto_transcribe_footer">ダウンロードのたびに文字起こしを実行します。最小時間より短いクリップはスキップされます。もう一方のサービスが設定されていれば、自動的にフォールバックとして使用されます。</string>
     <string name="asr_local_vad">「アップロード前に無音を除去」</string>
     <string name="asr_local_vad_footer">音声活動検知をデバイス上で実行し、転写プロバイダーへ送信する前に無音部分を取り除きます。アップロードサイズと文字起こしコストを削減できます。</string>
+    <string name="asr_background_keep_alive">バックグラウンドでも処理を続ける</string>
+    <string name="asr_background_keep_alive_footer">オンにすると、アプリを離れたり画面をロックしたりしても文字起こしや要約などのタスクが続行され、通知に進捗が表示されます。オフにすると、バックグラウンドでは一時停止し、アプリに戻ると再開します。</string>
+    <string name="asr_queue_title">文字起こしキュー</string>
+    <string name="asr_queue_running">処理中 %d</string>
+    <string name="asr_queue_stuck">中止 %d</string>
+    <string name="asr_queue_stuck_detail">%1$s は %2$d 回失敗したため再試行を停止しました：%3$s</string>
     <string name="asr_azure_speech">Azure Speech</string>
     <string name="asr_azure_purpose_footer">Azure Speech は文字起こし、リアルタイム文字起こし、リアルタイム翻訳に使われます。ご自身の Azure キーが必要で、音声は処理のため Microsoft に送信され、料金が発生する場合があります。AI 要約はこれではなく、別途設定する LLM サービスが生成します。</string>
     <string name="asr_local_server">ローカル音声認識サーバー</string>
@@ -287,6 +293,7 @@
     <string name="live_repair_replace">置き換え</string>
     <string name="live_saved_to_library">ライブラリに保存: %s</string>
     <string name="device_files_stop_recording">録音を停止</string>
+    <string name="device_files_kept_on_device">%1$s：このスマートフォンに保存しましたが、デバイス上の元ファイルは残っています（%2$s）</string>
     <string name="device_files_reading_file_list">ファイルリストを読み込み中…</string>
     <string name="device_files_device_is_recording">デバイスが録音中です</string>
     <string name="device_files_recording_unavailable_message">録音中はファイルリストを表示できません。録音を停止してからファイルを参照してください。</string>
@@ -447,6 +454,8 @@
     <string name="language_footer">既定ではシステムの言語に従います。対応していない言語の場合は英語を使用します。</string>
     <string name="ble_error_timeout">デバイスが時間内に応答しませんでした。</string>
     <string name="device_unavailable_while_recording">録音中は機器操作を行えません。先に録音を終了してください。</string>
+    <string name="device_disconnected">デバイスとの接続が切れました</string>
+    <string name="recording_starting">録音を開始しています…</string>
     <string name="bluetooth_permission_title">Bluetooth権限が必要です</string>
     <string name="bluetooth_permission_message">D·NOTEを検索して接続するには、Bluetoothへのアクセスを許可してください。</string>
     <string name="bluetooth_permission_settings_message">Bluetoothアクセスが無効です。システム設定で「付近のデバイス」の権限を有効にしてください。</string>

@@ -63,6 +63,12 @@
     <string name="asr_auto_transcribe_footer">下载完成后自动运行转录。短于最小时长的片段将被跳过。如已配置，另一个服务会作为备用方案自动启用。</string>
     <string name="asr_local_vad">上传前去除静音</string>
     <string name="asr_local_vad_footer">在本机上检测人声活动，将静音段去掉后再发送到转录服务，可降低上传量和转录费用。</string>
+    <string name="asr_background_keep_alive">切到后台也继续处理</string>
+    <string name="asr_background_keep_alive_footer">开着时，切走或锁屏后转录、摘要等任务仍会继续跑完，通知栏会显示进度。关掉后，App 在后台时系统可能会把这些任务停掉，回到 App 后再接着跑。</string>
+    <string name="asr_queue_title">转录队列</string>
+    <string name="asr_queue_running">进行中 %d</string>
+    <string name="asr_queue_stuck">已放弃 %d</string>
+    <string name="asr_queue_stuck_detail">%1$s 试了 %2$d 次仍未成功，已停止重试：%3$s</string>
     <string name="asr_azure_speech">Azure Speech</string>
     <string name="asr_azure_purpose_footer">Azure Speech 用于录音转文字、实时转录和实时翻译。需使用你自己的 Azure 密钥，音频会发送至 Microsoft 处理，可能产生费用。AI 摘要不由它生成，摘要使用另行配置的 LLM 服务。</string>
     <string name="asr_local_server">本地语音识别服务器</string>
@@ -287,6 +293,7 @@
     <string name="live_repair_replace">替换</string>
     <string name="live_saved_to_library">已保存到资料库：%s</string>
     <string name="device_files_stop_recording">停止录音</string>
+    <string name="device_files_kept_on_device">%1$s：已保存到手机，但设备上的原文件没有删掉（%2$s）</string>
     <string name="device_files_reading_file_list">正在读取文件列表…</string>
     <string name="device_files_device_is_recording">设备正在录音</string>
     <string name="device_files_recording_unavailable_message">录音过程中无法查看文件列表。请停止录音后再浏览文件。</string>
@@ -447,6 +454,8 @@
     <string name="language_footer">默认跟随系统语言；系统语言不在支持范围内时使用英语。</string>
     <string name="ble_error_timeout">设备未及时响应。</string>
     <string name="device_unavailable_while_recording">录音期间请勿进行危险操作，请先结束录音再操作。</string>
+    <string name="device_disconnected">设备已断开</string>
+    <string name="recording_starting">正在开始录音…</string>
     <string name="bluetooth_permission_title">需要蓝牙权限</string>
     <string name="bluetooth_permission_message">允许蓝牙访问，才能查找并连接 D·NOTE。</string>
     <string name="bluetooth_permission_settings_message">蓝牙权限已被关闭。请前往系统设置开启“附近的设备”权限。</string>

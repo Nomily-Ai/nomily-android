@@ -63,6 +63,12 @@
     <string name="asr_auto_transcribe_footer">Транскрипция выполняется после каждой загрузки. Клипы короче минимальной длительности пропускаются. Другой провайдер используется как резервный автоматически, если он настроен.</string>
     <string name="asr_local_vad">Убрать тишину перед загрузкой</string>
     <string name="asr_local_vad_footer">Определение голосовой активности выполняется на устройстве и удаляет тихие участки перед отправкой аудио провайдеру транскрипции. Уменьшает размер загрузки и стоимость ASR.</string>
+    <string name="asr_background_keep_alive">Продолжать в фоне</string>
+    <string name="asr_background_keep_alive_footer">Если включено, расшифровка, сводки и другие задачи продолжают выполняться, когда вы выходите из приложения или блокируете экран; прогресс показывается в уведомлении. Если выключено, в фоне они приостанавливаются и продолжаются, когда вы вернётесь.</string>
+    <string name="asr_queue_title">Очередь расшифровки</string>
+    <string name="asr_queue_running">В работе: %d</string>
+    <string name="asr_queue_stuck">Отменено: %d</string>
+    <string name="asr_queue_stuck_detail">%1$s: %2$d неудачных попыток, повторы остановлены: %3$s</string>
     <string name="asr_azure_speech">Azure Speech</string>
     <string name="asr_azure_purpose_footer">Azure Speech отвечает за расшифровку, живую расшифровку и живой перевод. Используется ваш собственный ключ Azure; аудио отправляется в Microsoft на обработку, что может быть платным. Сводки ИИ он не создаёт — их делает отдельно настраиваемый LLM-сервис.</string>
     <string name="asr_local_server">Локальный сервер ASR</string>
@@ -287,6 +293,7 @@
     <string name="live_repair_replace">Заменить</string>
     <string name="live_saved_to_library">Сохранено в библиотеку: %s</string>
     <string name="device_files_stop_recording">Остановить запись</string>
+    <string name="device_files_kept_on_device">%1$s: сохранено на телефоне, но оригинал остался на устройстве (%2$s)</string>
     <string name="device_files_reading_file_list">Чтение списка файлов…</string>
     <string name="device_files_device_is_recording">Устройство записывает</string>
     <string name="device_files_recording_unavailable_message">Список файлов недоступен во время записи. Остановите запись, чтобы просмотреть файлы.</string>
@@ -447,6 +454,8 @@
     <string name="language_footer">По умолчанию приложение использует язык системы. Если он не поддерживается, используется английский.</string>
     <string name="ble_error_timeout">Устройство не ответило вовремя.</string>
     <string name="device_unavailable_while_recording">Остановите запись, прежде чем выполнять операции с устройством.</string>
+    <string name="device_disconnected">Устройство отключено</string>
+    <string name="recording_starting">Начинаем запись…</string>
     <string name="bluetooth_permission_title">Требуется разрешение Bluetooth</string>
     <string name="bluetooth_permission_message">Разрешите доступ к Bluetooth, чтобы найти и подключить D·NOTE.</string>
     <string name="bluetooth_permission_settings_message">Доступ к Bluetooth отключён. Включите разрешение «Устройства поблизости» в системных настройках.</string>

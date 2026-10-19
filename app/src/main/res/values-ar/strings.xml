@@ -63,6 +63,12 @@
     <string name="asr_auto_transcribe_footer">يتم تشغيل النسخ بعد كل تنزيل. تتم تجاوز المقاطع الأقصر من الحد الأدنى للمدة. يُستخدم المزوّد الآخر كبديل احتياطي تلقائيًا عند ضبطه.</string>
     <string name="asr_local_vad">إزالة الصمت قبل الرفع</string>
     <string name="asr_local_vad_footer">يعمل كشف نشاط الصوت على الجهاز ويزيل المقاطع الصامتة قبل إرسال الصوت إلى مزوّد النسخ. يقلل من حجم الرفع وتكلفة ASR.</string>
+    <string name="asr_background_keep_alive">مواصلة العمل في الخلفية</string>
+    <string name="asr_background_keep_alive_footer">عند التشغيل، تستمر مهام النسخ والملخصات وغيرها بعد مغادرة التطبيق أو قفل الشاشة، مع إشعار يعرض التقدم. عند الإيقاف، تتوقف مؤقتًا في الخلفية وتستأنف عند عودتك.</string>
+    <string name="asr_queue_title">قائمة انتظار النسخ</string>
+    <string name="asr_queue_running">قيد التنفيذ %d</string>
+    <string name="asr_queue_stuck">تم التخلي عن %d</string>
+    <string name="asr_queue_stuck_detail">فشل %1$s ‏%2$d مرات وتوقفت إعادة المحاولة: %3$s</string>
     <string name="asr_azure_speech">Azure Speech</string>
     <string name="asr_azure_purpose_footer">تُستخدم Azure Speech لتحويل التسجيلات إلى نص وللنسخ والترجمة الفوريين. تحتاج إلى مفتاح Azure الخاص بك، ويُرسَل الصوت إلى Microsoft للمعالجة وقد تترتب عليه رسوم. وهي لا تنشئ ملخصات الذكاء الاصطناعي؛ فتلك يولّدها خادم LLM الذي تضبطه بشكل منفصل.</string>
     <string name="asr_local_server">خادم ASR محلي</string>
@@ -287,6 +293,7 @@
     <string name="live_repair_replace">استبدال</string>
     <string name="live_saved_to_library">تم الحفظ في المكتبة: %s</string>
     <string name="device_files_stop_recording">إيقاف التسجيل</string>
+    <string name="device_files_kept_on_device">%1$s: حُفظ على هذا الهاتف، لكن الجهاز احتفظ بالأصل (%2$s)</string>
     <string name="device_files_reading_file_list">جارٍ قراءة قائمة الملفات…</string>
     <string name="device_files_device_is_recording">الجهاز يسجّل حاليًا</string>
     <string name="device_files_recording_unavailable_message">قائمة الملفات غير متاحة أثناء التسجيل. أوقف التسجيل لتصفّح الملفات.</string>
@@ -447,6 +454,8 @@
     <string name="language_footer">يتبع التطبيق لغة النظام افتراضيًا. وإذا كانت غير مدعومة، يتم استخدام الإنجليزية.</string>
     <string name="ble_error_timeout">الجهاز لم يرد في الوقت المحدد.</string>
     <string name="device_unavailable_while_recording">أوقف التسجيل قبل تنفيذ أي عمليات على الجهاز.</string>
+    <string name="device_disconnected">انقطع اتصال الجهاز</string>
+    <string name="recording_starting">جارٍ بدء التسجيل…</string>
     <string name="bluetooth_permission_title">يلزم إذن Bluetooth</string>
     <string name="bluetooth_permission_message">اسمح بالوصول إلى Bluetooth للعثور على جهاز D·NOTE والاتصال به.</string>
     <string name="bluetooth_permission_settings_message">تم تعطيل الوصول إلى Bluetooth. فعّل إذن الأجهزة القريبة في إعدادات النظام.</string>

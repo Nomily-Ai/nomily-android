@@ -1846,7 +1846,7 @@ private fun FastTransferBar(ui: NomiViewModel.Ui, vm: NomiViewModel) {
     val cfg by vm.config.collectAsStateWithLifecycle()
     val pending = ui.files.filter { f -> ui.clips.none { c -> c.base == f.name.substringBeforeLast(".") } }
     val backlog = pending.sumOf { it.size.toLong() }
-    val thresholdBytes = cfg.fastTransferThresholdKb.toLong() * 1000
+    val thresholdBytes = cfg.fastTransferThresholdKb.toLong() * 1024
     val transferring = ui.progress != null
     if (pending.isEmpty() || backlog <= thresholdBytes) return
 

@@ -68,6 +68,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -92,10 +94,6 @@ import com.nomily.app.data.AppLocale
  *
  * This gathers a **single-screen grouped scroll** (platform conventions differ, see Implementation Manual §5.3). All data is read/written directly to `config.json`:
  * ASR provider (Azure / local), LLM provider (6 vendors), default transcription, recording & transfer, developer mode.
- *
- * ⚠️ This screen **only edits configuration**. The actual ASR/LLM services that use these keys for transcription/summary have not yet been integrated ——
- * so entering keys will not yet perform transcription, but the configuration itself is complete (provider chain, fallback,
- * cloud consent gate are set up), and will work as soon as the services are connected.
  */
 @Composable
 fun SettingsScreen(vm: NomiViewModel, onPush: (PushedPage?) -> Unit) {
@@ -333,6 +331,8 @@ private fun Field(
     value: String,
     secure: Boolean = false,
     numeric: Boolean = false,
+    /** Host / endpoint: URL keyboard. */
+    url: Boolean = false,
     /** End-of-row accessory (e.g., verification ✓ for each provider) — placed at the far right of the row, not on a separate line. */
     trailing: (@Composable () -> Unit)? = null,
     /** Do not draw a divider after the last row in the card. */
@@ -355,11 +355,17 @@ private fun Field(
             } else {
                 androidx.compose.ui.text.input.VisualTransformation.None
             },
-            keyboardOptions = if (numeric) {
-                KeyboardOptions(keyboardType = KeyboardType.Number)
-            } else {
-                KeyboardOptions.Default
-            },
+            // Keys, regions, hosts and model ids are case-sensitive identifiers: never capitalise or autocorrect them.
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.None,
+                autoCorrectEnabled = false,
+                keyboardType = when {
+                    numeric -> KeyboardType.Number
+                    secure -> KeyboardType.Password
+                    url -> KeyboardType.Uri
+                    else -> KeyboardType.Text
+                },
+            ),
             interactionSource = interaction,
             modifier = Modifier.weight(1f),
         ) { inner ->
@@ -387,6 +393,18 @@ private fun Field(
                 // Same height as other rows: all rows in the card are uniformly 48dp (Material's minimum touch target),
                 // dropping below 48dp on Android would be an accessibility regression.
                 contentPadding = PaddingValues(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
+                // A saved secret shows its first and last four characters, so the user can tell which key is stored.
+                supportingText = if (secure && value.length > 8) {
+                    {
+                        Text(
+                            "${value.take(4)}····${value.takeLast(4)}",
+                            style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                            color = MaterialTheme.colorScheme.outline,
+                        )
+                    }
+                } else {
+                    null
+                },
             )
         }
         trailing?.let {
@@ -485,8 +503,18 @@ private fun AsrSection(cfg: AppConfig, vm: NomiViewModel) {
             stringResource(R.string.asr_local_vad),
             info = stringResource(R.string.asr_local_vad_footer),
             checked = cfg.localVadEnabled,
-            divider = false,
         ) { on -> vm.updateConfig { it.copy(localVadEnabled = on) } }
+
+        // The queue survives restarts, so a row only appears while transcriptions are queued or have given up.
+        val jobs by vm.jobs.jobs.collectAsStateWithLifecycle()
+        val pending = jobs.filter { it.kind == com.nomily.app.jobs.JobKind.TRANSCRIBE && it.finishedAt == null }
+        ToggleRow(
+            stringResource(R.string.asr_background_keep_alive),
+            info = stringResource(R.string.asr_background_keep_alive_footer),
+            checked = cfg.backgroundKeepAliveEnabled,
+            divider = pending.isNotEmpty(),
+        ) { on -> vm.setBackgroundKeepAlive(on) }
+        if (pending.isNotEmpty()) TranscribeQueueRow(pending)
 
     }
 
@@ -587,7 +615,7 @@ private fun AsrSection(cfg: AppConfig, vm: NomiViewModel) {
         var probing by remember(probeKey) { mutableStateOf(false) }
         val scope = rememberCoroutineScope()
         val ctx = LocalContext.current
-        Field(stringResource(R.string.asr_host), cfg.asrProviders.local?.host ?: "") { new ->
+        Field(stringResource(R.string.asr_host), cfg.asrProviders.local?.host ?: "", url = true) { new ->
             vm.updateConfig {
                 val lo = (it.asrProviders.local ?: AppConfig.AsrProviders.Local("", DEFAULT_LOCAL_ASR_PORT))
                     .copy(host = new)
@@ -907,10 +935,9 @@ private fun KeyedProvider(
             stringResource(R.string.llm_api_key), p?.apiKey ?: "", secure = true,
             trailing = { VerifyIcon(v, !p?.apiKey.isNullOrEmpty()) { fetchModels(p?.apiKey ?: "", null) } },
         ) { new ->
-            onChange(
-                if (new.isEmpty() && p?.model.isNullOrEmpty()) null
-                else (p ?: AppConfig.LlmProviders.Keyed("")).copy(apiKey = new),
-            )
+            // Clearing the key removes the provider; a fetched model list belongs to the old key.
+            v.models = emptyList(); v.done = false; v.error = null
+            onChange(if (new.isEmpty()) null else (p ?: AppConfig.LlmProviders.Keyed("")).copy(apiKey = new))
         }
         ModelField(example, p?.model, v) { m ->
             onChange((p ?: AppConfig.LlmProviders.Keyed("")).copy(model = m))
@@ -931,7 +958,7 @@ private fun EndpointProvider(
     val probe = rememberEndpointProbe(p?.endpoint ?: "") { ctx, ep -> fetchModels(ctx, p?.apiKey, ep) }
     Group(name, footer = probe.footer()) {
         Field(
-            stringResource(R.string.llm_endpoint_url), p?.endpoint ?: "",
+            stringResource(R.string.llm_endpoint_url), p?.endpoint ?: "", url = true,
             trailing = { ProbeIcon(probe) },
         ) { new ->
             onChange(
@@ -1121,8 +1148,12 @@ private fun OpenRouterCard(cfg: AppConfig, vm: NomiViewModel) {
     }
     Group("Open Router") {
         val v = remember { VerifyState() }
-        var providerFilter by remember { mutableStateOf("") }
+        // Prefilled from the saved model's `provider/` prefix, so reopening the page lists the same models again.
+        var providerFilter by remember { mutableStateOf(p?.model?.substringBefore('/', "") ?: "") }
+        // A list fetched for another key or prefix is stale: drop it so the model field goes back to free text.
+        val resetList = { v.models = emptyList(); v.done = false; v.error = null }
         Field(stringResource(R.string.llm_api_key), p?.apiKey ?: "", secure = true) { new ->
+            resetList()
             save(
                 if (new.isEmpty() && p?.model.isNullOrEmpty()) null
                 else (p ?: AppConfig.LlmProviders.Endpoint(endpoint = "")).copy(apiKey = new.ifEmpty { null }),
@@ -1131,11 +1162,12 @@ private fun OpenRouterCard(cfg: AppConfig, vm: NomiViewModel) {
         Field(
             stringResource(R.string.llm_provider_placeholder, "anthropic"), providerFilter,
             trailing = {
-                VerifyIcon(v, !p?.apiKey.isNullOrEmpty()) {
+                // The full OpenRouter list has hundreds of entries: a provider prefix is required before fetching.
+                VerifyIcon(v, !p?.apiKey.isNullOrEmpty() && providerFilter.isNotBlank()) {
                     com.nomily.app.llm.LlmModelService.openRouter(p?.apiKey ?: "", providerFilter)
                 }
             },
-        ) { providerFilter = it }
+        ) { providerFilter = it; resetList() }
         ModelField("anthropic/claude-opus-4-0", p?.model, v) { m ->
             save((p ?: AppConfig.LlmProviders.Endpoint(endpoint = "")).copy(model = m))
         }
@@ -1154,7 +1186,7 @@ private fun CustomEndpointCard(cfg: AppConfig, vm: NomiViewModel) {
         com.nomily.app.llm.LlmModelService.custom(ctx, ep, p?.apiKey)
     }
     Group("Custom", footer = probe.footer()) {
-        Field(stringResource(R.string.llm_endpoint_url), p?.endpoint ?: "", trailing = { ProbeIcon(probe) }) { new ->
+        Field(stringResource(R.string.llm_endpoint_url), p?.endpoint ?: "", url = true, trailing = { ProbeIcon(probe) }) { new ->
             save(
                 if (new.isEmpty() && p?.apiKey.isNullOrEmpty()) null
                 else (p ?: AppConfig.LlmProviders.Endpoint(endpoint = "")).copy(endpoint = new),
@@ -1721,3 +1753,42 @@ private fun randomHex(bytes: Int): String =
 
 /** The "Developer mode enabled" line uses a fixed orange color, not following the theme's accent color. */
 private val DeveloperModeAccent = androidx.compose.ui.graphics.Color(0xFFFF9500)
+
+/** "Transcription queue": how many are queued and how many gave up, plus why the first one gave up. */
+@Composable
+private fun TranscribeQueueRow(pending: List<com.nomily.app.jobs.WorkJob>) {
+    val running = pending.count { it.isRunnable }
+    val stuck = pending.filterNot { it.isRunnable }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (running > 0) {
+                CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 1.5.dp)
+                Spacer(Modifier.width(6.dp))
+            }
+            Text(stringResource(R.string.asr_queue_title), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+            Text(
+                listOfNotNull(
+                    if (running > 0) stringResource(R.string.asr_queue_running, running) else null,
+                    if (stuck.isNotEmpty()) stringResource(R.string.asr_queue_stuck, stuck.size) else null,
+                ).joinToString(" · "),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        // Only the first that gave up: listing them all would fill the screen, and what matters is knowing something is stuck.
+        stuck.firstOrNull()?.let { j ->
+            Text(
+                stringResource(
+                    R.string.asr_queue_stuck_detail,
+                    com.nomily.app.ble.RecordingName.displayTitle(j.clip),
+                    j.attempts,
+                    j.lastError.orEmpty(),
+                ),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 3,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+    }
+}

@@ -60,6 +60,9 @@ class DnoteBleClient(
 
     class DnoteException(message: String) : Exception(message)
 
+    /** The card is recording and refuses the command; the UI shows its own localized wording. */
+    class DeviceRecordingException : Exception("Stop recording before changing device settings or disconnecting.")
+
     /**
      * Received bytes are fewer than declared by the device (or out of order). **Callers must not treat this as transfer complete** —
      * If the device's original file is deleted on top of this, the user ends up with no usable recording on either side.
@@ -278,7 +281,7 @@ class DnoteBleClient(
      */
     private suspend fun <T> whenNotRecording(op: suspend () -> T): T = cmdLock.withLock {
         if (com.nomily.app.ble.DeviceInfo(readDeviceInfoLocked()).isRecording) {
-            throw DnoteException("Stop recording before changing device settings or disconnecting.")
+            throw DeviceRecordingException()
         }
         op()
     }

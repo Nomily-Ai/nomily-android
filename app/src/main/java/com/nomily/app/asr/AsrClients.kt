@@ -130,6 +130,40 @@ class AzureAsr(
  */
 class LocalAsr(private val host: String, private val port: Int) {
 
+    companion object {
+        /**
+         * Read timeout = audio duration × 3, at least 600 s. CPU inference runs at about 0.7–1.0× real time and the
+         * server queues requests serially (worst measured 0.89×), so ×3 leaves a wide margin; a long clip with a fixed
+         * 600 s would time out on a slow server. The user can still cancel the job, so erring long is safe.
+         */
+        fun uploadTimeoutMs(durationSec: Double?): Int {
+            val d = durationSec?.takeIf { it.isFinite() && it > 0 } ?: return 600_000
+            return (maxOf(600.0, d * 3) * 1000).toInt()
+        }
+
+        /** Audio length for the timeout only; null when it can't be read (falls back to the 600 s floor). */
+        private fun probeDurationSec(file: File): Double? = runCatching {
+            if (file.extension.lowercase() in setOf("ogg", "opus")) {
+                // Ogg-Opus keeps the duration in the last page's granule position: the file tail is enough.
+                val tail = file.inputStream().use { input ->
+                    val skip = (file.length() - 256 * 1024).coerceAtLeast(0)
+                    input.skip(skip)
+                    input.readBytes()
+                }
+                com.nomily.app.core.audio.oggDurationMsFromTail(tail)?.let { it / 1000.0 }
+            } else {
+                // Not `use {}`: MediaMetadataRetriever is AutoCloseable only from API 29 (minSdk is 24).
+                val r = android.media.MediaMetadataRetriever()
+                try {
+                    r.setDataSource(file.path)
+                    r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toDoubleOrNull()?.div(1000)
+                } finally {
+                    r.release()
+                }
+            }
+        }.getOrNull()
+    }
+
     fun transcribe(file: File): AsrResult {
         if (host.isEmpty() || port <= 0) throw AsrException("Local ASR server is not configured.")
         val endpoint = URL("http://$host:${port + 1}/v1/transcribe")
@@ -138,7 +172,7 @@ class LocalAsr(private val host: String, private val port: Int) {
             requestMethod = "POST"
             doOutput = true
             connectTimeout = 15_000
-            readTimeout = 600_000
+            readTimeout = uploadTimeoutMs(probeDurationSec(file))
             setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
         }
         Log.i(TAG, "local transcribe start file=${file.name} host=$host:${port + 1}")

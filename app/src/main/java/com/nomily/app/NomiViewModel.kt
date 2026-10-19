@@ -398,8 +398,13 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** "Header: Reason" (header is localized, reason comes from the exception). */
-    private fun failed(@StringRes titleId: Int, e: Throwable): String =
-        "${str(titleId)}: ${e.message}"
+    private fun failed(@StringRes titleId: Int, e: Throwable): String = "${str(titleId)}: ${describe(e)}"
+
+    /** Error text for the user: errors with a localized meaning use it, the rest keep their message. */
+    private fun describe(e: Throwable): String = when (e) {
+        is DnoteBleClient.DeviceRecordingException -> str(R.string.device_unavailable_while_recording)
+        else -> e.message ?: e.javaClass.simpleName
+    }
 
     private var elapsedJob: Job? = null
     private var client: DnoteBleClient? = null
@@ -872,7 +877,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
             Ui(
                 clips = it.clips,
                 autoReconnect = it.autoReconnect,
-                error = if (it.autoReconnect) null else "Device disconnected",
+                error = if (it.autoReconnect) null else str(R.string.device_disconnected),
             )
         }
         maybeAutoReconnect()
@@ -1139,7 +1144,12 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         // An unpaired card refuses to record (v1.47+): offer pairing instead of sending a command that will fail.
         if (!recording && _ui.value.bound == false) { set { it.copy(pendingPairing = true) }; return }
         recordJob = viewModelScope.launch {
-            set { it.copy(busy = if (recording) "Stopping recording…" else "Recording…", error = null) }
+            set {
+                it.copy(
+                    busy = str(if (recording) R.string.fast_transfer_stage_stopping else R.string.recording_starting),
+                    error = null,
+                )
+            }
             try {
                 val info = withContext(Dispatchers.IO) {
                     if (recording) c.stopRecording() else c.startRecording(realTime = false)
@@ -1183,6 +1193,20 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun cancelTranscribe(clip: LocalClip) = jobs.cancel("transcribe:${clip.base}")
+
+    /** The foreground service only runs while there is work **and** background keep-alive is on. */
+    private fun syncWorkService(hasWork: Boolean = jobs.jobs.value.any { it.isRunnable }) {
+        if (hasWork && configStore.config.value.backgroundKeepAliveEnabled) {
+            com.nomily.app.jobs.WorkService.start(getApplication())
+        } else {
+            com.nomily.app.jobs.WorkService.stop(getApplication())
+        }
+    }
+
+    fun setBackgroundKeepAlive(on: Boolean) {
+        updateConfig { it.copy(backgroundKeepAliveEnabled = on) }
+        syncWorkService()
+    }
 
     // ── Wi‑Fi Fast Transfer (P1)─────────────────────────────────────────────
     //
@@ -1575,7 +1599,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
             loadFiles()
         } catch (e: Exception) {
             Log.w(TAG, "Failed to delete $deviceFileName after retrieval", e)
-            set { it.copy(error = "$deviceFileName: saved locally, but the device kept the original (${e.message})") }
+            set { it.copy(error = str(R.string.device_files_kept_on_device, deviceFileName, describe(e))) }
         }
     }
 
@@ -2830,8 +2854,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 val active = list.filter { it.finishedAt == null }
                 val hasWork = active.any { it.isRunnable }
                 if (hasWork != hadWork) {
-                    if (hasWork) com.nomily.app.jobs.WorkService.start(getApplication())
-                    else com.nomily.app.jobs.WorkService.stop(getApplication())
+                    syncWorkService(hasWork)
                     hadWork = hasWork
                 }
                 val nowFinished = list.filter { it.finishedAt != null }.map { it.id }.toSet()

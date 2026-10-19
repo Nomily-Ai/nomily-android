@@ -65,7 +65,7 @@ class AppConfigTest {
         val expected = setOf(
             "devices", "asr_providers", "llm_providers", "defaults",
             "auto_delete_after_transfer", "auto_transcribe_after_download",
-            "local_vad_enabled", "auto_reconnect_enabled", "cloud_egress_consented",
+            "local_vad_enabled", "background_keep_alive_enabled", "auto_reconnect_enabled", "cloud_egress_consented",
             "developer_mode", "min_transcribe_duration", "fast_transfer_threshold_kb",
         )
         assertEquals(expected, keys, "The set of keys output by the default config must match the config schema (omit when optional value is null)")

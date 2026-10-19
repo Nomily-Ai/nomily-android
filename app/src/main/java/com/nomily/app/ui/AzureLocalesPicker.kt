@@ -37,6 +37,8 @@ import com.nomily.app.llm.LanguageService
 fun AzureLocalesPicker(initial: List<String>, onDone: (List<String>?) -> Unit) {
     var search by remember { mutableStateOf("") }
     var picked by remember { mutableStateOf(initial.toSet()) }
+    // The cap hint appears only when a fifth language is tapped, then gives way to the normal footer.
+    var showCapHint by remember { mutableStateOf(false) }
     val catalog = LanguageService.AZURE_MULTI_LANGUAGE_LOCALES
     val filtered = remember(search) {
         val q = search.trim().lowercase()
@@ -63,21 +65,17 @@ fun AzureLocalesPicker(initial: List<String>, onDone: (List<String>?) -> Unit) {
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Text(
-                    stringResource(R.string.asr_max_languages_hint, LanguageService.AZURE_MAX_SELECTIONS),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
                 LazyColumn(Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
                     items(filtered, key = { it.code }) { lang ->
                         val on = lang.code in picked
                         Row(
                             Modifier.fillMaxWidth()
                                 .clickable {
+                                    showCapHint = !on && picked.size >= LanguageService.AZURE_MAX_SELECTIONS
                                     picked = when {
                                         on -> picked - lang.code
-                                        // When full, stop adding (no error popup, just ignore)
-                                        picked.size >= LanguageService.AZURE_MAX_SELECTIONS -> picked
+                                        // When full, don't add; the footer explains the cap instead.
+                                        showCapHint -> picked
                                         else -> picked + lang.code
                                     }
                                 }
@@ -102,18 +100,20 @@ fun AzureLocalesPicker(initial: List<String>, onDone: (List<String>?) -> Unit) {
                 // If a second language is selected, explain it on the spot instead of leaving only a generic note.
                 val multi = picked.size >= 2
                 Text(
-                    stringResource(
-                        if (multi) R.string.asr_multi_language_warning
-                        else R.string.asr_languages_footer
-                    ),
+                    when {
+                        showCapHint -> stringResource(R.string.asr_max_languages_hint, LanguageService.AZURE_MAX_SELECTIONS)
+                        multi -> stringResource(R.string.asr_multi_language_warning)
+                        else -> stringResource(R.string.asr_languages_footer)
+                    },
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (multi) MaterialTheme.colorScheme.error
+                    color = if (multi) androidx.compose.ui.graphics.Color(0xFFFF9500)
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         },
         confirmButton = {
-            TextButton(onClick = { onDone(picked.toList()) }, enabled = picked.isNotEmpty()) {
+            // Catalog order, not tap order, so the same set always produces the same request.
+            TextButton(onClick = { onDone(catalog.map { it.code }.filter { it in picked }) }, enabled = picked.isNotEmpty()) {
                 Text(stringResource(R.string.common_done))
             }
         },
