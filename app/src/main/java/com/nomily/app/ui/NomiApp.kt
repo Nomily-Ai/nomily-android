@@ -382,12 +382,28 @@ fun NomiApp(vm: NomiViewModel) {
                         onPush = { pushed = it },
                         onOpenSettings = { tab = Tab.Settings },
                     )
-                    Tab.Live -> LiveTab(
-                        ui,
-                        vm,
-                        onOpenSettings = { tab = Tab.Settings },
-                        onViewInLibrary = { tab = Tab.Recordings },
-                    )
+                    Tab.Live -> {
+                        var phoneMode by rememberSaveable { mutableStateOf(false) }
+                        val phone by vm.phone.collectAsStateWithLifecycle()
+                        val showPhone = phoneMode || phone.running
+                        LiveSourceSwitch(
+                            phone = showPhone,
+                            enabled = !ui.live.running && !phone.running,
+                            onChange = { phoneMode = it },
+                        )
+                        Box(Modifier.weight(1f).fillMaxWidth()) {
+                            if (showPhone) {
+                                PhoneRecordScreen(vm, onViewInLibrary = { tab = Tab.Recordings })
+                            } else {
+                                LiveTab(
+                                    ui,
+                                    vm,
+                                    onOpenSettings = { tab = Tab.Settings },
+                                    onViewInLibrary = { tab = Tab.Recordings },
+                                )
+                            }
+                        }
+                    }
                     Tab.Settings -> SettingsScreen(vm, onPush = { pushed = it })
                 }
             }
@@ -1409,12 +1425,30 @@ private fun LiveReconnecting(live: NomiViewModel.Live) {
     }
 }
 
+/** "Device | Phone" source switch on top of the Live tab (iOS `LiveView.sourcePicker`); phone mode needs no device. */
+@Composable
+private fun LiveSourceSwitch(phone: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
+    SingleChoiceSegmentedButtonRow(
+        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        listOf(false to R.string.phone_mode_device, true to R.string.phone_mode_phone).forEachIndexed { i, (isPhone, label) ->
+            SegmentedButton(
+                selected = phone == isPhone,
+                onClick = { onChange(isPhone) },
+                enabled = enabled,
+                shape = SegmentedButtonDefaults.itemShape(i, 2),
+                icon = {},
+            ) { Text(stringResource(label)) }
+        }
+    }
+}
+
 /**
  * Loudness strip (iOS `LevelBars`): 28 fixed slots, newest sample at the right edge; slots without a sample
  * sit at a quiet baseline so the strip has its full width from the first frame.
  */
 @Composable
-private fun LiveLevelBars(levels: List<Float>, paused: Boolean, modifier: Modifier = Modifier) {
+internal fun LiveLevelBars(levels: List<Float>, paused: Boolean, modifier: Modifier = Modifier) {
     val slots = com.nomily.app.core.audio.LiveLevels.SLOTS
     val color = when {
         paused -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)

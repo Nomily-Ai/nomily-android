@@ -489,7 +489,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
      * published here, `MainActivity` launches the request and answers through [onPermissionResult].
      */
     data class PermissionRequest(val permissions: List<String>, val action: Action) {
-        enum class Action { LIVE, FAST_TRANSFER, FIND_NOTIFY, FIND_LOCATION }
+        enum class Action { LIVE, FAST_TRANSFER, FIND_NOTIFY, FIND_LOCATION, PHONE_MIC }
     }
 
     private val _permissionRequest = MutableStateFlow<PermissionRequest?>(null)
@@ -510,6 +510,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         _permissionRequest.value = null
         when (request.action) {
             PermissionRequest.Action.LIVE -> startLive(pendingLiveAssumeIdle)
+            PermissionRequest.Action.PHONE_MIC -> startPhoneRecording(afterPermissionPrompt = true)
             PermissionRequest.Action.FIND_NOTIFY, PermissionRequest.Action.FIND_LOCATION ->
                 com.nomily.app.ble.CardFinder.refreshPermissions()
             PermissionRequest.Action.FAST_TRANSFER -> {
@@ -2294,6 +2295,132 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     @Volatile private var translateInFlight: Long? = null
     @Volatile private var lastPartialTranslated = ""
     @Volatile private var lastPartialTranslateAt = 0L
+
+    // ── Phone-microphone recording with live captions (iOS PhoneRecordScreen) ──────────────────
+    //
+    // PhoneMicRecorder writes `Phone-yyyyMMddHHmmss.wav` into the clips directory; PhoneCaptions turns the same PCM into
+    // captions (Azure → on-device). On stop the WAV is recorded in the library like a live session ("stream" → PHONE badge)
+    // and the captions become its transcript. Captions failing never affects the recording.
+
+    data class PhoneUi(
+        val running: Boolean = false,
+        val seconds: Double = 0.0,
+        val levels: List<Float> = emptyList(),
+        val error: String? = null,
+        /** Library name of the take saved by the last stop. */
+        val savedClip: String? = null,
+    )
+
+    private val _phone = MutableStateFlow(PhoneUi())
+    val phone: StateFlow<PhoneUi> = _phone.asStateFlow()
+    private val phoneCaptions = com.nomily.app.asr.PhoneCaptions(app)
+    val phoneCaption: StateFlow<com.nomily.app.asr.PhoneCaptions.State> = phoneCaptions.state
+    private var phoneRecorder: com.nomily.app.audio.PhoneMicRecorder? = null
+
+    /** @param afterPermissionPrompt true when called with the answer to the system dialog: no second prompt. */
+    fun startPhoneRecording(afterPermissionPrompt: Boolean = false) {
+        if (_phone.value.running || _ui.value.live.running) return
+        if (!afterPermissionPrompt) {
+            // The foreground-service notification is only informational: ask for it once, never block on it.
+            val notification = android.Manifest.permission.POST_NOTIFICATIONS
+            val askNotification = !phoneNotificationAsked &&
+                android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
+                notGranted(listOf(notification)).isNotEmpty()
+            if (!phoneMicGranted() || askNotification) {
+                phoneNotificationAsked = true
+                val wanted = listOf(android.Manifest.permission.RECORD_AUDIO) + if (askNotification) listOf(notification) else emptyList()
+                _permissionRequest.value = PermissionRequest(wanted, PermissionRequest.Action.PHONE_MIC)
+                return
+            }
+        }
+        if (!phoneMicGranted()) {
+            _phone.value = _phone.value.copy(error = str(R.string.phone_mic_denied))
+            return
+        }
+        val ctx = getApplication<Application>()
+        val stamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.US).format(Date())
+        val target = com.nomily.app.audio.AudioImporter.uniqueDestination(File(ctx.filesDir, "clips"), "Phone-$stamp.wav")
+        phoneCaptions.start(configStore.config.value)
+        com.nomily.app.LiveSessionService.start(ctx, microphone = true)
+        val recorder = com.nomily.app.audio.PhoneMicRecorder(
+            onPcm = { pcm, n -> phoneCaptions.feed(pcm, n) },
+            onLevel = { level ->
+                val rec = phoneRecorder
+                _phone.update {
+                    it.copy(
+                        seconds = rec?.let { r -> com.nomily.app.core.audio.WavFormat.seconds(r.pcmBytes) } ?: it.seconds,
+                        levels = com.nomily.app.core.audio.LiveLevels.push(it.levels, listOf(level)),
+                    )
+                }
+            },
+            onError = { e ->
+                _phone.update {
+                    it.copy(
+                        error = str(
+                            if (e == com.nomily.app.audio.PhoneMicRecorder.Error.NO_INPUT) R.string.phone_no_input
+                            else R.string.phone_write_failed,
+                        ),
+                    )
+                }
+                stopPhoneRecording()
+            },
+        )
+        if (!recorder.start(target)) {
+            com.nomily.app.LiveSessionService.stop(ctx)
+            viewModelScope.launch { phoneCaptions.stop() }
+            _phone.value = _phone.value.copy(error = str(R.string.phone_no_input))
+            return
+        }
+        phoneRecorder = recorder
+        _phone.value = PhoneUi(running = true)
+    }
+
+    private var phoneNotificationAsked = false
+
+    private fun phoneMicGranted() = notGranted(listOf(android.Manifest.permission.RECORD_AUDIO)).isEmpty()
+
+    fun stopPhoneRecording() {
+        val recorder = phoneRecorder ?: return
+        phoneRecorder = null
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) { recorder.stop() }
+            com.nomily.app.LiveSessionService.stop(getApplication())
+            _phone.update { it.copy(running = false, levels = emptyList()) }
+            val caption = phoneCaptions.stop()
+            if (result == null || result.pcmBytes < com.nomily.app.core.audio.WavFormat.BYTES_PER_SECOND / 2) {
+                // Under half a second: nothing worth keeping.
+                result?.file?.delete()
+                return@launch
+            }
+            savePhoneClip(result, caption)
+            loadFiles()
+        }
+    }
+
+    private suspend fun savePhoneClip(result: com.nomily.app.audio.PhoneMicRecorder.Result, caption: com.nomily.app.core.asr.LiveCaptionState) {
+        val file = result.file
+        library.manifest.recordDownload(file.name, file.length(), "stream", localName = file.name)
+        val base = file.name.substringBeforeLast('.')
+        if (caption.hasText) {
+            val cfg = configStore.config.value
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val asr = caption.toAsrResult("live-captions", com.nomily.app.llm.LanguageService.liveSourceLang(cfg))
+                    File(file.parentFile, "$base.txt").writeText(asr.text)
+                    File(file.parentFile, "$base.asr.json").writeText(asr.toJsonString())
+                }
+            }.onFailure { Log.w(TAG, "Failed to write phone captions: ${it.message}") }
+        }
+        _phone.update { it.copy(savedClip = file.name) }
+        Log.i(TAG, "Phone recording saved as ${file.name} (${result.seconds.toInt()} s)")
+        if (caption.hasText) {
+            maybeAutoSummarize(base)
+        } else if (configStore.config.value.autoTranscribeAfterDownload) {
+            refreshClips()
+            clipsJob?.join()
+            _ui.value.clips.firstOrNull { it.base == base }?.let { transcribe(it, enforceMinDuration = true) }
+        }
+    }
 
     /**
      * @param assumeIdle Only the branch “unknown state → user clicks start anyway” passes true,
@@ -4089,6 +4216,8 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     override fun onCleared() {
         super.onCleared()
         stopPlayback()
+        phoneRecorder?.stop()
+        phoneRecorder = null
         adapterStateReceiver?.let { r ->
             runCatching { getApplication<Application>().unregisterReceiver(r) }
         }

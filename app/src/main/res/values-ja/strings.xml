@@ -955,4 +955,20 @@
     <string name="asr_cloud_http">サービス側がリクエストを拒否しました（HTTP %1$d）</string>
     <string name="asr_cloud_timeout">時間内に応答がありません——接続できないか、リージョンが間違っています</string>
     <string name="asr_cloud_unreachable">このホストに接続できません——アドレスまたはネットワークを確認してください</string>
+
+    <!-- Phone microphone recording -->
+    <string name="phone_mode_device">デバイス</string>
+    <string name="phone_mode_phone">スマホ</string>
+    <string name="phone_record">録音</string>
+    <string name="phone_stop">停止</string>
+    <string name="phone_idle">準備完了</string>
+    <string name="phone_listening">聞き取り中… 音声が認識されると字幕が表示されます。</string>
+    <string name="phone_idle_caption">マイクをタップして録音を開始します。話すとリアルタイム字幕が表示されます。</string>
+    <string name="phone_mic_denied">マイクへのアクセスが許可されていません。設定で有効にしてください。</string>
+    <string name="phone_no_input">このデバイスにはマイクがありません。</string>
+    <string name="phone_write_failed">録音をストレージに書き込めませんでした。ここまでの音声は保存されています。</string>
+    <string name="phone_caption_unavailable">音声サービスが設定されていないため、字幕はオフです。録音自体には影響しません。</string>
+    <string name="phone_azure_fell_back">Azure が切断されました。端末内の認識に切り替えて続行します。</string>
+    <string name="phone_provider_azure">Azure</string>
+    <string name="phone_provider_ondevice">端末内</string>
 </resources>

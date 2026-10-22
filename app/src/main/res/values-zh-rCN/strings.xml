@@ -1004,4 +1004,20 @@
     <string name="asr_cloud_http">厂商拒绝了请求（HTTP %1$d）</string>
     <string name="asr_cloud_timeout">等不到回应——连不上，或者区域填错了</string>
     <string name="asr_cloud_unreachable">连不上这个主机——检查地址或网络</string>
+
+    <!-- Phone microphone recording -->
+    <string name="phone_mode_device">设备</string>
+    <string name="phone_mode_phone">手机</string>
+    <string name="phone_record">录音</string>
+    <string name="phone_stop">停止</string>
+    <string name="phone_idle">就绪</string>
+    <string name="phone_listening">正在聆听…识别到语音后字幕会出现在这里。</string>
+    <string name="phone_idle_caption">点击麦克风开始录音，说话时实时字幕会同步显示。</string>
+    <string name="phone_mic_denied">未授权麦克风，请到系统设置中开启后重试。</string>
+    <string name="phone_no_input">当前设备没有可用的麦克风。</string>
+    <string name="phone_write_failed">无法把录音写入存储，已录下的部分会保留。</string>
+    <string name="phone_caption_unavailable">未配置语音服务，实时字幕已关闭；录音本身不受影响。</string>
+    <string name="phone_azure_fell_back">Azure 连接中断，已切换到本机识别，文字会继续。</string>
+    <string name="phone_provider_azure">Azure</string>
+    <string name="phone_provider_ondevice">本机</string>
 </resources>

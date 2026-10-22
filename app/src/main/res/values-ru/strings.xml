@@ -955,4 +955,20 @@
     <string name="asr_cloud_http">Сервис отклонил запрос (HTTP %1$d)</string>
     <string name="asr_cloud_timeout">Нет ответа вовремя — недоступно или неверно указан регион</string>
     <string name="asr_cloud_unreachable">Не удаётся связаться с хостом — проверьте адрес или сеть</string>
+
+    <!-- Phone microphone recording -->
+    <string name="phone_mode_device">Устройство</string>
+    <string name="phone_mode_phone">Телефон</string>
+    <string name="phone_record">Запись</string>
+    <string name="phone_stop">Стоп</string>
+    <string name="phone_idle">Готово</string>
+    <string name="phone_listening">Слушаю… субтитры появятся, когда речь будет распознана.</string>
+    <string name="phone_idle_caption">Нажмите на микрофон, чтобы начать запись. Живые субтитры появляются, пока вы говорите.</string>
+    <string name="phone_mic_denied">Доступ к микрофону запрещён. Разрешите его в настройках, чтобы записывать.</string>
+    <string name="phone_no_input">На этом устройстве нет доступного микрофона.</string>
+    <string name="phone_write_failed">Не удалось записать файл в хранилище. Уже записанное аудио сохранено.</string>
+    <string name="phone_caption_unavailable">Речевой сервис не настроен, поэтому субтитры отключены. Сама запись не затронута.</string>
+    <string name="phone_azure_fell_back">Azure отключился — распознавание продолжается на устройстве.</string>
+    <string name="phone_provider_azure">Azure</string>
+    <string name="phone_provider_ondevice">На устройстве</string>
 </resources>

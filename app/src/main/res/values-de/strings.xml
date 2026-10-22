@@ -955,4 +955,20 @@
     <string name="asr_cloud_http">Der Anbieter hat die Anfrage abgelehnt (HTTP %1$d)</string>
     <string name="asr_cloud_timeout">Keine rechtzeitige Antwort – nicht erreichbar oder die Region ist falsch</string>
     <string name="asr_cloud_unreachable">Dieser Host ist nicht erreichbar – prüfe Adresse oder Netzwerk</string>
+
+    <!-- Phone microphone recording -->
+    <string name="phone_mode_device">Gerät</string>
+    <string name="phone_mode_phone">Telefon</string>
+    <string name="phone_record">Aufnehmen</string>
+    <string name="phone_stop">Stopp</string>
+    <string name="phone_idle">Bereit</string>
+    <string name="phone_listening">Hört zu … Untertitel erscheinen, sobald Sprache erkannt wird.</string>
+    <string name="phone_idle_caption">Tippe auf das Mikrofon, um aufzunehmen. Live-Untertitel erscheinen, während du sprichst.</string>
+    <string name="phone_mic_denied">Der Mikrofonzugriff ist verweigert. Aktiviere ihn in den Einstellungen, um aufzunehmen.</string>
+    <string name="phone_no_input">Auf diesem Gerät ist kein Mikrofon verfügbar.</string>
+    <string name="phone_write_failed">Die Aufnahme konnte nicht gespeichert werden. Das bisher Aufgenommene bleibt erhalten.</string>
+    <string name="phone_caption_unavailable">Kein Sprachdienst konfiguriert, daher sind Untertitel aus. Die Aufnahme selbst ist nicht betroffen.</string>
+    <string name="phone_azure_fell_back">Azure ist ausgefallen – die Erkennung läuft auf dem Gerät weiter.</string>
+    <string name="phone_provider_azure">Azure</string>
+    <string name="phone_provider_ondevice">Auf dem Gerät</string>
 </resources>

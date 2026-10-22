@@ -1044,4 +1044,20 @@
     <string name="asr_cloud_http">The vendor rejected the request (HTTP %1$d)</string>
     <string name="asr_cloud_timeout">No answer in time — unreachable, or the region is wrong</string>
     <string name="asr_cloud_unreachable">Can’t reach this host — check the address or the network</string>
+
+    <!-- Phone microphone recording -->
+    <string name="phone_mode_device">Device</string>
+    <string name="phone_mode_phone">Phone</string>
+    <string name="phone_record">Record</string>
+    <string name="phone_stop">Stop</string>
+    <string name="phone_idle">Ready</string>
+    <string name="phone_listening">Listening… captions will appear as speech is recognised.</string>
+    <string name="phone_idle_caption">Tap the microphone to record. Live captions appear while you speak.</string>
+    <string name="phone_mic_denied">Microphone access is denied. Enable it in Settings to record.</string>
+    <string name="phone_no_input">No microphone is available on this device.</string>
+    <string name="phone_write_failed">Couldn\'t write the recording to storage. The audio captured so far is kept.</string>
+    <string name="phone_caption_unavailable">No speech service is configured, so captions are off. The recording itself is unaffected.</string>
+    <string name="phone_azure_fell_back">Azure dropped out — continuing with on-device recognition.</string>
+    <string name="phone_provider_azure">Azure</string>
+    <string name="phone_provider_ondevice">On-device</string>
 </resources>

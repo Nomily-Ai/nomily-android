@@ -955,4 +955,20 @@
     <string name="asr_cloud_http">O provedor recusou a solicitação (HTTP %1$d)</string>
     <string name="asr_cloud_timeout">Sem resposta a tempo — inacessível ou a região está errada</string>
     <string name="asr_cloud_unreachable">Não foi possível alcançar este host — verifique o endereço ou a rede</string>
+
+    <!-- Phone microphone recording -->
+    <string name="phone_mode_device">Dispositivo</string>
+    <string name="phone_mode_phone">Celular</string>
+    <string name="phone_record">Gravar</string>
+    <string name="phone_stop">Parar</string>
+    <string name="phone_idle">Pronto</string>
+    <string name="phone_listening">Ouvindo… as legendas aparecem conforme a fala é reconhecida.</string>
+    <string name="phone_idle_caption">Toque no microfone para gravar. As legendas ao vivo aparecem enquanto você fala.</string>
+    <string name="phone_mic_denied">O acesso ao microfone foi negado. Ative-o em Ajustes para gravar.</string>
+    <string name="phone_no_input">Nenhum microfone está disponível neste dispositivo.</string>
+    <string name="phone_write_failed">Não foi possível gravar no armazenamento. O áudio capturado até agora foi mantido.</string>
+    <string name="phone_caption_unavailable">Nenhum serviço de voz configurado, então as legendas estão desativadas. A gravação não é afetada.</string>
+    <string name="phone_azure_fell_back">O Azure caiu — continuando com o reconhecimento no dispositivo.</string>
+    <string name="phone_provider_azure">Azure</string>
+    <string name="phone_provider_ondevice">No dispositivo</string>
 </resources>

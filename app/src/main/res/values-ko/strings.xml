@@ -955,4 +955,20 @@
     <string name="asr_cloud_http">서비스 업체가 요청을 거부했습니다 (HTTP %1$d)</string>
     <string name="asr_cloud_timeout">제때 응답이 없습니다 — 연결할 수 없거나 리전이 잘못되었습니다</string>
     <string name="asr_cloud_unreachable">이 호스트에 연결할 수 없습니다 — 주소나 네트워크를 확인하세요</string>
+
+    <!-- Phone microphone recording -->
+    <string name="phone_mode_device">기기</string>
+    <string name="phone_mode_phone">휴대폰</string>
+    <string name="phone_record">녹음</string>
+    <string name="phone_stop">중지</string>
+    <string name="phone_idle">준비됨</string>
+    <string name="phone_listening">듣는 중… 음성이 인식되면 자막이 표시됩니다.</string>
+    <string name="phone_idle_caption">마이크를 눌러 녹음하세요. 말하는 동안 실시간 자막이 표시됩니다.</string>
+    <string name="phone_mic_denied">마이크 접근이 거부되었습니다. 설정에서 허용한 뒤 녹음하세요.</string>
+    <string name="phone_no_input">이 기기에는 사용할 수 있는 마이크가 없습니다.</string>
+    <string name="phone_write_failed">녹음을 저장소에 쓰지 못했습니다. 지금까지 녹음된 오디오는 보존됩니다.</string>
+    <string name="phone_caption_unavailable">음성 서비스가 설정되지 않아 자막이 꺼져 있습니다. 녹음 자체에는 영향이 없습니다.</string>
+    <string name="phone_azure_fell_back">Azure 연결이 끊겨 기기 내 인식으로 계속합니다.</string>
+    <string name="phone_provider_azure">Azure</string>
+    <string name="phone_provider_ondevice">기기 내</string>
 </resources>

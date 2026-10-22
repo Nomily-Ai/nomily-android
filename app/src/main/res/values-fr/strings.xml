@@ -955,4 +955,20 @@
     <string name="asr_cloud_http">Le fournisseur a refusé la requête (HTTP %1$d)</string>
     <string name="asr_cloud_timeout">Pas de réponse à temps — injoignable, ou la région est incorrecte</string>
     <string name="asr_cloud_unreachable">Impossible de joindre cet hôte — vérifiez l’adresse ou le réseau</string>
+
+    <!-- Phone microphone recording -->
+    <string name="phone_mode_device">Appareil</string>
+    <string name="phone_mode_phone">Téléphone</string>
+    <string name="phone_record">Enregistrer</string>
+    <string name="phone_stop">Arrêter</string>
+    <string name="phone_idle">Prêt</string>
+    <string name="phone_listening">À l\'écoute… les sous-titres apparaissent dès que la parole est reconnue.</string>
+    <string name="phone_idle_caption">Touchez le micro pour enregistrer. Les sous-titres en direct s\'affichent pendant que vous parlez.</string>
+    <string name="phone_mic_denied">L\'accès au micro est refusé. Activez-le dans les Réglages pour enregistrer.</string>
+    <string name="phone_no_input">Aucun micro n\'est disponible sur cet appareil.</string>
+    <string name="phone_write_failed">Impossible d\'écrire l\'enregistrement sur le stockage. L\'audio capté jusqu\'ici est conservé.</string>
+    <string name="phone_caption_unavailable">Aucun service vocal n\'est configuré : les sous-titres sont désactivés. L\'enregistrement n\'est pas affecté.</string>
+    <string name="phone_azure_fell_back">Azure s\'est interrompu — la reconnaissance continue sur l\'appareil.</string>
+    <string name="phone_provider_azure">Azure</string>
+    <string name="phone_provider_ondevice">Sur l\'appareil</string>
 </resources>

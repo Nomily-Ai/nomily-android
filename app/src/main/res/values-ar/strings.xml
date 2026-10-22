@@ -955,4 +955,20 @@
     <string name="asr_cloud_http">رفض المزوّد الطلب (HTTP %1$d)</string>
     <string name="asr_cloud_timeout">لا استجابة في الوقت المناسب — تعذّر الوصول أو المنطقة غير صحيحة</string>
     <string name="asr_cloud_unreachable">تعذّر الوصول إلى هذا المضيف — تحقق من العنوان أو الشبكة</string>
+
+    <!-- Phone microphone recording -->
+    <string name="phone_mode_device">الجهاز</string>
+    <string name="phone_mode_phone">الهاتف</string>
+    <string name="phone_record">تسجيل</string>
+    <string name="phone_stop">إيقاف</string>
+    <string name="phone_idle">جاهز</string>
+    <string name="phone_listening">جارٍ الاستماع… ستظهر الترجمة النصية عند التعرّف على الكلام.</string>
+    <string name="phone_idle_caption">اضغط على الميكروفون للتسجيل. تظهر الترجمة النصية المباشرة أثناء حديثك.</string>
+    <string name="phone_mic_denied">تم رفض الوصول إلى الميكروفون. فعّله من الإعدادات للتسجيل.</string>
+    <string name="phone_no_input">لا يتوفر ميكروفون على هذا الجهاز.</string>
+    <string name="phone_write_failed">تعذّرت كتابة التسجيل في وحدة التخزين. تم الاحتفاظ بالصوت الملتقط حتى الآن.</string>
+    <string name="phone_caption_unavailable">لم تُضبط أي خدمة صوتية، لذا الترجمة النصية متوقفة. التسجيل نفسه غير متأثر.</string>
+    <string name="phone_azure_fell_back">انقطع Azure — سيستمر التعرّف على الجهاز.</string>
+    <string name="phone_provider_azure">Azure</string>
+    <string name="phone_provider_ondevice">على الجهاز</string>
 </resources>

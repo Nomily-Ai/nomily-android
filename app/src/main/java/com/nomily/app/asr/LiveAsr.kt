@@ -2,6 +2,7 @@ package com.nomily.app.asr
 
 import android.util.Log
 import com.nomily.app.core.audio.OPUS_FRAME_SIZE
+import com.nomily.app.core.audio.WavFormat
 import com.nomily.app.core.audio.OPUS_PRESKIP
 import com.nomily.app.core.audio.OPUS_SAMPLES_PER_FRAME
 import com.nomily.app.core.audio.DNOTE_OGG_SERIAL
@@ -209,6 +210,146 @@ class AzureLiveAsr(
         const val TAG = "AzureLiveAsr"
         const val FRAMES_PER_PAGE = 10          // 10 frames = 200 ms
         const val SERIAL = DNOTE_OGG_SERIAL
+    }
+}
+
+/**
+ * Azure Speech streaming recognition from **raw 16 kHz mono PCM16** (the phone microphone; no Opus/Ogg involved).
+ *
+ * Same endpoint and envelope as [AzureLiveAsr]; the differences are the audio declaration (`audio/x-wav`) and the
+ * framing: the first audio packet of every *turn* starts with a 44-byte RIFF header of unknown length, the rest is
+ * bare PCM. Azure scopes one utterance to one request id, so on `turn.end` the id is rotated and the header re-armed
+ * (otherwise captions go silent after the first sentence).
+ *
+ * [send] takes PCM, not Opus frames. [close] flushes, sends the zero-length end-of-audio packet and keeps the socket
+ * open for [DRAIN_MS] so the last phrase can still arrive; events keep flowing until then.
+ */
+class AzurePcmLiveAsr(
+    private val key: String,
+    private val region: String,
+    private val lang: String = "en-US",
+) : LiveAsr {
+
+    private val lock = Any()
+    private var requestId = newRequestId()
+    private var ws: WebSocket? = null
+    private var closed = false
+    private var sentHeader = false
+    private val pending = java.io.ByteArrayOutputStream()
+    @Volatile private var onEvent: ((LiveAsrEvent) -> Unit)? = null
+
+    override fun connect(onEvent: (LiveAsrEvent) -> Unit) {
+        require(key.isNotEmpty() && region.isNotEmpty()) { "Azure credentials are not configured." }
+        this.onEvent = onEvent
+        val url = "wss://$region.stt.speech.microsoft.com" +
+            "/speech/recognition/conversation/cognitiveservices/v1" +
+            "?language=$lang&format=detailed"
+        val req = Request.Builder().url(url).addHeader("Ocp-Apim-Subscription-Key", key).build()
+        ws = wsClient.newWebSocket(req, listener)
+    }
+
+    private val listener = object : WebSocketListener() {
+        override fun onOpen(webSocket: WebSocket, response: Response) {
+            Log.i(TAG, "Azure PCM WebSocket connected")
+            webSocket.send(
+                azureTextMessage(
+                    synchronized(lock) { requestId }, "speech.config",
+                    JSONObject(
+                        mapOf(
+                            "context" to mapOf(
+                                "system" to mapOf("name" to "nomily", "version" to "1.0"),
+                                "os" to mapOf("platform" to "Android", "name" to "ARM"),
+                                "audio" to mapOf("source" to mapOf("connectivity" to "Unknown")),
+                            ),
+                        ),
+                    ).toString(),
+                ),
+            )
+        }
+
+        override fun onMessage(webSocket: WebSocket, text: String) {
+            val parts = text.split("\r\n\r\n", limit = 2)
+            if (parts.size < 2) return
+            val headers = parts[0]
+            when {
+                headers.contains("speech.hypothesis") -> {
+                    val t = runCatching { JSONObject(parts[1]).optString("Text") }.getOrNull()
+                    if (!t.isNullOrEmpty()) onEvent?.invoke(LiveAsrEvent.Partial(t))
+                }
+                headers.contains("speech.phrase") -> {
+                    val json = runCatching { JSONObject(parts[1]) }.getOrNull() ?: return
+                    val t = if (json.optString("RecognitionStatus") == "Success") json.optString("DisplayText") else ""
+                    // A phrase without text (silence, no match) clears the in-flight partial like an empty final.
+                    onEvent?.invoke(LiveAsrEvent.Final(t))
+                }
+                headers.contains("turn.end") -> synchronized(lock) {
+                    requestId = newRequestId()
+                    sentHeader = false
+                }
+            }
+        }
+
+        override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+            reportClosed(t.message ?: t.javaClass.simpleName)
+        }
+
+        override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+            reportClosed(null)
+        }
+    }
+
+    override fun send(frames: ByteArray) {
+        synchronized(lock) {
+            if (closed) return
+            pending.write(frames)
+            if (pending.size() >= FLUSH_BYTES) flushLocked()
+        }
+    }
+
+    override fun close() {
+        val socket: WebSocket?
+        synchronized(lock) {
+            if (closed) return
+            flushLocked()
+            socket = ws
+            socket?.send(azureAudioMessage(requestId, ByteArray(0), CONTENT_TYPE).toByteString())
+            closed = true
+        }
+        Thread {
+            Thread.sleep(DRAIN_MS)
+            socket?.cancel()
+            onEvent?.invoke(LiveAsrEvent.Closed(null))
+            onEvent = null
+        }.apply { isDaemon = true }.start()
+        ws = null
+    }
+
+    private fun flushLocked() {
+        val socket = ws ?: return
+        if (pending.size() == 0) return
+        val chunk = pending.toByteArray()
+        pending.reset()
+        val payload = if (sentHeader) chunk else WavFormat.header(null) + chunk
+        sentHeader = true
+        socket.send(azureAudioMessage(requestId, payload, CONTENT_TYPE).toByteString())
+    }
+
+    private fun reportClosed(error: String?) {
+        synchronized(lock) {
+            if (closed) return
+            closed = true
+        }
+        onEvent?.invoke(LiveAsrEvent.Closed(error))
+        onEvent = null
+    }
+
+    private fun newRequestId() = UUID.randomUUID().toString().replace("-", "").lowercase()
+
+    private companion object {
+        const val TAG = "AzurePcmLiveAsr"
+        const val CONTENT_TYPE = "audio/x-wav"
+        const val FLUSH_BYTES = 3_200   // ~100 ms of 16 kHz PCM16
+        const val DRAIN_MS = 800L
     }
 }
 
@@ -546,12 +687,16 @@ internal fun azureTextMessage(requestId: String, path: String, json: String): St
         "Content-Type: application/json\r\n" +
         "\r\n" + json
 
-internal fun azureAudioMessage(requestId: String, audio: ByteArray): ByteArray {
+internal fun azureAudioMessage(
+    requestId: String,
+    audio: ByteArray,
+    contentType: String = "audio/ogg;codecs=opus",
+): ByteArray {
     val header = (
         "Path: audio\r\n" +
             "X-RequestId: $requestId\r\n" +
             "X-Timestamp: ${azureTimestamp()}\r\n" +
-            "Content-Type: audio/ogg;codecs=opus"
+            "Content-Type: $contentType"
         ).toByteArray(Charsets.UTF_8)
     val out = ByteArray(2 + header.size + audio.size)
     out[0] = ((header.size shr 8) and 0xFF).toByte()
