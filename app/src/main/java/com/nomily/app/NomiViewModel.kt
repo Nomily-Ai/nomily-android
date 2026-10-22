@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
@@ -63,6 +64,13 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
 
         /** Upper bound for waiting for the first frame of a real‑time session. */
         private const val LIVE_FIRST_FRAME_TIMEOUT_MS = 10_000L
+
+        /**
+         * How long a live session stays open after a BLE drop, waiting for the card to come back — as iOS: a
+         * reconnect takes 2–5 s, 20 s covers one failed attempt plus its retry without looking like a hang.
+         */
+        private const val LIVE_STREAM_RECOVERY_MS = 20_000L
+        private const val LIVE_STREAM_RECOVERY_POLL_MS = 500L
 
         /** Interval for reading 0x56 during recording. 1 second — timing must keep up with the second ticks. */
         private const val REC_ELAPSED_POLL_MS = 1_000L
@@ -217,7 +225,12 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         val reconnecting: Boolean = false,
         /** Live transcription session. */
         val live: Live = Live(),
-    )
+    ) {
+        /** A Bluetooth download or a fast transfer (incl. waiting for a join retry with the AP on) is in progress. */
+        val transferActive: Boolean
+            get() = downloadingName != null ||
+                fastTransfer?.stage?.let { it != FtStage.DONE && it != FtStage.FAILED } == true
+    }
 
     /**
      * State of a live transcription session.
@@ -265,6 +278,13 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         val serviceNotice: String? = null,
         /** The automatic save after stopping failed and its audio is still held: the page offers "Save to Library" to retry it. */
         val canSaveToLibrary: Boolean = false,
+        /**
+         * The BLE link dropped and the session is held open while the card reconnects (the card keeps recording on its
+         * own). Cleared when the stream is re-attached, or when the wait runs out and the session is saved as it stands.
+         */
+        val linkRecovering: Boolean = false,
+        /** Recent loudness of the stream, 0..1, newest last — the level bars. Empty when nothing is decoded locally. */
+        val audioLevels: List<Float> = emptyList(),
     )
 
     enum class LiveStatus { IDLE, CONNECTING, READY, STREAMING, FAILED, RECONNECTING }
@@ -331,6 +351,8 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
          * The same suggestion, rephrased — it would be wrong to tell someone who never paused that “your recording was interrupted in the middle.”
          */
         val wasAttached: Boolean = false,
+        /** The BLE link dropped mid-session and the stream was re-attached: the phone's copy misses the gap. */
+        val linkDropped: Boolean = false,
     )
 
     /**
@@ -917,12 +939,20 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     private fun onDropped() {
         Log.w(TAG, "Device disconnected")
         pollJob?.cancel(); pollJob = null
+        // Release the dead GATT; marking it closed also stops it reporting again.
+        client?.let { old ->
+            old.onUnexpectedDisconnect = null
+            old.onRecordingStateChanged = null
+            runCatching { old.close() }
+        }
         client = null
         set {
             Ui(
                 clips = it.clips,
                 autoReconnect = it.autoReconnect,
                 error = if (it.autoReconnect) null else str(R.string.device_disconnected),
+                // A running live session outlives the drop: the stream task waits for the reconnect and re-attaches.
+                live = if (it.live.running) it.live else Live(),
             )
         }
         maybeAutoReconnect(afterDrop = true)
@@ -1240,9 +1270,12 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
 
     fun cancelTranscribe(clip: LocalClip) = jobs.cancel("transcribe:${clip.base}")
 
-    /** The foreground service only runs while there is work **and** background keep-alive is on. */
+    /**
+     * The foreground service only runs while there is work **and** background keep-alive is on. Work is a runnable
+     * job, or a Bluetooth download / fast transfer in progress — those die with the process just the same.
+     */
     private fun syncWorkService(hasWork: Boolean = jobs.jobs.value.any { it.isRunnable }) {
-        if (hasWork && configStore.config.value.backgroundKeepAliveEnabled) {
+        if ((hasWork || _ui.value.transferActive) && configStore.config.value.backgroundKeepAliveEnabled) {
             com.nomily.app.jobs.WorkService.start(getApplication())
         } else {
             com.nomily.app.jobs.WorkService.stop(getApplication())
@@ -1264,6 +1297,25 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     //
     // ⚠️ Cleanup must complete: leaving the AP on drains power, and not unbinding the network forces all subsequent app requests onto a network without internet.
     // Therefore teardown is placed in finally, each step wrapped in runCatching; a failure in one step does not block the next.
+
+    /** The app went to the background mid fast transfer with keep-alive off: the run was cancelled for that (iOS). */
+    private var ftInterruptedByBackground = false
+
+    /**
+     * The app moved to the background while the fast-transfer panel is open (iOS `cancelForBackground`).
+     *
+     * With background keep-alive on the foreground service carries the transfer and nothing happens. Off, nothing
+     * protects the process, so the run is cancelled now — while the card is still reachable, the cleanup closes its
+     * AP — the unfinished files are marked failed, and the panel offers Retry on return.
+     */
+    fun onAppBackgrounded() {
+        if (configStore.config.value.backgroundKeepAliveEnabled) return
+        val ft = _ui.value.fastTransfer ?: return
+        if (ft.stage == FtStage.DONE || ft.stage == FtStage.FAILED || fetchJob?.isActive != true) return
+        Log.i(TAG, "App backgrounded during fast transfer (${ft.stage}) without keep-alive — interrupting")
+        ftInterruptedByBackground = true
+        fetchJob?.cancel()
+    }
 
     fun fastTransfer(files: List<DnoteBleClient.DeviceFile>) {
         val c = client ?: return
@@ -1299,6 +1351,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 ),
             )
         }
+        ftInterruptedByBackground = false
         fetchJob = viewModelScope.launch {
             val joiner = com.nomily.app.wifi.HotspotJoiner(getApplication())
             val wifi = com.nomily.app.wifi.WifiClient(getApplication())
@@ -1437,6 +1490,28 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 Log.i(TAG, "Fast transfer completed $done/${files.size}")
             } catch (e: kotlinx.coroutines.CancellationException) {
+                if (ftInterruptedByBackground) {
+                    val msg = str(R.string.fast_transfer_background_interrupted)
+                    set { ui ->
+                        ui.copy(
+                            busy = null,
+                            progress = null,
+                            fastTransfer = ui.fastTransfer?.let { ft ->
+                                ft.copy(
+                                    stage = FtStage.FAILED,
+                                    error = msg,
+                                    files = ft.files.map { f ->
+                                        if (f.status == FtFileStatus.PENDING || f.status == FtFileStatus.DOWNLOADING) {
+                                            f.copy(status = FtFileStatus.FAILED, error = msg)
+                                        } else {
+                                            f
+                                        }
+                                    },
+                                )
+                            },
+                        )
+                    }
+                }
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Fast transfer failed", e)
@@ -2139,6 +2214,8 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     private var liveBuffer: java.io.OutputStream? = null
     private var liveBufferFile: File? = null
     private var liveDidPause = false
+    /** The link dropped mid-session and the stream was re-attached: the saved copy has a gap. */
+    private var liveLinkDropped = false
     /**
      * This ASR shutdown is **initiated by us** (pause / stop / connection change).
      *
@@ -2222,6 +2299,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         // and the saved clip is transcribed afterwards.
         val serviceNotice = openLiveAsrOrRecordOnly(cfg)
         liveDidPause = false
+        liveLinkDropped = false
         liveAttachedToExisting = false
         preSessionFiles = null
         pendingLiveSave = null
@@ -2308,27 +2386,54 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 set { it.copy(live = it.live.copy(status = LiveStatus.STREAMING)) }
                 var pendingBytes = 0
-                withContext(Dispatchers.IO) {
-                    // First frame timeout 10 seconds: a streaming device emits a frame every 20 ms, so 10 seconds is sufficient;
-                // the default 30 seconds is reserved for gaps during the session, not for the initial packet.
-                    c.streamAudio(firstFrameTimeoutMs = LIVE_FIRST_FRAME_TIMEOUT_MS).collect { frames ->
-                        // Setting on every frame would overwhelm the UI (50 fps) — batch updates every half‑second,
-                // the two counters in the control bar only display to the second, which is sufficient.
-                        pendingBytes += frames.size
-                        if (pendingBytes >= OPUS_FRAME_SIZE * 25) {
-                            val add = pendingBytes
-                            pendingBytes = 0
-                            set { it.copy(live = it.live.copy(bytes = it.live.bytes + add)) }
+                var pendingLevels = emptyList<Float>()
+                val meter = com.nomily.app.audio.LiveLevelMeter()
+                var source = c
+                try {
+                    while (true) {
+                        try {
+                            withContext(Dispatchers.IO) {
+                                // First frame timeout 10 s: a streaming device emits a frame every 20 ms; the default
+                                // 30 s is reserved for gaps during the session, not for the initial packet.
+                                source.streamAudio(firstFrameTimeoutMs = LIVE_FIRST_FRAME_TIMEOUT_MS).collect { frames ->
+                                    // Setting on every frame would overwhelm the UI (50 fps) — batch updates every half second;
+                                    // the two counters in the control bar only display to the second, which is sufficient.
+                                    pendingBytes += frames.size
+                                    if (!_ui.value.live.paused) pendingLevels = pendingLevels + meter.feed(frames)
+                                    if (pendingBytes >= OPUS_FRAME_SIZE * 25) {
+                                        val add = pendingBytes
+                                        val levels = pendingLevels
+                                        pendingBytes = 0
+                                        pendingLevels = emptyList()
+                                        set {
+                                            it.copy(
+                                                live = it.live.copy(
+                                                    bytes = it.live.bytes + add,
+                                                    audioLevels = com.nomily.app.core.audio.LiveLevels.push(it.live.audioLevels, levels),
+                                                ),
+                                            )
+                                        }
+                                    }
+                                    // During pause, **continue receiving and storing, just don't send to ASR** (disconnecting BLE might stop the device's stream).
+                                    // Swallow write failures: stopLive closes the buffered stream, and we might be writing the last frame —
+                                    // that isn't a session error; it shouldn't push the UI into FAILED.
+                                    runCatching { liveBuffer?.write(frames) }
+                                    liveCapturedBytes += frames.size
+                                    if (!_ui.value.live.paused) liveAsr?.send(frames)
+                                }
+                            }
+                            break
+                        } catch (e: DnoteBleClient.DnoteLinkLostException) {
+                            // The card keeps recording through a link drop: hold the session, re-attach after the
+                            // reconnect, and keep appending to the same buffer. Given up → save what we have (below).
+                            Log.w(TAG, "Real-time stream lost (link dropped) — holding the session for the reconnect")
+                            source = recoverLiveStream(source) ?: break
                         }
-                        // During pause, **continue receiving and storing, just don’t send to ASR** (disconnecting BLE might stop the device’s stream).
-                // Swallow write failures: stopLive closes the buffered stream, and we might be writing the last frame —
-                // that isn’t a session error; it shouldn’t push the UI into FAILED.
-                        runCatching { liveBuffer?.write(frames) }
-                        liveCapturedBytes += frames.size
-                        if (!_ui.value.live.paused) liveAsr?.send(frames)
                     }
+                } finally {
+                    withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) { meter.release() }
                 }
-                // Stream ends naturally (device stopped recording)
+                // Stream ended: the device stopped recording, or the card didn't come back after a drop
                 stopLive()
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -2337,6 +2442,51 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 set { it.copy(live = it.live.copy(error = e.message, status = LiveStatus.FAILED)) }
                 stopLive()
             }
+        }
+    }
+
+    /**
+     * Re-attach the live stream after the BLE link dropped (iOS `LiveModel.recoverStream`).
+     *
+     * Waits up to [LIVE_STREAM_RECOVERY_MS] for the automatic reconnect to hand over a fresh client, then re-arms the
+     * stream on it. Not attempted while paused (same as iOS). The phone's copy now misses the gap, so the session is
+     * flagged for the "replace with the complete recording" offer — and its device file is never auto-deleted.
+     *
+     * @return the client now streaming, or `null` when the card didn't come back in time.
+     */
+    private suspend fun recoverLiveStream(lost: DnoteBleClient): DnoteBleClient? {
+        val live = _ui.value.live
+        if (!live.running || live.paused) return null
+        set { it.copy(live = it.live.copy(linkRecovering = true)) }
+        try {
+            val deadline = android.os.SystemClock.elapsedRealtime() + LIVE_STREAM_RECOVERY_MS
+            while (android.os.SystemClock.elapsedRealtime() < deadline) {
+                val fresh = client
+                // connectedName is set at the end of connect(): the new link is set up and usable.
+                if (fresh != null && fresh !== lost && _ui.value.connectedName != null) {
+                    try {
+                        withContext(Dispatchers.IO) {
+                            // Same check as the first attach: upload=0 means the firmware will never push frames.
+                            val upload = runCatching { fresh.getRecordingStatus().optInt("upload", 1) }.getOrDefault(1)
+                            if (upload == 0) throw IllegalStateException(str(R.string.live_attach_no_upload))
+                            fresh.startStream()
+                        }
+                        liveLinkDropped = true
+                        Log.i(TAG, "Real-time stream re-attached after the link came back")
+                        set { it.copy(live = it.live.copy(error = null)) }
+                        return fresh
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Re-attach failed (${e.message}) — retrying")
+                    }
+                }
+                kotlinx.coroutines.delay(LIVE_STREAM_RECOVERY_POLL_MS)
+            }
+            Log.w(TAG, "Real-time stream not recovered within ${LIVE_STREAM_RECOVERY_MS / 1000} s — ending the session")
+            return null
+        } finally {
+            set { it.copy(live = it.live.copy(linkRecovering = false)) }
         }
     }
 
@@ -2419,9 +2569,11 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         com.nomily.app.LiveSessionService.stop(getApplication())
         // Finalize temporary results into a completed entry — otherwise the last half‑sentence would be lost
         commitLivePartial()
-        set { it.copy(live = it.live.copy(running = false, status = LiveStatus.IDLE)) }
+        set { it.copy(live = it.live.copy(running = false, status = LiveStatus.IDLE, linkRecovering = false, audioLevels = emptyList())) }
         val hadPauses = liveDidPause
         liveDidPause = false
+        val linkDropped = liveLinkDropped
+        liveLinkDropped = false
         val buffer = liveBufferFile
         runCatching { liveBuffer?.close() }
         liveBuffer = null
@@ -2444,12 +2596,17 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
                 flushLiveTranslation()
-                saveLiveClip(c, buffer, stopInfo, hadPauses)
+                saveLiveClip(c, buffer, stopInfo, hadPauses, linkDropped)
                 endLiveTranslation()
                 loadFiles()
             }
         } else {
-            endLiveTranslation()
+            // The card is gone (dropped and never came back, or stopped while reconnecting): keep what was received.
+            viewModelScope.launch {
+                flushLiveTranslation()
+                saveLiveClip(null, buffer, null, hadPauses, linkDropped)
+                endLiveTranslation()
+            }
         }
     }
 
@@ -2461,18 +2618,20 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
      * causing subsequent “replace with the device’s full recording” and auto‑deletion to fail.
      */
     private suspend fun saveLiveClip(
-        c: DnoteBleClient,
+        c: DnoteBleClient?,
         buffer: File?,
         stopInfo: org.json.JSONObject?,
         hadPauses: Boolean,
+        linkDropped: Boolean = false,
     ) {
         if (buffer == null || !buffer.isFile || buffer.length() < com.nomily.app.core.audio.OPUS_FRAME_SIZE) {
  Log.i(TAG, "Real-time session did not receive enough audio (${buffer?.length() ?: 0}B), not storing segment")
             buffer?.delete()
             return
         }
+        // Without a client the device file can't be identified: no repair offer and no auto-delete, the card keeps it.
         val deviceName = stopInfo?.optString("name")?.takeIf { it.isNotEmpty() }
-            ?: resolveSessionDeviceFile(c)
+            ?: c?.let { resolveSessionDeviceFile(it) }
         val stamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.US).format(Date()) + ".opus"
         // When attached to a segment the device is already recording, the phone’s copy only overwrites audio **after the attachment**. Storing with the device’s filename,
         // a several‑minute recording becomes a few‑second “truncated” segment in the library. Such sessions are named by attachment time,
@@ -2542,22 +2701,25 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         // If paused (or this session is attached to a segment the device is already recording) → the phone’s copy is incomplete,
         // the device’s copy is full; ask the user whether to replace. In attachment scenarios **there is no pause**, the wording is a single sentence.
         val attached = liveAttachedToExisting
-        if ((hadPauses || attached) && deviceName != null) {
+        if ((hadPauses || attached || linkDropped) && deviceName != null) {
             val size = stopInfo?.optInt("size") ?: 0
             set {
                 it.copy(
                     live = it.live.copy(
-                        pendingRepair = PendingRepair(deviceName, saved.name, size, wasAttached = attached),
+                        pendingRepair = PendingRepair(
+                            deviceName, saved.name, size,
+                            wasAttached = attached, linkDropped = linkDropped && !hadPauses,
+                        ),
                     ),
                 )
             }
-        } else if (deviceName != null && configStore.config.value.autoDeleteAfterTransfer) {
+        } else if (c != null && deviceName != null && configStore.config.value.autoDeleteAfterTransfer) {
             runCatching { withContext(Dispatchers.IO) { c.deleteFile(deviceName) } }
                 .onFailure { Log.w(TAG, "Failed to delete device file after real-time session: ${it.message}") }
         }
     }
 
-    private class PendingLiveSave(val client: DnoteBleClient, val buffer: File, val stopInfo: org.json.JSONObject?)
+    private class PendingLiveSave(val client: DnoteBleClient?, val buffer: File, val stopInfo: org.json.JSONObject?)
 
     /** A live session whose automatic save failed; held until the user retries or a new session starts. */
     private var pendingLiveSave: PendingLiveSave? = null
@@ -3024,6 +3186,10 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         jobs.register(com.nomily.app.jobs.JobKind.EXPORT) { job, _ -> runExport(job) }
         // Keep the process alive while anything is queued, refresh the library as jobs finish, and mirror
         // transcription / translation state into the UI fields the clip page already reads.
+        // A download or fast transfer is protected by the same foreground service as the job queue.
+        viewModelScope.launch {
+            _ui.map { it.transferActive }.distinctUntilChanged().drop(1).collect { syncWorkService() }
+        }
         viewModelScope.launch {
             var hadWork = false
             var finished = emptySet<String>()

@@ -54,11 +54,20 @@ class DnoteBleClient(
         /** Real‑time stream silent timeout: treat the stream as broken after 30 seconds without a frame. */
         private const val STREAM_IDLE_TIMEOUT_MS = 30_000L
 
+        /** Marker pushed into the stream queue on an unexpected disconnect (compared by identity). */
+        private val LINK_LOST = ByteArray(0)
+
         /** Upper bound for waiting on MTU negotiation — it only affects throughput; even if negotiation fails, continue onward. */
         private const val MTU_TIMEOUT_MS = 5_000L
     }
 
     class DnoteException(message: String) : Exception(message)
+
+    /**
+     * The BLE link dropped under a running [streamAudio]. Distinct from [DnoteException] on purpose: the card keeps
+     * recording on its own, so a live session waits for the reconnect and re-attaches instead of ending.
+     */
+    class DnoteLinkLostException : Exception("Connection to the device dropped")
 
     /** The card is recording and refuses the command; the UI shows its own localized wording. */
     class DeviceRecordingException : Exception("Stop recording before changing device settings or disconnecting.")
@@ -494,7 +503,7 @@ class DnoteBleClient(
      *
      * **Does not go through [cmdLock]**: the stream occupies the channel for the entire recording, and commands like stopStream must be able to interject; data travels via the separate logical channel [streamQ].
      *
-     * Termination conditions: STOP flag, recording stopped by physical key, 30 seconds without a frame, or caller cancellation.
+     * Termination conditions: STOP flag, recording stopped by physical key, 30 seconds without a frame, an unexpected disconnect ([DnoteLinkLostException]), or caller cancellation.
      *
      * [firstFrameTimeoutMs] only governs **the first frame**. Devices that never push a stream (recording started by the physical key before the App connects, `upload=0`) would otherwise wait the full 30 seconds, appearing as a broken link; here we instead throw `stream_no_audio` so the UI can explain what happened.
      */
@@ -506,11 +515,14 @@ class DnoteBleClient(
             val pkt = try {
                 withTimeout(if (sawPacket) STREAM_IDLE_TIMEOUT_MS else firstFrameTimeoutMs) { streamQ.receive() }
             } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-                if (sawPacket) throw e
+                // Rethrown as a plain exception: a TimeoutCancellationException is a CancellationException, and the
+                // live session would read it as "cancelled by us" and die without saving.
+                if (sawPacket) throw DnoteException("No audio from the device for ${STREAM_IDLE_TIMEOUT_MS / 1000} s")
                 throw DnoteException(
                     context.getString(com.nomily.app.R.string.dnote_error_stream_no_audio),
                 )
             }
+            if (pkt === LINK_LOST) throw DnoteLinkLostException()
             sawPacket = true
             if (pkt.size < 4 || (pkt[0].toInt() and 0xFF) != DnoteProtocol.PID) continue
             val lc = pkt[2].toInt() and 0xFF
@@ -840,6 +852,8 @@ class DnoteBleClient(
                 if (everConnected && !closedByUs) {
                     everConnected = false          // Report only once
                     Log.w(TAG, "Unexpected disconnection status=$statusCode")
+                    // Wake a running stream at once instead of letting it sit out the 30 s idle timeout.
+                    streamQ.trySend(LINK_LOST)
                     onUnexpectedDisconnect?.invoke()
                 }
             }

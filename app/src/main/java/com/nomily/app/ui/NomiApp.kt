@@ -30,6 +30,8 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.BluetoothDisabled
 import androidx.compose.material.icons.outlined.WarningAmber
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Verified
 import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.ArrowBackIos
@@ -642,7 +644,7 @@ private fun RecordingsTab(
                         colors = SegmentedButtonDefaults.colors(
                             activeContainerColor = MaterialTheme.colorScheme.surface,
                             activeContentColor = MaterialTheme.colorScheme.onSurface,
-                            inactiveContainerColor = com.nomily.app.ui.theme.AppFillTertiary,
+                            inactiveContainerColor = MaterialTheme.colorScheme.secondaryContainer,
                             inactiveContentColor = MaterialTheme.colorScheme.onSurface,
                         ),
                     ) {
@@ -864,6 +866,12 @@ private fun LiveTab(
     KeepScreenOn(ui.live.running)
     val live = ui.live
     val connected = ui.connectedName != null
+    if (!connected && live.running) {
+        // Session alive, link down — the stream task is waiting for the reconnect (NomiViewModel.recoverLiveStream).
+        // Without this branch the page would read as "no device" and the session as finished.
+        LiveReconnecting(live)
+        return
+    }
     if (!connected) {
         // When no device is connected, **check for existing results first**: paragraphs already transcribed in this round, or clips just saved to the library,
         // must continue to be displayed — if the transcription results were cleared the moment the device disconnects,
@@ -1247,6 +1255,14 @@ private fun LiveTab(
         }
         LiveSaveToLibraryButton(live, vm)
 
+        if (live.running) {
+            LiveLevelBars(
+                levels = live.audioLevels,
+                paused = live.paused,
+                modifier = Modifier.fillMaxWidth().height(44.dp).padding(horizontal = 32.dp),
+            )
+        }
+
         // Control bar: left provider capsule (green if connected, orange if not, 12% background color),
         // right bold status, far right is a **circular icon button** — originally two full-width text buttons ("Start" not yet translated).
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
@@ -1273,8 +1289,14 @@ private fun LiveTab(
                 modifier = Modifier.padding(end = 12.dp),
             ) {
                 Text(
-                    // Pause priority: Pause → Listening → Ready
-                    stringResource(if (live.paused) R.string.live_paused else live.status.labelRes()),
+                    // Pause priority: Pause → Reconnecting (link) → Listening → Ready
+                    stringResource(
+                        when {
+                            live.paused -> R.string.live_paused
+                            live.linkRecovering -> R.string.live_status_reconnecting
+                            else -> live.status.labelRes()
+                        },
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
                 )
@@ -1342,8 +1364,11 @@ private fun LiveTab(
                 Text(
                     stringResource(
                         // The user in the attached scenario has never paused. Don't use the "your recording was interrupted" excuse to brush them off.
-                        if (repair.wasAttached) R.string.live_repair_message_attached
-                        else R.string.live_repair_message,
+                        when {
+                            repair.wasAttached -> R.string.live_repair_message_attached
+                            repair.linkDropped -> R.string.live_repair_message_link_lost
+                            else -> R.string.live_repair_message
+                        },
                     ),
                 )
             },
@@ -1358,6 +1383,62 @@ private fun LiveTab(
                 }
             },
         )
+    }
+}
+
+/** The session is held open while the card reconnects: spinner, captured duration, and why nothing is lost. */
+@Composable
+private fun LiveReconnecting(live: NomiViewModel.Live) {
+    Column(
+        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
+    ) {
+        CircularProgressIndicator()
+        Text(
+            formatElapsed(live.bytes / com.nomily.app.core.audio.OPUS_FRAME_SIZE * 20),
+            style = MaterialTheme.typography.headlineMedium,
+            fontFamily = FontFamily.Monospace,
+        )
+        Text(
+            stringResource(R.string.live_reconnecting_hint),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+    }
+}
+
+/**
+ * Loudness strip (iOS `LevelBars`): 28 fixed slots, newest sample at the right edge; slots without a sample
+ * sit at a quiet baseline so the strip has its full width from the first frame.
+ */
+@Composable
+private fun LiveLevelBars(levels: List<Float>, paused: Boolean, modifier: Modifier = Modifier) {
+    val slots = com.nomily.app.core.audio.LiveLevels.SLOTS
+    val color = when {
+        paused -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+        levels.isEmpty() -> MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+        else -> MaterialTheme.colorScheme.primary
+    }
+    Row(
+        modifier,
+        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val shown = minOf(levels.size, slots)
+        for (i in 0 until slots) {
+            val offset = i - (slots - shown)
+            val level = if (offset >= 0) levels[levels.size - shown + offset].coerceIn(0f, 1f) else null
+            val target = if (level == null) 6.dp else 6.dp + 34.dp * level
+            val height by androidx.compose.animation.core.animateDpAsState(
+                target, androidx.compose.animation.core.tween(300), label = "level",
+            )
+            Box(
+                Modifier.width(4.dp).height(height)
+                    .background(color, androidx.compose.foundation.shape.CircleShape),
+            )
+        }
     }
 }
 
@@ -1396,8 +1477,10 @@ private fun ScannerSheet(ui: NomiViewModel.Ui, vm: NomiViewModel, onDismiss: () 
         mgr?.adapter?.isEnabled == true
     }
     var connecting by remember { mutableStateOf<String?>(null) }
-    // Devices that have already been added are identified by their peripheral address (same key as `rememberDevice(d.address, …)`).
-    val knownAddresses = vm.config.collectAsStateWithLifecycle().value.devices.keys
+    // Devices that have already been added: the ledger key is the peripheral address (`rememberDevice(d.address, …)`);
+    // the device SID also matches a known card whose MAC was randomised since.
+    val knownDevices = vm.config.collectAsStateWithLifecycle().value.devices
+    val knownSids = knownDevices.values.mapNotNull { it.deviceSid }.toSet()
     LaunchedEffect(btOn) { if (btOn) vm.startScan() }
     // Disconnect immediately upon connection; when connection fails, `busy` is cleared.
     // At this point, we must clear `connecting`, otherwise the list will remain stuck in a disabled + loading state.
@@ -1453,21 +1536,25 @@ private fun ScannerSheet(ui: NomiViewModel.Ui, vm: NomiViewModel, onDismiss: () 
                         Icons.Filled.Sensors,
                     )
                     else -> {
-                        // Group already-added devices in a separate section with a label so users can distinguish new devices.
-                        // Do not hide the entire section: when auto-reconnection fails, the scan list is the only entry point for reconnection.
-                        // Tapping it won't add duplicates — rememberDevice overwrites the existing record by address.
-                        val (added, available) = ui.discovered.partition { it.address in knownAddresses }
-                        LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                            if (available.isNotEmpty()) {
+                        // Only **new** devices are listed, as on iOS. Added ones are reconnected from the pill
+                        // (tap = most recent, menu = pick a known device) and managed under Settings › Known Devices.
+                        val available = ui.discovered.filter {
+                            it.address !in knownDevices && it.adv.deviceSidHex !in knownSids
+                        }
+                        if (available.isEmpty()) {
+                            // Everything in range is already added — say so rather than look like a hung scan.
+                            SharedEmptyState(
+                                stringResource(
+                                    R.string.scanner_no_new_in_category,
+                                    stringResource(R.string.scanner_category_vobot),
+                                ),
+                                stringResource(R.string.scanner_looking_message),
+                                Icons.Outlined.Verified,
+                            )
+                        } else {
+                            LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                                 item {
-                                    ScanSection(R.string.scanner_section_available, available, connecting, false) {
-                                        connecting = it.address; vm.connect(it)
-                                    }
-                                }
-                            }
-                            if (added.isNotEmpty()) {
-                                item {
-                                    ScanSection(R.string.scanner_section_added, added, connecting, true) {
+                                    ScanSection(R.string.scanner_section_available, available, connecting) {
                                         connecting = it.address; vm.connect(it)
                                     }
                                 }
@@ -1486,7 +1573,6 @@ private fun ScanSection(
     titleRes: Int,
     items: List<DeviceScanner.Discovered>,
     connecting: String?,
-    isAdded: Boolean,
     onPick: (DeviceScanner.Discovered) -> Unit,
 ) {
     Text(
@@ -1506,7 +1592,6 @@ private fun ScanSection(
                 d,
                 isConnecting = connecting == d.address,
                 enabled = connecting == null,
-                isAdded = isAdded,
             ) { onPick(d) }
             if (index < items.lastIndex) {
                 HorizontalDivider(
@@ -1524,7 +1609,6 @@ private fun DiscoveredRow(
     d: DeviceScanner.Discovered,
     isConnecting: Boolean,
     enabled: Boolean,
-    isAdded: Boolean = false,
     onClick: () -> Unit,
 ) {
     Row(
@@ -1532,23 +1616,7 @@ private fun DiscoveredRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(d.name, style = MaterialTheme.typography.bodyLarge)
-                if (isAdded) {
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        stringResource(R.string.scanner_added_badge),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .background(
-                                MaterialTheme.colorScheme.surfaceVariant,
-                                RoundedCornerShape(50),
-                            )
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                    )
-                }
-            }
+            Text(d.name, style = MaterialTheme.typography.bodyLarge)
             Text(
                 d.adv.model ?: "-",
                 style = MaterialTheme.typography.bodySmall,
@@ -1740,8 +1808,31 @@ private fun DeviceFilesList(ui: NomiViewModel.Ui, vm: NomiViewModel, modifier: M
         }
         return
     }
+    // Background keep-alive on: the foreground service carries the download, so the hint is only for when it's off.
+    val keepAlive = vm.config.collectAsStateWithLifecycle().value.backgroundKeepAliveEnabled
     // The row is placed inside an embedded white card on a gray background, originally spanning the full width
     LazyColumn(modifier.fillMaxWidth()) {
+        if (ui.downloadingName != null && !keepAlive) {
+            item {
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 8.dp, start = 4.dp, end = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Outlined.Info,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Text(
+                        stringResource(R.string.common_keep_foreground),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 6.dp),
+                    )
+                }
+            }
+        }
         item {
             Card(
                 Modifier.fillMaxWidth().padding(top = 8.dp),

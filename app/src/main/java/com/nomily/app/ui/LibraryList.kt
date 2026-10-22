@@ -213,7 +213,7 @@ fun LibraryList(
                         icon = {},
                         colors = SegmentedButtonDefaults.colors(
                             activeContainerColor = MaterialTheme.colorScheme.surface,
-                            inactiveContainerColor = com.nomily.app.ui.theme.AppFillTertiary,
+                            inactiveContainerColor = MaterialTheme.colorScheme.secondaryContainer,
                         ),
                     ) { Text(stringResource(s.titleRes), style = MaterialTheme.typography.labelMedium) }
                 }
@@ -508,9 +508,9 @@ private fun SearchField(query: String, onQuery: (String) -> Unit, enabled: Boole
         singleLine = true,
         shape = RoundedCornerShape(10.dp),
         colors = TextFieldDefaults.colors(
-            focusedContainerColor = com.nomily.app.ui.theme.AppFillTertiary,
-            unfocusedContainerColor = com.nomily.app.ui.theme.AppFillTertiary,
-            disabledContainerColor = com.nomily.app.ui.theme.AppFillTertiary,
+            focusedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+            unfocusedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+            disabledContainerColor = MaterialTheme.colorScheme.secondaryContainer,
             focusedIndicatorColor = Color.Transparent,
             unfocusedIndicatorColor = Color.Transparent,
             disabledIndicatorColor = Color.Transparent,

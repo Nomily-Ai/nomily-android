@@ -486,8 +486,6 @@
     <string name="template_prompt_brainstorm_synthesis" formatted="false">このブレインストーミングセッションを整理された出力に統合してください：\n\n## 問題ステートメント\n探求されていた問題または機会は何か。\n\n## 生成されたアイデア\n類似したアイデアをテーマごとにグループ化してください。各テーマについて：\n### [テーマ]\n- 提案された具体的なアイデア\n- 誰が提案したか（識別できる場合）\n- 議論された長所/短所\n\n## 有力な候補\nグループから最もエネルギーや支持を得たアイデア。\n\n## ワイルドカード\nさらに探求する価値のある型破りまたはリスクのあるアイデア。\n\n## 推奨される次のステップ\n最も有望なアイデアを評価またはプロトタイプする方法。</string>
     <string name="template_prompt_interview_summary" formatted="false">このインタビューの文字起こしを要約してください：\n\n## インタビュー対象者\n名前と背景（言及されている場合）。\n\n## 重要な洞察\n共有された最も価値がある、または驚くべき事柄をテーマごとに整理。\n\n## 注目すべき引用\n彼らの視点をよく捉えた直接引用を3〜5件。\n\n## テーマ\n会話全体を通じて繰り返されるアイデアや懸念。\n\n## フォローアップの質問\nされなかったが探求する価値がある質問。\n\nインタビュー対象者の声と視点を保持してください。編集者の意見を加えないでください。</string>
     <string name="scanner_section_available">追加できるデバイス</string>
-    <string name="scanner_section_added">追加済みのデバイス</string>
-    <string name="scanner_added_badge">追加済み</string>
     <string name="asr_no_provider_configured">音声認識サービスが設定されていません。設定で追加してください。</string>
     <string name="asr_all_providers_unreachable">設定済みの音声認識サービスにいずれも接続できませんでした。</string>
     <string name="asr_azure_required_for_translation">リアルタイム翻訳には Azure が必要です。設定で Azure のキーとリージョンを入力してください。</string>
@@ -853,4 +851,9 @@
     <string name="theme_violet_subtitle">やわらかく個性的</string>
     <string name="theme_amber">アンバー</string>
     <string name="theme_amber_subtitle">暖かく、まぶしさ控えめ</string>
+    <string name="live_reconnecting_hint">カードとのBluetooth接続が切れました。再接続しています。カードは単独で録音を続けているため、内容は失われません。</string>
+    <string name="live_repair_message_link_lost">このセッション中にBluetooth接続が途切れたため、一部の音声が取得できていません。Nomi から完全な録音をダウンロードして置き換えますか？</string>
+    <string name="fast_transfer_background_interrupted">Appがバックグラウンドに移動したため、転送を中止しました。Appを開いたまま再試行してください。</string>
+    <string name="scanner_category_vobot">V05E</string>
+    <string name="scanner_no_new_in_category">近くに新しい %s は見つかりません。デバイスの電源が入っていて、ペアリングモードになっているか確認してください。</string>
 </resources>

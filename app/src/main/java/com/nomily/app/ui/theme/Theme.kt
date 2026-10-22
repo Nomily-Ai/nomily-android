@@ -27,8 +27,9 @@ private val AppSecondaryLabelDark = Color(0xFF98989F)
 private val AppSeparator = Color(0xFFC6C6C8)         // Separator and trailing arrow
 private val AppSeparatorDark = Color(0xFF38383A)
 /** Background color of unselected segments in the segmented control: gray groove + white selected block. Material's default is exactly the opposite. */
-val AppFillTertiary = Color(0xFFE5E5EA)
-val AppFillTertiaryDark = Color(0xFF2C2C2E)
+// Read it as `colorScheme.secondaryContainer`, which follows light/dark.
+private val AppFillTertiary = Color(0xFFE5E5EA)
+private val AppFillTertiaryDark = Color(0xFF2C2C2E)
 
 private fun rgb(value: Int) = Color(0xFF000000 or value.toLong())
 
@@ -55,7 +56,7 @@ private fun darkScheme(theme: AppTheme) = darkColorScheme(
     surfaceContainer = AppCardDark,
     surfaceContainerHigh = AppCardDark,
     surfaceContainerHighest = AppCardDark,
-    secondaryContainer = Color(0xFF2C2C2E),
+    secondaryContainer = AppFillTertiaryDark,
     onSecondaryContainer = Color(0xFFF2F2F7),
 )
 

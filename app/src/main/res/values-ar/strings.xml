@@ -486,8 +486,6 @@
     <string name="template_prompt_brainstorm_synthesis" formatted="false">قم بتجميع جلسة العصف الذهني هذه في مخرجات منظمة:\n\n## بيان المشكلة\nما المشكلة أو الفرصة التي تم استكشافها.\n\n## الأفكار المولدة\nجمّع الأفكار المتشابهة في مواضيع. لكل موضوع:\n### [Theme]\n- أفكار محددة مقترحة\n- من اقترحها (إذا كان يمكن تحديده)\n- الإيجابيات/السلبيات التي تمت مناقشتها\n\n## أفضل المرشحين\nالأفكار التي حصلت على أكبر قدر من الطاقة أو الدعم من المجموعة.\n\n## الخيارات غير التقليدية\nأفكار غير تقليدية أو محفوفة بالمخاطر تستحق الاستكشاف أكثر.\n\n## الخطوات التالية الموصى بها\nكيفية تقييم أو بناء نموذج أولي للأفكار الواعدة.</string>
     <string name="template_prompt_interview_summary" formatted="false">لخّص نص هذه المقابلة:\n\n## الشخص الذي تمت مقابلته\nالاسم والخلفية (إذا ذُكر).\n\n## الرؤى الرئيسية\nأكثر الأشياء قيمة أو مفاجأة التي تم مشاركتها، منظمة حسب الموضوع.\n\n## اقتباسات بارزة\n3-5 اقتباسات مباشرة تلتقط وجهة نظرهم جيداً.\n\n## المواضيع\nالأفكار أو المخاوف المتكررة خلال المحادثة.\n\n## أسئلة متابعة\nأسئلة لم تُطرح ولكن سيكون من المفيد استكشافها.\n\nحافظ على صوت ووجهة نظر الشخص الذي تمت مقابلته. لا تحرر أو تعلق.</string>
     <string name="scanner_section_available">متاح للإضافة</string>
-    <string name="scanner_section_added">مضاف بالفعل</string>
-    <string name="scanner_added_badge">مضاف</string>
     <string name="asr_no_provider_configured">لم يتم إعداد أي خدمة تحويل كلام إلى نص. أضف واحدة من الإعدادات.</string>
     <string name="asr_all_providers_unreachable">تعذّر الوصول إلى أي من خدمات تحويل الكلام إلى نص المُعدّة.</string>
     <string name="asr_azure_required_for_translation">تتطلب الترجمة الفورية خدمة Azure. أدخل مفتاح Azure والمنطقة من الإعدادات.</string>
@@ -853,4 +851,9 @@
     <string name="theme_violet_subtitle">ناعم لكن مميز</string>
     <string name="theme_amber">كهرماني</string>
     <string name="theme_amber_subtitle">دافئ وقليل الوهج</string>
+    <string name="live_reconnecting_hint">انقطع اتصال Bluetooth بالبطاقة — جارٍ إعادة الاتصال. تواصل البطاقة التسجيل بنفسها، لذا لن يضيع شيء.</string>
+    <string name="live_repair_message_link_lost">انقطع اتصال Bluetooth أثناء هذه الجلسة، لذلك لم يتم التقاط بعض الصوت. هل تريد استبداله بالتسجيل الكامل من Nomi؟</string>
+    <string name="fast_transfer_background_interrupted">توقف النقل لأن التطبيق انتقل إلى الخلفية. حاول مرة أخرى مع إبقاء التطبيق مفتوحًا.</string>
+    <string name="scanner_category_vobot">V05E</string>
+    <string name="scanner_no_new_in_category">لا توجد أجهزة %s جديدة قريبة. تأكد من تشغيل الجهاز ومن أنه في وضع الإقران.</string>
 </resources>

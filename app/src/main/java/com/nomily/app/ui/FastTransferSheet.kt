@@ -30,6 +30,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -68,6 +75,20 @@ fun FastTransferSheet(ui: NomiViewModel.Ui, vm: NomiViewModel) {
     // A transfer can take minutes; the screen going to sleep would background the app mid-download.
     KeepScreenOn(!finished)
     val canRetry = ft.stage == NomiViewModel.FtStage.JOIN_FAILED || ft.stage == NomiViewModel.FtStage.FAILED
+    // With background keep-alive on, the foreground service carries the transfer; off, leaving the app interrupts it
+    // (iOS `cancelForBackground`) so the device AP is still closed while we can reach it.
+    val cfg by vm.config.collectAsStateWithLifecycle()
+    val protectedInBackground = cfg.backgroundKeepAliveEnabled
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val activity = LocalContext.current as? android.app.Activity
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, e ->
+            // A rotation stops the activity too; only a real move to the background counts.
+            if (e == Lifecycle.Event.ON_STOP && activity?.isChangingConfigurations != true) vm.onAppBackgrounded()
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
 
     Dialog(
         // Do not casually close during a transfer: closing = canceling the transfer (canceling requires an explicit button)
@@ -239,8 +260,8 @@ fun FastTransferSheet(ui: NomiViewModel.Ui, vm: NomiViewModel) {
                         }
                     }
 
-                    // ── "Keep in foreground" hint when incomplete ──
-                    if (!finished) {
+                    // ── "Keep in foreground" hint when incomplete (not needed while the foreground service protects it) ──
+                    if (!finished && !protectedInBackground) {
                         item {
                             Text(
                                 stringResource(R.string.common_keep_foreground),

@@ -486,8 +486,6 @@
     <string name="template_prompt_brainstorm_synthesis" formatted="false">Fassen Sie diese Brainstorming-Sitzung in einer organisierten Ausgabe zusammen:\n\n## Problemstellung\nWelches Problem oder welche Chance untersucht wurde.\n\n## Generierte Ideen\nGruppieren Sie ähnliche Ideen in Themen. Für jedes Thema:\n### [Theme]\n- Konkrete vorgeschlagene Ideen\n- Wer sie vorgeschlagen hat (falls identifizierbar)\n- Diskutierte Vor- und Nachteile\n\n## Top-Kandidaten\nIdeen, die die meiste Energie oder Unterstützung von der Gruppe erhielten.\n\n## Wild Cards\nUnkonventionelle oder riskante Ideen, die weiter untersucht werden sollten.\n\n## Empfohlene nächste Schritte\nWie die vielversprechendsten Ideen bewertet oder prototypisiert werden sollen.</string>
     <string name="template_prompt_interview_summary" formatted="false">Fassen Sie dieses Interviewtranskript zusammen:\n\n## Interviewte Person\nName und Hintergrund (falls genannt).\n\n## Wichtige Erkenntnisse\nDie wertvollsten oder überraschendsten geteilten Dinge, nach Themen organisiert.\n\n## Bemerkenswerte Zitate\n3–5 direkte Zitate, die ihre Perspektive gut erfassen.\n\n## Themen\nWiederkehrende Ideen oder Bedenken während des Gesprächs.\n\n## Folge- oder weitere Fragen\nFragen, die nicht gestellt wurden, aber es wert wären, untersucht zu werden.\n\nBewahren Sie die Stimme und Perspektive der interviewten Person. Kommentieren Sie nicht.</string>
     <string name="scanner_section_available">Zum Hinzufügen verfügbar</string>
-    <string name="scanner_section_added">Bereits hinzugefügt</string>
-    <string name="scanner_added_badge">Hinzugefügt</string>
     <string name="asr_no_provider_configured">Es ist kein Transkriptionsdienst konfiguriert. Richte einen in den Einstellungen ein.</string>
     <string name="asr_all_providers_unreachable">Keiner der konfigurierten Transkriptionsdienste war erreichbar.</string>
     <string name="asr_azure_required_for_translation">Für die Live-Übersetzung wird Azure benötigt. Trage Azure-Schlüssel und Region in den Einstellungen ein.</string>
@@ -853,4 +851,9 @@
     <string name="theme_violet_subtitle">Sanft, aber markant</string>
     <string name="theme_amber">Bernstein</string>
     <string name="theme_amber_subtitle">Warm, blendarm</string>
+    <string name="live_reconnecting_hint">Bluetooth-Verbindung zur Karte verloren – Verbindung wird wiederhergestellt. Die Karte nimmt selbst weiter auf, es geht also nichts verloren.</string>
+    <string name="live_repair_message_link_lost">Die Bluetooth-Verbindung ist während dieser Sitzung abgebrochen, daher wurde ein Teil des Audios nicht erfasst. Durch die vollständige Aufnahme von deinem Nomi ersetzen?</string>
+    <string name="fast_transfer_background_interrupted">Die Übertragung wurde beendet, weil die App in den Hintergrund gewechselt ist. Versuche es erneut und lasse die App geöffnet.</string>
+    <string name="scanner_category_vobot">V05E</string>
+    <string name="scanner_no_new_in_category">Keine neuen %s in der Nähe. Achte darauf, dass das Gerät eingeschaltet und im Kopplungsmodus ist.</string>
 </resources>

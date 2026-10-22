@@ -486,8 +486,6 @@
     <string name="template_prompt_brainstorm_synthesis" formatted="false">Synthétisez cette session de brainstorming en une sortie organisée :\n\n## Énoncé du problème\nQuel problème ou opportunité était exploré.\n\n## Idées générées\nRegroupez les idées similaires en thèmes. Pour chaque thème :\n### [Theme]\n- Idées spécifiques proposées\n- Qui les a suggérées (si identifiable)\n- Avantages/inconvénients discutés\n\n## Meilleures candidates\nLes idées qui ont reçu le plus d\'énergie ou de soutien du groupe.\n\n## Jokers\nIdées non conventionnelles ou risquées qui méritent d\'être explorées davantage.\n\n## Prochaines étapes recommandées\nComment évaluer ou prototyper les idées les plus prometteuses.</string>
     <string name="template_prompt_interview_summary" formatted="false">Résumez cette transcription d\'entretien :\n\n## Personne interrogée\nNom et parcours (si mentionnés).\n\n## Informations clés\nLes choses les plus précieuses ou surprenantes partagées, organisées par thème.\n\n## Citations notables\n3 à 5 citations directes qui capturent bien leur perspective.\n\n## Thèmes\nIdées ou préoccupations récurrentes tout au long de la conversation.\n\n## Questions de suivi\nQuestions qui n\'ont pas été posées mais qui mériteraient d\'être explorées.\n\nPréservez la voix et la perspective de la personne interrogée. Ne commentez pas.</string>
     <string name="scanner_section_available">À ajouter</string>
-    <string name="scanner_section_added">Déjà ajoutés</string>
-    <string name="scanner_added_badge">Ajouté</string>
     <string name="asr_no_provider_configured">Aucun service de transcription n\'est configuré. Configurez-en un dans les réglages.</string>
     <string name="asr_all_providers_unreachable">Aucun des services de transcription configurés n\'est joignable.</string>
     <string name="asr_azure_required_for_translation">La traduction en direct nécessite Azure. Saisissez votre clé et votre région Azure dans les réglages.</string>
@@ -853,4 +851,9 @@
     <string name="theme_violet_subtitle">Doux mais affirmé</string>
     <string name="theme_amber">Ambre</string>
     <string name="theme_amber_subtitle">Chaud, peu éblouissant</string>
+    <string name="live_reconnecting_hint">Liaison Bluetooth avec la carte perdue — reconnexion en cours. La carte continue d’enregistrer de son côté, rien n’est perdu.</string>
+    <string name="live_repair_message_link_lost">La connexion Bluetooth a été interrompue pendant cette session, donc une partie du son n\'a pas été capturée. Remplacer par l\'enregistrement complet depuis votre Nomi ?</string>
+    <string name="fast_transfer_background_interrupted">Le transfert s’est arrêté lorsque l’app est passée en arrière-plan. Réessayez en gardant l’app ouverte.</string>
+    <string name="scanner_category_vobot">V05E</string>
+    <string name="scanner_no_new_in_category">Aucun nouvel appareil %s à proximité. Vérifiez que l’appareil est allumé et en mode d’appairage.</string>
 </resources>

@@ -277,7 +277,7 @@ private fun DetailTabs(selected: DetailTab, onSelect: (DetailTab) -> Unit) {
                 icon = {},
                 colors = SegmentedButtonDefaults.colors(
                     activeContainerColor = MaterialTheme.colorScheme.surface,
-                    inactiveContainerColor = com.nomily.app.ui.theme.AppFillTertiary,
+                    inactiveContainerColor = MaterialTheme.colorScheme.secondaryContainer,
                 ),
             ) { Text(stringResource(t.titleRes), style = MaterialTheme.typography.labelMedium) }
         }
@@ -571,7 +571,7 @@ private fun SpeakerChip(label: String, selected: Boolean, onClick: () -> Unit) {
         color = if (selected) accent else MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(if (selected) accent.copy(alpha = 0.18f) else com.nomily.app.ui.theme.AppFillTertiary.copy(alpha = 0.6f))
+            .background(if (selected) accent.copy(alpha = 0.18f) else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f))
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 5.dp),
     )
@@ -786,7 +786,7 @@ private fun AiChatInputBar(chat: ClipChat, vm: NomiViewModel, material: String) 
                 Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(18.dp))
-                    .background(com.nomily.app.ui.theme.AppFillTertiary.copy(alpha = 0.6f))
+                    .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f))
                     .padding(horizontal = 12.dp, vertical = 9.dp),
             ) {
                 if (chat.draft.isEmpty()) {

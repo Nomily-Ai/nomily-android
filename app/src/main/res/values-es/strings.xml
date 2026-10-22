@@ -486,8 +486,6 @@
     <string name="template_prompt_brainstorm_synthesis" formatted="false">Sintetiza esta sesión de lluvia de ideas en un resultado organizado:\n\n## Declaración del Problema\nQué problema u oportunidad se estaba explorando.\n\n## Ideas Generadas\nAgrupa ideas similares en temas. Para cada tema:\n### [Tema]\n- Ideas específicas propuestas\n- Quién las sugirió (si es identificable)\n- Pros/contras discutidos\n\n## Principales Candidatas\nIdeas que recibieron más energía o apoyo del grupo.\n\n## Comodines\nIdeas no convencionales o arriesgadas que vale la pena explorar más a fondo.\n\n## Próximos Pasos Recomendados\nCómo evaluar o crear un prototipo de las ideas más prometedoras.</string>
     <string name="template_prompt_interview_summary" formatted="false">Resume esta transcripción de entrevista:\n\n## Entrevistado\nNombre y antecedentes (si se mencionan).\n\n## Ideas Clave\nLas cosas más valiosas o sorprendentes compartidas, organizadas por tema.\n\n## Citas Notables\n3-5 citas directas que capturan bien la perspectiva.\n\n## Temas\nIdeas o preocupaciones recurrentes a lo largo de la conversación.\n\n## Preguntas de Seguimiento\nPreguntas que no se hicieron pero que valdría la pena explorar.\n\nPreserva la voz y perspectiva del entrevistado. No editorialices.</string>
     <string name="scanner_section_available">Disponibles para añadir</string>
-    <string name="scanner_section_added">Ya añadidos</string>
-    <string name="scanner_added_badge">Añadido</string>
     <string name="asr_no_provider_configured">No hay ningún servicio de transcripción configurado. Configura uno en Ajustes.</string>
     <string name="asr_all_providers_unreachable">No se pudo conectar con ninguno de los servicios de transcripción configurados.</string>
     <string name="asr_azure_required_for_translation">La traducción en directo requiere Azure. Introduce tu clave y región de Azure en Ajustes.</string>
@@ -853,4 +851,9 @@
     <string name="theme_violet_subtitle">Suave pero distintivo</string>
     <string name="theme_amber">Ámbar</string>
     <string name="theme_amber_subtitle">Cálido, poco deslumbrante</string>
+    <string name="live_reconnecting_hint">Se perdió la conexión Bluetooth con la tarjeta; reconectando. La tarjeta sigue grabando por su cuenta, así que no se pierde nada.</string>
+    <string name="live_repair_message_link_lost">La conexión Bluetooth se cortó durante esta sesión, por lo que parte del audio no se capturó. ¿Reemplazar con la grabación completa desde tu Nomi?</string>
+    <string name="fast_transfer_background_interrupted">La transferencia se detuvo porque la app pasó a segundo plano. Inténtalo de nuevo con la app abierta.</string>
+    <string name="scanner_category_vobot">V05E</string>
+    <string name="scanner_no_new_in_category">No hay nuevos %s cerca. Asegúrate de que el dispositivo esté encendido y en modo de emparejamiento.</string>
 </resources>

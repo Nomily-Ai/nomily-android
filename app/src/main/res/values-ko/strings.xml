@@ -486,8 +486,6 @@
     <string name="template_prompt_brainstorm_synthesis" formatted="false">이 브레인스토밍 세션을 체계적인 결과물로 종합하세요:\n\n## 문제 정의\n탐색하고 있던 문제 또는 기회.\n\n## 생성된 아이디어\n유사한 아이디어를 테마로 그룹화하세요. 각 테마에 대해:\n### [테마]\n- 제안된 구체적인 아이디어\n- 제안한 사람 (식별 가능한 경우)\n- 논의된 장단점\n\n## 최우선 후보\n그룹에서 가장 많은 에너지나 지지를 받은 아이디어.\n\n## 와일드 카드\n더 탐구할 가치가 있는 비전통적이거나 위험한 아이디어.\n\n## 권장 다음 단계\n가장 유망한 아이디어를 평가하거나 프로토타입하는 방법.</string>
     <string name="template_prompt_interview_summary" formatted="false">이 인터뷰 트랜스크립트를 요약하세요:\n\n## 인터뷰 대상자\n이름과 배경 (언급된 경우).\n\n## 주요 인사이트\n공유된 가장 가치 있거나 놀라운 내용을 테마별로 정리.\n\n## 주요 인용문\n그들의 관점을 잘 포착하는 직접 인용문 3-5개.\n\n## 테마\n대화 전반에 걸쳐 반복되는 아이디어나 우려.\n\n## 후속 질문\n묻지 않았지만 탐구할 가치가 있는 질문.\n\n인터뷰 대상자의 목소리와 관점을 보존하세요. 주관적인 논평을 하지 마세요.</string>
     <string name="scanner_section_available">추가 가능</string>
-    <string name="scanner_section_added">이미 추가됨</string>
-    <string name="scanner_added_badge">추가됨</string>
     <string name="asr_no_provider_configured">음성 인식 서비스가 설정되지 않았습니다. 설정에서 추가하세요.</string>
     <string name="asr_all_providers_unreachable">설정된 음성 인식 서비스에 모두 연결할 수 없습니다.</string>
     <string name="asr_azure_required_for_translation">실시간 번역에는 Azure가 필요합니다. 설정에서 Azure 키와 지역을 입력하세요.</string>
@@ -853,4 +851,9 @@
     <string name="theme_violet_subtitle">부드럽지만 개성 있는</string>
     <string name="theme_amber">앰버</string>
     <string name="theme_amber_subtitle">따뜻하고 눈부심이 적은</string>
+    <string name="live_reconnecting_hint">카드와의 Bluetooth 연결이 끊어져 다시 연결하는 중입니다. 카드는 계속 자체적으로 녹음하므로 내용이 손실되지 않습니다.</string>
+    <string name="live_repair_message_link_lost">이 세션 중 Bluetooth 연결이 끊겨 일부 오디오가 캡처되지 않았습니다. Nomi의 완전한 녹음으로 교체하시겠습니까?</string>
+    <string name="fast_transfer_background_interrupted">앱이 백그라운드로 전환되어 전송이 중지되었습니다. 앱을 연 상태로 다시 시도하세요.</string>
+    <string name="scanner_category_vobot">V05E</string>
+    <string name="scanner_no_new_in_category">근처에 새 %s 기기가 없습니다. 기기가 켜져 있고 페어링 모드인지 확인하세요.</string>
 </resources>

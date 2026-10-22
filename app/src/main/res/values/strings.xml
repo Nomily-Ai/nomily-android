@@ -525,8 +525,6 @@
     <string name="template_prompt_brainstorm_synthesis" formatted="false">Synthesize this brainstorming session into an organized output:\n\n## Problem Statement\nWhat problem or opportunity was being explored.\n\n## Ideas Generated\nGroup similar ideas into themes. For each theme:\n### [Theme]\n- Specific ideas proposed\n- Who suggested them (if identifiable)\n- Pros/cons discussed\n\n## Top Candidates\nIdeas that got the most energy or support from the group.\n\n## Wild Cards\nUnconventional or risky ideas worth exploring further.\n\n## Recommended Next Steps\nHow to evaluate or prototype the most promising ideas.</string>
     <string name="template_prompt_interview_summary" formatted="false">Summarize this interview transcript:\n\n## Interviewee\nName and background (if mentioned).\n\n## Key Insights\nThe most valuable or surprising things shared, organized by theme.\n\n## Notable Quotes\n3-5 direct quotes that capture their perspective well.\n\n## Themes\nRecurring ideas or concerns throughout the conversation.\n\n## Follow-up Questions\nQuestions that weren\&#x27;t asked but would be worth exploring.\n\nPreserve the interviewee\&#x27;s voice and perspective. Don\&#x27;t editorialize.</string>
     <string name="scanner_section_available">Available to add</string>
-    <string name="scanner_section_added">Already added</string>
-    <string name="scanner_added_badge">Added</string>
     <string name="asr_no_provider_configured">No transcription service is configured. Set one up in Settings.</string>
     <string name="asr_all_providers_unreachable">None of the configured transcription services could be reached.</string>
     <string name="asr_azure_required_for_translation">Live translation needs Azure. Add your Azure key and region in Settings.</string>
@@ -942,4 +940,9 @@
     <string name="template_prompt_email_thread_summary" formatted="false"></string>
     <string name="template_prompt_long_article_to_slide_deck_outline" formatted="false"></string>
     <string name="template_prompt_turning_scattered_notes_into_a_to_do_list" formatted="false"></string>
+    <string name="live_reconnecting_hint">Lost the card\'s Bluetooth link — reconnecting. The card keeps recording on its own, so nothing is lost.</string>
+    <string name="live_repair_message_link_lost">The Bluetooth connection dropped during this session, so some audio wasn\'t captured. Replace with the complete recording from your Nomi?</string>
+    <string name="fast_transfer_background_interrupted">Transfer stopped because the app moved to the background. Retry with the app open.</string>
+    <string name="scanner_category_vobot">V05E</string>
+    <string name="scanner_no_new_in_category">No new %s nearby. Make sure the device is on and in pairing mode.</string>
 </resources>
