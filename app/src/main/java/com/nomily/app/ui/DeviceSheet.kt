@@ -155,6 +155,7 @@ fun DeviceSheet(ui: NomiViewModel.Ui, vm: NomiViewModel, onDismiss: () -> Unit) 
                             AudioSection(sw, vm, controlsEnabled)
                             BehaviorSection(sw, vm, controlsEnabled)
                         }
+                        FindCardSection(vm, connected = true)
                         DangerZone(vm, controlsEnabled, bound = ui.bound == true)
                         ConnectionSection(vm, onDismiss, controlsEnabled)
                         Spacer(Modifier.height(24.dp))
@@ -350,7 +351,7 @@ private fun IdentitySection(ui: NomiViewModel.Ui, vm: NomiViewModel, enabled: Bo
 }
 
 @Composable
-private fun SwitchRow(label: String, hint: String? = null, on: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
+internal fun SwitchRow(label: String, hint: String? = null, on: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,

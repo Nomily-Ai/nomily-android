@@ -215,6 +215,10 @@ fun SettingsScreen(vm: NomiViewModel, onPush: (PushedPage?) -> Unit) {
                 SettingsPage.DevicesLibrary -> {
                     DevicesSection(cfg, vm)
                     KnownDevicesSection(cfg, vm)
+                    // The radar needs a card that is not connected, so it lives on a page that stays open while disconnected.
+                    if (com.nomily.app.ble.CardFinder.state.collectAsStateWithLifecycle().value.address != null) {
+                        FindCardSection(vm, connected = ui.connectedName != null)
+                    }
                     LibrarySection(ui)
                     LibraryDangerSection(vm)
                 }

@@ -489,7 +489,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
      * published here, `MainActivity` launches the request and answers through [onPermissionResult].
      */
     data class PermissionRequest(val permissions: List<String>, val action: Action) {
-        enum class Action { LIVE, FAST_TRANSFER }
+        enum class Action { LIVE, FAST_TRANSFER, FIND_NOTIFY, FIND_LOCATION }
     }
 
     private val _permissionRequest = MutableStateFlow<PermissionRequest?>(null)
@@ -510,6 +510,8 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         _permissionRequest.value = null
         when (request.action) {
             PermissionRequest.Action.LIVE -> startLive(pendingLiveAssumeIdle)
+            PermissionRequest.Action.FIND_NOTIFY, PermissionRequest.Action.FIND_LOCATION ->
+                com.nomily.app.ble.CardFinder.refreshPermissions()
             PermissionRequest.Action.FAST_TRANSFER -> {
                 val files = pendingFastTransferFiles ?: return
                 pendingFastTransferFiles = null
@@ -522,7 +524,25 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Find-card page: turning the alert on asks for the notification grant (API 33+) while the user is looking at the switch. */
+    fun setFinderNotify(on: Boolean) {
+        com.nomily.app.ble.CardFinder.setNotifyOnDisconnect(on)
+        if (on && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            val needed = notGranted(listOf(android.Manifest.permission.POST_NOTIFICATIONS))
+            if (needed.isNotEmpty()) _permissionRequest.value = PermissionRequest(needed, PermissionRequest.Action.FIND_NOTIFY)
+        }
+    }
+
+    /** Find-card page: the user asked to record where the card was left, so ask for location now. */
+    fun requestFinderLocation() {
+        _permissionRequest.value = PermissionRequest(
+            listOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION),
+            PermissionRequest.Action.FIND_LOCATION,
+        )
+    }
+
     init {
+        com.nomily.app.ble.CardFinder.init(app)
         viewModelScope.launch(Dispatchers.IO) { library.purgeExpired() }
         refreshClips()
         registerJobRunners()
@@ -575,6 +595,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         pollJob?.cancel(); pollJob = null
         val active = client ?: return
         Log.w(TAG, "Bluetooth is off, discarding connection")
+        com.nomily.app.ble.CardFinder.onBluetoothOff(_ui.value.connectedName)
         active.onUnexpectedDisconnect = null      // This disconnection is handled here; do not also go through onDropped
         active.onRecordingStateChanged = null
         runCatching { active.close() }
@@ -836,6 +857,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 // Identify by device_sid, not just MAC — after changing phones or MAC randomization, the same card can still be recognized.
                 configStore.rememberDevice(d.address, d.name, d.adv.deviceSidHex)
                 connectedAddress = d.address
+                com.nomily.app.ble.CardFinder.register(d.address, d.name)
 
                 // v1.47+: without a bond, the device refuses recording. Pairing is never silent: an unbound card raises the
                 // "Pair this Nomi?" prompt, and the user's confirmation runs [pairDevice].
@@ -927,6 +949,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Internal cleanup after shutdown/unbind and after the recording guard passed. */
     private fun disconnectNow() {
+        if (client != null) com.nomily.app.ble.CardFinder.onDisconnected(unexpected = false, cardName = null)
         reconnectJob?.cancel(); reconnectJob = null
         pollJob?.cancel(); pollJob = null
         client?.onUnexpectedDisconnect = null
@@ -939,6 +962,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     /** Unexpected disconnection: clear the connection state, then use the switch to decide whether to auto‑recover. */
     private fun onDropped() {
         Log.w(TAG, "Device disconnected")
+        com.nomily.app.ble.CardFinder.onDisconnected(unexpected = true, cardName = _ui.value.connectedName)
         pollJob?.cancel(); pollJob = null
         // Release the dead GATT; marking it closed also stops it reporting again.
         client?.let { old ->
