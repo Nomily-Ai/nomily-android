@@ -1,6 +1,8 @@
 package com.nomily.app.llm
 
 import android.util.Log
+import com.nomily.app.core.llm.LlmModels
+import com.nomily.app.core.llm.LlmProviderSpec
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -45,12 +47,22 @@ object LlmModelService {
         parse = ::parseGemini,
     )
 
-    /** OpenRouter’s list is long (hundreds); filter by provider prefix. */
-    fun openRouter(apiKey: String, providerPrefix: String = ""): Result {
-        val r = bearer("https://openrouter.ai/api/v1/models", apiKey, ::parseOpenAi)
-        if (!r.ok || providerPrefix.isEmpty()) return r
-        val p = providerPrefix.lowercase()
-        return r.copy(models = r.models.filter { it.lowercase().startsWith(p) })
+    /**
+     * Model list for any provider in [LlmProviderSpec.ALL], reduced to chat-capable ids. An empty list after
+     * filtering is a legitimate result (a Custom endpoint in front of an embeddings-only server), not a failure.
+     */
+    fun fetchModels(ctx: android.content.Context, spec: LlmProviderSpec, endpoint: String, apiKey: String): Result {
+        val base = endpoint.ifEmpty { spec.defaultEndpoint }.trimEnd('/')
+        val raw = when (spec.id) {
+            "openai" -> openai(apiKey)
+            "claude" -> claude(apiKey)
+            "gemini" -> gemini(apiKey)
+            "ollama" -> ollama(ctx, base)
+            "custom" -> custom(ctx, base, apiKey.ifEmpty { null })
+            // OpenRouter and the presets: OpenAI-compatible `GET {base}/models`.
+            else -> bearer("$base/models", apiKey, ::parseOpenAi)
+        }
+        return if (raw.ok) raw.copy(models = LlmModels.chatCapable(raw.models)) else raw
     }
 
     /**

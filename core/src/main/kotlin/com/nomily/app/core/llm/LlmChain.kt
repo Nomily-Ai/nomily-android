@@ -35,15 +35,9 @@ object LlmChain {
     /** Local providers come first in the fallback order: no quota, nothing leaves the user's network. */
     private val FALLBACK_ORDER = listOf("ollama", "custom", "openRouter", "openai", "claude", "gemini")
 
-    fun providerLabel(key: String): String = when (key) {
-        "openai" -> "OpenAI"
-        "claude" -> "Claude"
-        "gemini" -> "Gemini"
-        "openRouter" -> "Open Router"
-        "ollama" -> "Ollama"
-        "custom" -> "Custom"
-        else -> key
-    }
+    fun providerLabel(key: String): String = LlmProviderSpec.find(key)?.name ?: key
+
+    private val PRESET_IDS = LlmProviderSpec.PRESETS.map { it.id }.toSet()
 
     fun isLocal(key: String): Boolean = key == "ollama" || key == "custom"
 
@@ -57,6 +51,8 @@ object LlmChain {
         p.primary?.takeIf { it.isNotEmpty() }?.let { chain += it }
         val configured = p.configuredProviders.map { it.first }.toSet()
         FALLBACK_ORDER.filter { it in configured && it !in chain }.forEach { chain += it }
+        // Presets go last: a local Ollama still wins a tie, but a configured Qwen beats "no provider at all".
+        LlmProviderSpec.PRESETS.map { it.id }.filter { it in configured && it !in chain }.forEach { chain += it }
         return chain
     }
 
@@ -90,6 +86,15 @@ object LlmChain {
             }
             "ollama" -> endpoint(p.ollama)
             "custom" -> endpoint(p.custom)
+            in PRESET_IDS -> p.presets[key].let { c ->
+                when {
+                    c == null -> Gap.NoProvider
+                    c.endpoint.isEmpty() -> Gap.NoEndpoint(label)
+                    c.apiKey.isNullOrEmpty() -> Gap.NoApiKey(label)
+                    c.model.isNullOrEmpty() -> Gap.NoModel(label)
+                    else -> null
+                }
+            }
             else -> Gap.NoProvider
         }
     }

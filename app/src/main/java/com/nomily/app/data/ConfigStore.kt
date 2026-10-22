@@ -122,7 +122,7 @@ class ConfigStore(
                 runCatching { file.writeText(stripSecrets(raw)) }
                     .onFailure { Log.w(TAG, "Failed to rewrite config.json after migration: ${it.message}") }
             }
-            AppConfig.parse(restored.json)
+            AppConfig.parse(restored.json).let { it.copy(llmProviders = it.llmProviders.mergeArkIntoDoubao()) }
         } catch (e: Exception) {
             Log.e(TAG, "Configuration read failed, falling back to default values: ${e.message}")
             AppConfig()
@@ -183,7 +183,15 @@ class ConfigStore(
         }
         root.optJSONObject("llm_providers")?.let { llm ->
             for (provider in llm.keys().asSequence().toList()) {
-                llm.optJSONObject(provider)?.let { action(it, "api_key", "llm.$provider.api_key") }
+                val holder = llm.optJSONObject(provider) ?: continue
+                if (provider == "presets") {
+                    // One level deeper: presets.<id>.api_key ↔ `llm.<id>.api_key`
+                    for (id in holder.keys().asSequence().toList()) {
+                        holder.optJSONObject(id)?.let { action(it, "api_key", "llm.$id.api_key") }
+                    }
+                } else {
+                    action(holder, "api_key", "llm.$provider.api_key")
+                }
             }
         }
         root.optJSONObject("wifi_ap")?.let { action(it, "psk", "wifi_ap.psk") }

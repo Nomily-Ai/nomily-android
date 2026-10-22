@@ -1,5 +1,7 @@
 package com.nomily.app.core.config
 
+import com.nomily.app.core.llm.LlmProviderSpec
+import com.nomily.app.core.llm.LlmStorage
 import com.nomily.app.core.json.JsonParser
 import com.nomily.app.core.json.writeJson
 
@@ -81,7 +83,7 @@ data class AppConfig(
     val usesCloudService: Boolean
         get() {
             asrProviders.azure?.let { if (it.key.isNotEmpty() && it.region.isNotEmpty()) return true }
-            return llmProviders.primary in setOf("openai", "claude", "gemini", "openRouter")
+            return llmProviders.primary in setOf("openai", "claude", "gemini", "openRouter", "qwen", "deepseek", "doubao")
         }
 
     data class AsrProviders(
@@ -164,21 +166,145 @@ data class AppConfig(
         val gemini: Keyed? = null,
         val ollama: Endpoint? = null,
         val custom: Endpoint? = null,
+        /** One-tap providers (`qwen` / `deepseek` / `doubao`) keyed by [LlmProviderSpec.id]. */
+        val presets: Map<String, Endpoint> = emptyMap(),
         val unknown: Map<String, Any?> = emptyMap(),
     ) {
         data class Keyed(val apiKey: String, val model: String? = null)
         data class Endpoint(val apiKey: String? = null, val endpoint: String, val model: String? = null)
 
-        /** List of providers with configured credentials (key → display name). */
+        /** Providers that can send a request, in [LlmProviderSpec.ALL] order (key → display name). */
         val configuredProviders: List<Pair<String, String>>
-            get() = buildList {
-                openRouter?.let { if (!it.apiKey.isNullOrEmpty()) add("openRouter" to "Open Router") }
-                openai?.let { if (it.apiKey.isNotEmpty()) add("openai" to "OpenAI") }
-                claude?.let { if (it.apiKey.isNotEmpty()) add("claude" to "Claude") }
-                gemini?.let { if (it.apiKey.isNotEmpty()) add("gemini" to "Gemini") }
-                ollama?.let { if (it.endpoint.isNotEmpty()) add("ollama" to "Ollama") }
-                custom?.let { if (it.endpoint.isNotEmpty()) add("custom" to "Custom") }
+            get() = LlmProviderSpec.ALL.mapNotNull { spec ->
+                val ready = if (spec.keyRequired) !apiKeyValue(spec).isNullOrEmpty() else !storedEndpoint(spec).isNullOrEmpty()
+                if (ready) spec.id to spec.name else null
             }
+
+        private fun storedEndpoint(spec: LlmProviderSpec): String? = when (spec.storage) {
+            LlmStorage.KEYED -> null
+            LlmStorage.ENDPOINT -> endpointSlot(spec.id)?.endpoint
+            LlmStorage.PRESET -> presets[spec.id]?.endpoint
+        }
+
+        private fun keyedSlot(id: String): Keyed? = when (id) {
+            "openai" -> openai
+            "claude" -> claude
+            "gemini" -> gemini
+            else -> null
+        }
+
+        private fun endpointSlot(id: String): Endpoint? = when (id) {
+            "openRouter" -> openRouter
+            "ollama" -> ollama
+            "custom" -> custom
+            else -> null
+        }
+
+        // One uniform view over the three storage shapes, so a single editor can drive every provider.
+
+        /** The stored address, or the vendor's fixed one for [LlmStorage.KEYED]. */
+        fun endpointValue(spec: LlmProviderSpec): String? =
+            if (spec.storage == LlmStorage.KEYED) spec.defaultEndpoint else storedEndpoint(spec)
+
+        fun apiKeyValue(spec: LlmProviderSpec): String? = when (spec.storage) {
+            LlmStorage.KEYED -> keyedSlot(spec.id)?.apiKey
+            LlmStorage.ENDPOINT -> endpointSlot(spec.id)?.apiKey
+            LlmStorage.PRESET -> presets[spec.id]?.apiKey
+        }
+
+        fun modelValue(spec: LlmProviderSpec): String? = when (spec.storage) {
+            LlmStorage.KEYED -> keyedSlot(spec.id)?.model
+            LlmStorage.ENDPOINT -> endpointSlot(spec.id)?.model
+            LlmStorage.PRESET -> presets[spec.id]?.model
+        }
+
+        /** Something is stored for [spec] (not merely its default address). */
+        fun hasAnyConfig(spec: LlmProviderSpec): Boolean = apiKeyValue(spec) != null || modelValue(spec) != null
+
+        fun withApiKey(spec: LlmProviderSpec, value: String?): LlmProviders {
+            val v = value.orEmpty().trim()
+            return when (spec.storage) {
+                LlmStorage.KEYED -> {
+                    val slot = (keyedSlot(spec.id) ?: Keyed("")).copy(apiKey = v)
+                    // No key and no model: never configured, keep it out of the list.
+                    withKeyed(spec.id, if (v.isEmpty() && slot.model.isNullOrEmpty()) null else slot)
+                }
+                LlmStorage.ENDPOINT -> {
+                    val old = endpointSlot(spec.id) ?: Endpoint(endpoint = spec.defaultEndpoint)
+                    withEndpoint(spec.id, old.copy(apiKey = v.ifEmpty { null }, endpoint = old.endpoint.ifEmpty { spec.defaultEndpoint }))
+                }
+                LlmStorage.PRESET -> withPreset(spec.id, (presets[spec.id] ?: Endpoint(endpoint = spec.defaultEndpoint)).copy(apiKey = v.ifEmpty { null }))
+            }
+        }
+
+        fun withModel(spec: LlmProviderSpec, value: String?): LlmProviders {
+            val v = value.orEmpty().trim()
+            return when (spec.storage) {
+                LlmStorage.KEYED -> {
+                    val slot = (keyedSlot(spec.id) ?: Keyed("")).copy(model = v.ifEmpty { null })
+                    withKeyed(spec.id, if (slot.apiKey.isEmpty() && v.isEmpty()) null else slot)
+                }
+                LlmStorage.ENDPOINT -> {
+                    val old = endpointSlot(spec.id) ?: Endpoint(endpoint = spec.defaultEndpoint)
+                    withEndpoint(spec.id, old.copy(model = v.ifEmpty { null }, endpoint = old.endpoint.ifEmpty { spec.defaultEndpoint }))
+                }
+                LlmStorage.PRESET -> withPreset(spec.id, (presets[spec.id] ?: Endpoint(endpoint = spec.defaultEndpoint)).copy(model = v.ifEmpty { null }))
+            }
+        }
+
+        /** Fixed-address providers ignore this. */
+        fun withEndpointUrl(spec: LlmProviderSpec, value: String): LlmProviders {
+            val v = value.trim()
+            return when (spec.storage) {
+                LlmStorage.KEYED -> this
+                LlmStorage.ENDPOINT -> withEndpoint(spec.id, (endpointSlot(spec.id) ?: Endpoint(endpoint = "")).copy(endpoint = v))
+                LlmStorage.PRESET -> withPreset(spec.id, (presets[spec.id] ?: Endpoint(endpoint = "")).copy(endpoint = v))
+            }
+        }
+
+        fun removed(spec: LlmProviderSpec): LlmProviders {
+            val r = when (spec.storage) {
+                LlmStorage.KEYED -> withKeyed(spec.id, null)
+                LlmStorage.ENDPOINT -> withEndpoint(spec.id, null)
+                LlmStorage.PRESET -> withPreset(spec.id, null)
+            }
+            return if (primary == spec.id) r.copy(primary = null) else r
+        }
+
+        private fun withKeyed(id: String, v: Keyed?) = when (id) {
+            "openai" -> copy(openai = v)
+            "claude" -> copy(claude = v)
+            "gemini" -> copy(gemini = v)
+            else -> this
+        }
+
+        private fun withEndpoint(id: String, v: Endpoint?) = when (id) {
+            "openRouter" -> copy(openRouter = v)
+            "ollama" -> copy(ollama = v)
+            "custom" -> copy(custom = v)
+            else -> this
+        }
+
+        private fun withPreset(id: String, v: Endpoint?) =
+            copy(presets = if (v == null) presets - id else presets + (id to v))
+
+        /**
+         * The retired Ark preset and Doubao are one service (same host, same key). Fold `ark` into `doubao` field by
+         * field, only where `doubao` is empty, and repoint a primary of `ark`. No `ark` entry: no-op.
+         */
+        fun mergeArkIntoDoubao(): LlmProviders {
+            val ark = presets["ark"] ?: return this
+            val base = presets["doubao"] ?: ark
+            val merged = base.copy(
+                apiKey = base.apiKey?.takeIf { it.isNotEmpty() } ?: ark.apiKey,
+                endpoint = base.endpoint.ifEmpty { ark.endpoint },
+                model = base.model?.takeIf { it.isNotEmpty() } ?: ark.model,
+            )
+            return copy(
+                presets = presets - "ark" + ("doubao" to merged),
+                primary = if (primary == "ark") "doubao" else primary,
+            )
+        }
 
         /** After a provider edit: when exactly one provider is configured, it becomes the primary, so a first setup works without a second step. */
         fun autoSelectPrimaryIfFirst(): LlmProviders =
@@ -235,7 +361,7 @@ data class AppConfig(
         private val KNOWN_DEVICE = setOf("name", "last_connected", "bond_id", "device_sid")
         private val KNOWN_ASR = setOf("azure", "local", "custom", "remote_live")
         private val KNOWN_LLM = setOf(
-            "primary", "openai", "open_router", "claude", "gemini", "ollama", "custom",
+            "primary", "openai", "open_router", "claude", "gemini", "ollama", "custom", "presets",
         )
 
         private fun Map<*, *>.unknownKeys(known: Set<String>): Map<String, Any?> =
@@ -289,6 +415,9 @@ data class AppConfig(
             gemini = keyed(m["gemini"]),
             ollama = endpoint(m["ollama"]),
             custom = endpoint(m["custom"]),
+            presets = (m["presets"] as? Map<*, *>).orEmpty().mapNotNull { (k, v) ->
+                (k as? String)?.let { id -> endpoint(v)?.let { id to it } }
+            }.toMap(),
             unknown = m.unknownKeys(KNOWN_LLM),
         )
 
@@ -414,6 +543,7 @@ data class AppConfig(
             llm.gemini?.let { l["gemini"] = keyed(it) }
             llm.ollama?.let { l["ollama"] = endpoint(it) }
             llm.custom?.let { l["custom"] = endpoint(it) }
+            if (llm.presets.isNotEmpty()) l["presets"] = llm.presets.mapValues { endpoint(it.value) }.toSortedMap()
             m["llm_providers"] = l.toSortedMap()    // Same as above; output {} when empty
         }
         m["defaults"] = sortedMapOf(

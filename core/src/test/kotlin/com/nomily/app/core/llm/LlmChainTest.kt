@@ -31,7 +31,7 @@ class LlmChainTest {
         assertEquals(LlmChain.Gap.NoApiKey("Open Router"), LlmChain.configGap("openRouter", brokenPrimary))
         assertNull(LlmChain.configGap("ollama", brokenPrimary))
         val noModel = cfg(LlmProviders(primary = "openai", openai = LlmProviders.Keyed("sk")))
-        assertEquals(LlmChain.Gap.NoModel("OpenAI"), LlmChain.configGap("openai", noModel))
+        assertEquals(LlmChain.Gap.NoModel("ChatGPT"), LlmChain.configGap("openai", noModel))
     }
 
     @Test

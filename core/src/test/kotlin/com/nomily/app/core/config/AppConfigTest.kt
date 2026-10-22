@@ -155,7 +155,7 @@ class AppConfigTest {
         assertEquals("openai", cfg.llmProviders.primary)
         assertEquals("gpt", cfg.llmProviders.openai?.model)
         assertTrue(cfg.usesCloudService, "primary=openai counts as cloud")
-        assertEquals(listOf("openai" to "OpenAI", "custom" to "Custom"), cfg.llmProviders.configuredProviders)
+        assertEquals(listOf("openai" to "ChatGPT", "custom" to "自定义接口"), cfg.llmProviders.configuredProviders)
 
         val back = JsonParser(cfg.toJson()).parse() as Map<*, *>
         val asr = back["asr_providers"] as Map<*, *>

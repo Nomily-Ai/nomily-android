@@ -1,5 +1,10 @@
 package com.nomily.app.ui
 
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.runtime.mutableIntStateOf
+import com.nomily.app.core.llm.LlmProviderSpec
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -55,7 +60,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
@@ -990,8 +994,8 @@ private fun StatusHint(text: String, verified: Boolean = false) {
 // ── LLM ──────────────────────────────────────────────────────────────
 @Composable
 private fun LlmSection(cfg: AppConfig, vm: NomiViewModel) {
-    // This screen shows **one card per provider**, ordered OpenRouter → OpenAI → Claude → Gemini → Ollama → Custom;
-    // when at least one provider is configured, an additional top card contains the "Active service" selector.
+    // One flat provider list (tap a row to edit it); when at least one provider is configured, a top card holds the
+    // "Active service" selector.
     val configured = cfg.llmProviders.configuredProviders
     val primaryGap = com.nomily.app.core.llm.LlmChain.primaryGapWithFallback(cfg)
     if (configured.isNotEmpty() || primaryGap != null) {
@@ -1044,27 +1048,7 @@ private fun LlmSection(cfg: AppConfig, vm: NomiViewModel) {
         }
     }
 
-    // The entry for summary templates appears only on the settings **root page** — previously there was another on this screen, resulting in two entries.
-
-    OpenRouterCard(cfg, vm)
-    KeyedProvider("OpenAI", "gpt-4.1", cfg.llmProviders.openai,
-        { k, _ -> com.nomily.app.llm.LlmModelService.openai(k) }) { p ->
-        vm.updateConfig { it.copy(llmProviders = it.llmProviders.copy(openai = p).autoSelectPrimaryIfFirst()) }
-    }
-    KeyedProvider("Claude", "claude-opus-4-0-20250514", cfg.llmProviders.claude,
-        { k, _ -> com.nomily.app.llm.LlmModelService.claude(k) }) { p ->
-        vm.updateConfig { it.copy(llmProviders = it.llmProviders.copy(claude = p).autoSelectPrimaryIfFirst()) }
-    }
-    KeyedProvider("Gemini", "gemini-2.5-pro", cfg.llmProviders.gemini,
-        { k, _ -> com.nomily.app.llm.LlmModelService.gemini(k) }) { p ->
-        vm.updateConfig { it.copy(llmProviders = it.llmProviders.copy(gemini = p).autoSelectPrimaryIfFirst()) }
-    }
-    EndpointProvider("Ollama", "qwen2.5:3b", cfg.llmProviders.ollama,
-        fetchModels = { ctx, _, e -> com.nomily.app.llm.LlmModelService.ollama(ctx, e) },
-        lastRow = { SetupAssistantRow(cfg.appLanguage) }) { p ->
-        vm.updateConfig { it.copy(llmProviders = it.llmProviders.copy(ollama = p).autoSelectPrimaryIfFirst()) }
-    }
-    CustomEndpointCard(cfg, vm)
+    LlmProviderList(cfg, vm)
 }
 
 /** Verification status: four states for a single "verify" operation (pending / verifying / passed / failed) plus the fetched model list. */
@@ -1125,51 +1109,6 @@ private fun VerifyIcon(
     }
 }
 
-/**
- * Model field — initially a manual placeholder; after verification fetches the list, it **becomes a dropdown**.
- * If fetching fails, revert to manual entry (custom endpoints may not have `/v1/models`), avoiding dead‑ends for the user.
- */
-@Composable
-private fun ModelField(
-    example: String,
-    model: String?,
-    v: VerifyState,
-    divider: Boolean = false,
-    onChange: (String?) -> Unit,
-) {
-    if (v.models.isEmpty()) {
-        Field(stringResource(R.string.llm_model_placeholder, example), model ?: "", divider = divider) { new ->
-            onChange(new.ifEmpty { null })
-        }
-        return
-    }
-    var open by remember { mutableStateOf(false) }
-    Row(
-        Modifier.fillMaxWidth().clickable { open = true }.heightIn(min = NomiDimens.rowMinHeight).padding(horizontal = NomiDimens.rowInset),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(stringResource(R.string.llm_model), style = MaterialTheme.typography.bodyLarge)
-        Spacer(Modifier.weight(1f))
-        Text(
-            model ?: stringResource(R.string.llm_select_model),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Icon(
-            Icons.Filled.UnfoldMore,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 6.dp).size(18.dp),
-        )
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            v.models.forEach { m ->
-                DropdownMenuItem(text = { Text(m) }, onClick = { onChange(m); open = false })
-            }
-        }
-    }
-    if (divider) RowDivider()
-}
-
 /** Field-level hint (e.g., required missing), placed below the input row, using the same red as verification failure reasons. */
 @Composable
 private fun FieldHint(text: String) {
@@ -1194,288 +1133,430 @@ private fun VerifyError(v: VerifyState) {
     }
 }
 
-/** OpenAI / Claude / Gemini — a single key suffices; the card contains two rows: API key (with verification ✓) + model. */
+// ── LLM provider list + editor ────────────────────────────────────────
+
+private fun brandDrawable(id: String): Int? = when (id) {
+    "openai" -> R.drawable.brand_openai
+    "claude" -> R.drawable.brand_claude
+    "gemini" -> R.drawable.brand_gemini
+    "openRouter" -> R.drawable.brand_openrouter
+    "ollama" -> R.drawable.brand_ollama
+    "qwen" -> R.drawable.brand_qwen
+    "deepseek" -> R.drawable.brand_deepseek
+    "doubao" -> R.drawable.brand_doubao
+    else -> null
+}
+
+/** The vendor's logo (monochrome, drawn white) on its brand-coloured square. `custom` has no vendor, so it keeps a symbol. */
 @Composable
-private fun KeyedProvider(
-    name: String,
-    /** Model name example — placeholder text so users don’t have to guess the required format. */
-    example: String,
-    p: AppConfig.LlmProviders.Keyed?,
-    /** Fetch model list: (apiKey, endpoint) -> result. Endpoints vary per provider, supplied by the caller. */
-    fetchModels: (String, String?) -> com.nomily.app.llm.LlmModelService.Result,
-    onChange: (AppConfig.LlmProviders.Keyed?) -> Unit,
-) {
-    Group(name) {
-        val v = remember { VerifyState() }
-        Field(
-            stringResource(R.string.llm_api_key), p?.apiKey ?: "", secure = true,
-            trailing = { VerifyIcon(v, !p?.apiKey.isNullOrEmpty()) { fetchModels(p?.apiKey ?: "", null) } },
-        ) { new ->
-            // Clearing the key removes the provider; a fetched model list belongs to the old key.
-            v.models = emptyList(); v.done = false; v.error = null
-            onChange(if (new.isEmpty()) null else (p ?: AppConfig.LlmProviders.Keyed("")).copy(apiKey = new))
+private fun ProviderMark(spec: LlmProviderSpec) {
+    val color = Color(0xFF000000L or spec.tint.toLong())
+    Box(
+        Modifier.size(32.dp).background(
+            androidx.compose.ui.graphics.Brush.linearGradient(listOf(color, color.copy(alpha = 0.72f))),
+            RoundedCornerShape(8.dp),
+        ),
+        contentAlignment = Alignment.Center,
+    ) {
+        val brand = brandDrawable(spec.id)
+        when {
+            brand != null -> Icon(
+                androidx.compose.ui.res.painterResource(brand), contentDescription = null,
+                tint = Color.White, modifier = Modifier.size(18.dp),
+            )
+            spec.id == "custom" -> Icon(Icons.Filled.Tune, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+            else -> Text(spec.mark, color = Color.White, style = MaterialTheme.typography.labelLarge)
         }
-        ModelField(example, p?.model, v) { m ->
-            onChange((p ?: AppConfig.LlmProviders.Keyed("")).copy(model = m))
-        }
-        VerifyError(v)
     }
 }
 
-/** For Ollama‑type services that only have an endpoint: API address (with verification ✓) + model. */
+/** `host/path` of an address, or the address itself when it doesn't parse. */
+private fun hostAndPath(endpoint: String): String {
+    val u = runCatching { java.net.URI(endpoint) }.getOrNull() ?: return endpoint
+    val host = u.host ?: return endpoint
+    return host + (u.path?.takeIf { it.length > 1 } ?: "")
+}
+
 @Composable
-private fun EndpointProvider(
-    name: String,
-    example: String,
-    p: AppConfig.LlmProviders.Endpoint?,
-    fetchModels: (android.content.Context, String?, String) -> com.nomily.app.llm.LlmModelService.Result,
-    /** Extra row closing the card (Ollama: the setup-prompt row). */
-    lastRow: (@Composable () -> Unit)? = null,
-    onChange: (AppConfig.LlmProviders.Endpoint?) -> Unit,
-) {
-    val probe = rememberEndpointProbe(p?.endpoint ?: "") { ctx, ep -> fetchModels(ctx, p?.apiKey, ep) }
-    Group(name, footer = probe.footer()) {
-        Field(
-            stringResource(R.string.llm_endpoint_url), p?.endpoint ?: "", url = true,
-            trailing = { ProbeIcon(probe) },
-        ) { new ->
-            onChange(
-                if (new.isEmpty() && p?.apiKey.isNullOrEmpty()) null
-                else (p ?: AppConfig.LlmProviders.Endpoint(endpoint = "")).copy(endpoint = new),
-            )
+private fun LlmProviderList(cfg: AppConfig, vm: NomiViewModel) {
+    val ctx = LocalContext.current
+    val latency = remember { com.nomily.app.llm.LlmLatencyMemory(ctx) }
+    // Bumped after a probe so the rows re-read the remembered latency.
+    var latencyTick by remember { mutableIntStateOf(0) }
+    var editing by remember { mutableStateOf<LlmProviderSpec?>(null) }
+    val p = cfg.llmProviders
+    Group(stringResource(R.string.llm_grid_title), footer = stringResource(R.string.llm_grid_footer)) {
+        LlmProviderSpec.ALL.forEachIndexed { i, spec ->
+            val key = p.apiKeyValue(spec).orEmpty()
+            val model = p.modelValue(spec).orEmpty()
+            val endpoint = p.endpointValue(spec).orEmpty().ifEmpty { spec.defaultEndpoint }
+            Row(
+                Modifier.fillMaxWidth().clickable { editing = spec }
+                    .heightIn(min = NomiDimens.rowMinHeight).padding(horizontal = NomiDimens.rowInset, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ProviderMark(spec)
+                Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                    Text(spec.name, style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        when {
+                            model.isNotEmpty() -> model
+                            endpoint.isNotEmpty() -> hostAndPath(endpoint)
+                            else -> stringResource(R.string.llm_not_configured)
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    )
+                }
+                val ms = remember(latencyTick, spec.id) { latency.millis(spec.id) }
+                if (ms != null) {
+                    Text(
+                        "$ms ms", style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 8.dp),
+                    )
+                }
+                if (p.hasAnyConfig(spec)) {
+                    val (res, ok) = when {
+                        model.isEmpty() -> R.string.llm_preset_needs_model to false
+                        spec.keyRequired && key.isEmpty() -> R.string.llm_preset_needs_key to false
+                        else -> R.string.llm_preset_ready to true
+                    }
+                    Text(
+                        stringResource(res), style = MaterialTheme.typography.labelSmall,
+                        color = if (ok) MaterialTheme.colorScheme.primary else Color(0xFFE08A00),
+                    )
+                } else {
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.outline)
+                }
+            }
+            if (i < LlmProviderSpec.ALL.lastIndex) RowDivider()
         }
-        ModelListField(example, p?.model, probe, divider = lastRow != null) { m ->
-            onChange((p ?: AppConfig.LlmProviders.Endpoint(endpoint = "")).copy(model = m))
-        }
-        lastRow?.invoke()
     }
+    editing?.let { spec ->
+        LlmProviderEditor(spec, cfg, vm, latency, onProbed = { latencyTick++ }, onClose = { editing = null })
+    }
+}
+
+/** Fetch state of the model list. */
+private sealed interface ModelFetch {
+    data object Idle : ModelFetch
+    data object Loading : ModelFetch
+    data object Success : ModelFetch
+    data class Failed(val reason: String) : ModelFetch
 }
 
 /**
- * Model list of an endpoint provider (Ollama / Custom). Loading it **is** the connectivity test: success proves the
- * server answers and fills [detail]; mirrors iOS `ModelListField` + `loadModels`.
+ * Key + address + model for one provider, in the same order every time. The address is pre-filled from the spec;
+ * where the API fixes it (OpenAI / Claude / Gemini) the row is shown read-only. Model lists are chat-capable only.
  */
-private class EndpointProbe {
-    var models by mutableStateOf<List<String>>(emptyList())
-    var loading by mutableStateOf(false)
-    var error by mutableStateOf<String?>(null)
-    var detail by mutableStateOf<String?>(null)
-    /** Load now (the ✓, the model row, the retry button). */
-    var load: () -> Unit = {}
-    var job: kotlinx.coroutines.Job? = null
-
-    /** Card footer: the failure reason, or "Reachable · 3 models · 23 ms · v0.12.6". */
-    @Composable
-    fun footer(): String? = error ?: detail?.let { stringResource(R.string.llm_probe_reachable, it) }
-}
-
-/** Loads automatically 0.7 s after the endpoint stops changing, so the list appears without tapping the ✓. */
 @Composable
-private fun rememberEndpointProbe(
-    endpoint: String,
-    fetch: (android.content.Context, String) -> com.nomily.app.llm.LlmModelService.Result,
-): EndpointProbe {
+private fun LlmProviderEditor(
+    spec: LlmProviderSpec,
+    cfg: AppConfig,
+    vm: NomiViewModel,
+    latency: com.nomily.app.llm.LlmLatencyMemory,
+    onProbed: () -> Unit,
+    onClose: () -> Unit,
+) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    val currentFetch by rememberUpdatedState(fetch)
-    val probe = remember { EndpointProbe() }
-    suspend fun run() {
-        val ep = endpoint.trim()
-        probe.detail = null
-        if (ep.isEmpty()) {
-            probe.error = ctx.getString(R.string.llm_no_endpoint)
-            return
-        }
-        // A missing scheme still parses as a URI (as a path) and then fails with an unreadable error; require a host.
-        if (runCatching { java.net.URI(ep).host }.getOrNull().isNullOrEmpty()) {
-            probe.error = ctx.getString(R.string.llm_bad_endpoint)
-            return
-        }
-        probe.loading = true
-        probe.error = null
-        try {
-            val r = withContext(Dispatchers.IO) { currentFetch(ctx, ep) }
-            when {
-                // "Connected but no models" is not a fetch failure — say so, or the user keeps checking the network.
-                r.ok && r.models.isEmpty() -> probe.error = ctx.getString(R.string.llm_no_models_on_server)
-                r.ok -> {
-                    probe.models = r.models
-                    probe.detail = r.detail
-                }
-                else -> probe.error = r.errorRes?.let { ctx.getString(it) } ?: r.error ?: ctx.getString(R.string.asr_verify_failed)
-            }
-        } finally {
-            probe.loading = false
-        }
-    }
-    probe.load = {
-        probe.job?.cancel()
-        probe.job = scope.launch { run() }
-    }
-    LaunchedEffect(endpoint) {
-        if (endpoint.isBlank()) return@LaunchedEffect
-        kotlinx.coroutines.delay(700)
-        probe.job?.cancel()
-        run()
-    }
-    return probe
-}
+    val p = cfg.llmProviders
+    val key = p.apiKeyValue(spec).orEmpty()
+    val model = p.modelValue(spec).orEmpty()
+    val endpoint = p.endpointValue(spec).orEmpty().ifEmpty { spec.defaultEndpoint }
 
-@Composable
-private fun ProbeIcon(probe: EndpointProbe) {
-    IconButton(onClick = probe.load, enabled = !probe.loading) {
-        if (probe.loading) {
-            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-        } else {
-            Icon(
-                if (probe.error != null) Icons.Filled.Cancel else Icons.Filled.CheckCircleOutline,
-                contentDescription = stringResource(R.string.llm_load_model_list),
-                tint = when {
-                    probe.error != null -> MaterialTheme.colorScheme.error
-                    probe.detail != null -> MaterialTheme.colorScheme.primary
-                    else -> MaterialTheme.colorScheme.outline
-                },
-            )
+    var models by remember { mutableStateOf(spec.curatedModels) }
+    var manualModel by remember { mutableStateOf(spec.curatedModels.isEmpty()) }
+    var fetch by remember { mutableStateOf<ModelFetch>(ModelFetch.Idle) }
+    var fetchHint by remember { mutableStateOf<String?>(null) }
+    var query by remember { mutableStateOf("") }
+    var probing by remember { mutableStateOf(false) }
+    var probe by remember { mutableStateOf<com.nomily.app.llm.LlmProbe.Result?>(null) }
+
+    fun edit(autoPrimary: Boolean = false, f: (AppConfig.LlmProviders) -> AppConfig.LlmProviders) =
+        vm.updateConfig { c ->
+            val n = f(c.llmProviders)
+            c.copy(llmProviders = if (autoPrimary) n.autoSelectPrimaryIfFirst() else n)
+        }
+
+    // Fill in what the user shouldn't have to type: the address first, then a default model. Never overwrites a choice.
+    LaunchedEffect(spec.id) {
+        if (spec.endpointEditable && p.endpointValue(spec).isNullOrEmpty() && spec.defaultEndpoint.isNotEmpty()) {
+            edit { it.withEndpointUrl(spec, spec.defaultEndpoint) }
+        }
+        if (p.modelValue(spec).isNullOrEmpty() && !spec.local) {
+            spec.curatedModels.firstOrNull()?.let { first -> edit { it.withModel(spec, first) } }
         }
     }
-}
 
-/**
- * Model row for endpoint providers — a list to pick from, never a text field by default:
- * list loaded → dropdown (keeps the saved value even if the server no longer has it);
- * not loaded → whole row taps to load; load failed → manual entry with a retry button.
- */
-@Composable
-private fun ModelListField(
-    example: String,
-    model: String?,
-    probe: EndpointProbe,
-    divider: Boolean = true,
-    onChange: (String?) -> Unit,
-) {
-    when {
-        probe.models.isNotEmpty() -> {
-            var open by remember { mutableStateOf(false) }
-            val options = if (model.isNullOrEmpty() || model in probe.models) probe.models else listOf(model) + probe.models
-            Row(
-                Modifier.fillMaxWidth().clickable { open = true }.heightIn(min = NomiDimens.rowMinHeight).padding(horizontal = NomiDimens.rowInset),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(stringResource(R.string.llm_model), style = MaterialTheme.typography.bodyLarge)
-                Spacer(Modifier.weight(1f))
-                Text(
-                    model ?: stringResource(R.string.llm_select_model),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Icon(
-                    Icons.Filled.UnfoldMore,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 6.dp).size(18.dp),
-                )
-                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                    options.forEach { m ->
-                        DropdownMenuItem(text = { Text(m) }, onClick = { onChange(m); open = false })
+    // The saved value is always offered: a model renamed upstream, or an `ep-…` id typed by hand, is in no fetched list.
+    val pickerOptions = if (model.isNotEmpty() && model !in models) listOf(model) + models else models
+    val options = if (query.isEmpty()) pickerOptions else pickerOptions.filter { it.contains(query, ignoreCase = true) }
+    val canProbe = model.isNotEmpty() && (!spec.keyRequired || key.isNotEmpty())
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onClose,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.fillMaxSize().statusBarsPadding()) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = NomiDimens.screenInset, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ProviderMark(spec)
+                    Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                        Text(spec.name, style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            if (endpoint.isEmpty()) stringResource(R.string.llm_not_configured) else hostAndPath(endpoint),
+                            style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
+                    TextButton(onClick = onClose) { Text(stringResource(R.string.common_done)) }
+                }
+                Column(
+                    Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = NomiDimens.screenInset),
+                ) {
+                    // Key + address
+                    val consoleLabel = stringResource(R.string.llm_preset_console)
+                    val fixedNote = stringResource(R.string.llm_endpoint_fixed)
+                    val keyFooter = listOfNotNull(
+                        spec.console?.takeIf { spec.keyRequired }?.let { "$consoleLabel: $it" },
+                        fixedNote.takeIf { !spec.endpointEditable },
+                    ).joinToString("\n").ifEmpty { null }
+                    Group(footer = keyFooter) {
+                        Field(
+                            stringResource(if (spec.keyRequired) R.string.llm_api_key else R.string.llm_api_key_optional),
+                            key, secure = true,
+                        ) { new ->
+                            edit(autoPrimary = true) { it.withApiKey(spec, new) }
+                            fetch = ModelFetch.Idle; probe = null
+                        }
+                        if (spec.endpointEditable) {
+                            Field(stringResource(R.string.llm_preset_endpoint_filled), endpoint, url = true, divider = false) { new ->
+                                edit { it.withEndpointUrl(spec, new) }
+                                fetch = ModelFetch.Idle; probe = null
+                            }
+                        } else {
+                            Row(
+                                Modifier.fillMaxWidth().heightIn(min = NomiDimens.rowMinHeight).padding(horizontal = NomiDimens.rowInset),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(stringResource(R.string.llm_endpoint_url), style = MaterialTheme.typography.bodyLarge)
+                                Spacer(Modifier.weight(1f))
+                                Text(
+                                    endpoint, style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(start = 12.dp),
+                                )
+                            }
+                        }
+                    }
+
+                    // Model
+                    val modelFooter = listOfNotNull(
+                        spec.note,
+                        stringResource(R.string.llm_chat_only_note),
+                        fetchHint,
+                    ).joinToString("\n\n")
+                    val fetchEnabled = fetch != ModelFetch.Loading && (!spec.keyRequired || key.isNotEmpty())
+                    Group(stringResource(R.string.llm_model), footer = modelFooter) {
+                        if (manualModel || pickerOptions.isEmpty()) {
+                            Field(
+                                stringResource(R.string.llm_model_placeholder, spec.curatedModels.firstOrNull() ?: "model-name"),
+                                model,
+                            ) { new -> edit { it.withModel(spec, new) }; probe = null }
+                        } else {
+                            var open by remember { mutableStateOf(false) }
+                            Row(
+                                Modifier.fillMaxWidth().clickable { open = true }
+                                    .heightIn(min = NomiDimens.rowMinHeight).padding(horizontal = NomiDimens.rowInset),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(stringResource(R.string.llm_model), style = MaterialTheme.typography.bodyLarge)
+                                Spacer(Modifier.weight(1f))
+                                Text(
+                                    model.ifEmpty { stringResource(R.string.llm_select_model) },
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(2f, fill = false),
+                                )
+                                Icon(
+                                    Icons.Filled.UnfoldMore, contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(start = 6.dp).size(18.dp),
+                                )
+                                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                                    options.forEach { m ->
+                                        DropdownMenuItem(
+                                            text = { Text(m) },
+                                            onClick = { edit { it.withModel(spec, m) }; probe = null; open = false },
+                                        )
+                                    }
+                                }
+                            }
+                            // OpenRouter alone lists hundreds of models: filter before scrolling.
+                            if (models.size > 15) {
+                                RowDivider()
+                                Field(stringResource(R.string.llm_model_search), query) { query = it }
+                            }
+                        }
+                        RowDivider()
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clickable(enabled = fetchEnabled) {
+                                    fetch = ModelFetch.Loading; fetchHint = null; query = ""
+                                    scope.launch {
+                                        val r = withContext(Dispatchers.IO) {
+                                            com.nomily.app.llm.LlmModelService.fetchModels(ctx, spec, endpoint, key)
+                                        }
+                                        when {
+                                            r.ok && r.models.isNotEmpty() -> {
+                                                models = r.models; fetch = ModelFetch.Success; manualModel = false; fetchHint = r.detail
+                                            }
+                                            // Reachable but nothing callable: the key was fine, so don't show a bare failure.
+                                            r.ok -> {
+                                                models = emptyList()
+                                                fetch = ModelFetch.Failed(ctx.getString(R.string.llm_no_chat_models))
+                                                fetchHint = if (spec.curatedModels.isEmpty()) ctx.getString(R.string.llm_preset_builtin_hint) else null
+                                            }
+                                            else -> {
+                                                fetch = ModelFetch.Failed(
+                                                    r.errorRes?.let { ctx.getString(it) } ?: r.error ?: ctx.getString(R.string.llm_no_models_on_server),
+                                                )
+                                                models = spec.curatedModels
+                                                fetchHint = ctx.getString(R.string.llm_preset_builtin_hint)
+                                            }
+                                        }
+                                    }
+                                }
+                                .heightIn(min = NomiDimens.rowMinHeight).padding(horizontal = NomiDimens.rowInset),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                stringResource(R.string.llm_preset_fetch_models), style = MaterialTheme.typography.bodyLarge,
+                                color = if (fetchEnabled || fetch == ModelFetch.Loading) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+                            )
+                            Spacer(Modifier.weight(1f))
+                            if (fetch == ModelFetch.Loading) {
+                                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                            } else if (pickerOptions.isNotEmpty() && !manualModel) {
+                                Text(
+                                    "${if (models.isEmpty()) spec.curatedModels.size else models.size}",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        (fetch as? ModelFetch.Failed)?.let {
+                            Text(
+                                it.reason, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(horizontal = NomiDimens.rowInset, vertical = 4.dp),
+                            )
+                        }
+                        if (pickerOptions.isNotEmpty() && !manualModel) {
+                            TextButton(onClick = { manualModel = true }, modifier = Modifier.padding(start = 8.dp)) {
+                                Text(stringResource(R.string.llm_preset_manual_model), style = MaterialTheme.typography.labelMedium)
+                            }
+                        } else if (spec.curatedModels.isNotEmpty()) {
+                            TextButton(onClick = { manualModel = false }, modifier = Modifier.padding(start = 8.dp)) {
+                                Text(stringResource(R.string.llm_use_curated_models), style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+                    }
+
+                    // Probe last: it needs a key and a model, and it is the only row that spends a token of quota.
+                    val probeNote = stringResource(R.string.llm_test_note)
+                    val probeNeed = stringResource(if (spec.keyRequired && key.isEmpty()) R.string.llm_test_need_key else R.string.llm_test_need_model)
+                    Group(stringResource(R.string.llm_test_section), footer = if (canProbe) probeNote else "$probeNote\n\n$probeNeed") {
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clickable(enabled = canProbe && !probing) {
+                                    probing = true; probe = null
+                                    scope.launch {
+                                        val r = withContext(Dispatchers.IO) {
+                                            com.nomily.app.llm.LlmProbe.test(ctx, spec, endpoint, key, model)
+                                        }
+                                        probing = false; probe = r
+                                        // Only a pass is worth remembering: a failure is usually a half-typed key.
+                                        if (r.ok) latency.save(spec.id, r.millis) else latency.clear(spec.id)
+                                        onProbed()
+                                    }
+                                }
+                                .heightIn(min = NomiDimens.rowMinHeight).padding(horizontal = NomiDimens.rowInset, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            val r = probe
+                            when {
+                                probing -> {
+                                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                                    Text(stringResource(R.string.llm_test_running), Modifier.padding(start = 10.dp), style = MaterialTheme.typography.bodyLarge)
+                                }
+                                r != null -> {
+                                    Icon(
+                                        if (r.ok) Icons.Filled.CheckCircle else Icons.Filled.Cancel, contentDescription = null,
+                                        tint = if (r.ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                                    )
+                                    Column(Modifier.padding(start = 10.dp)) {
+                                        Text(
+                                            if (r.ok) stringResource(R.string.llm_test_ok, r.millis) else r.error.orEmpty(),
+                                            style = MaterialTheme.typography.bodyLarge,
+                                        )
+                                        if (r.ok) {
+                                            val band = stringResource(
+                                                when (com.nomily.app.core.llm.LlmModels.latencyBand(r.millis)) {
+                                                    0 -> R.string.llm_test_band_fast
+                                                    1 -> R.string.llm_test_band_normal
+                                                    2 -> R.string.llm_test_band_slow
+                                                    else -> R.string.llm_test_band_very_slow
+                                                },
+                                            )
+                                            Text(
+                                                "$band · ${r.detail.orEmpty()}", style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                }
+                                else -> {
+                                    val tint = if (canProbe) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
+                                    Icon(Icons.Filled.Bolt, contentDescription = null, tint = tint)
+                                    Text(
+                                        stringResource(R.string.llm_test_button), Modifier.padding(start = 10.dp),
+                                        style = MaterialTheme.typography.bodyLarge, color = tint,
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (spec.id == "ollama") Group { SetupAssistantRow(cfg.appLanguage) }
+
+                    if (p.hasAnyConfig(spec)) {
+                        Group {
+                            Row(
+                                Modifier.fillMaxWidth().clickable {
+                                    edit { it.removed(spec) }
+                                    latency.clear(spec.id)
+                                    onProbed()
+                                    onClose()
+                                }.heightIn(min = NomiDimens.rowMinHeight).padding(horizontal = NomiDimens.rowInset),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    stringResource(R.string.llm_preset_remove), style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(24.dp))
                 }
             }
-            if (divider) RowDivider()
-        }
-        probe.error == null -> {
-            Row(
-                Modifier.fillMaxWidth().clickable(enabled = !probe.loading, onClick = probe.load)
-                    .heightIn(min = NomiDimens.rowMinHeight).padding(horizontal = NomiDimens.rowInset),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(stringResource(R.string.llm_model), style = MaterialTheme.typography.bodyLarge)
-                Spacer(Modifier.weight(1f))
-                if (probe.loading) {
-                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                } else {
-                    Text(
-                        stringResource(R.string.llm_tap_to_load_models),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Icon(
-                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.outline,
-                    )
-                }
-            }
-            if (divider) RowDivider()
-        }
-        else -> Field(
-            stringResource(R.string.llm_model_placeholder, example), model ?: "", divider = divider,
-            trailing = {
-                IconButton(onClick = probe.load, enabled = !probe.loading) {
-                    Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.llm_load_model_list))
-                }
-            },
-        ) { new -> onChange(new.ifEmpty { null }) }
-    }
-}
-
-/** OpenRouter: includes an extra "service" prefix filter (its model list has hundreds of entries, filtered by prefix). */
-@Composable
-private fun OpenRouterCard(cfg: AppConfig, vm: NomiViewModel) {
-    val p = cfg.llmProviders.openRouter
-    val save = { np: AppConfig.LlmProviders.Endpoint? ->
-        vm.updateConfig { it.copy(llmProviders = it.llmProviders.copy(openRouter = np).autoSelectPrimaryIfFirst()) }
-    }
-    Group("Open Router") {
-        val v = remember { VerifyState() }
-        // Prefilled from the saved model's `provider/` prefix, so reopening the page lists the same models again.
-        var providerFilter by remember { mutableStateOf(p?.model?.substringBefore('/', "") ?: "") }
-        // A list fetched for another key or prefix is stale: drop it so the model field goes back to free text.
-        val resetList = { v.models = emptyList(); v.done = false; v.error = null }
-        Field(stringResource(R.string.llm_api_key), p?.apiKey ?: "", secure = true) { new ->
-            resetList()
-            save(
-                if (new.isEmpty() && p?.model.isNullOrEmpty()) null
-                else (p ?: AppConfig.LlmProviders.Endpoint(endpoint = "")).copy(apiKey = new.ifEmpty { null }),
-            )
-        }
-        Field(
-            stringResource(R.string.llm_provider_placeholder, "anthropic"), providerFilter,
-            trailing = {
-                // The full OpenRouter list has hundreds of entries: a provider prefix is required before fetching.
-                VerifyIcon(v, !p?.apiKey.isNullOrEmpty() && providerFilter.isNotBlank()) {
-                    com.nomily.app.llm.LlmModelService.openRouter(p?.apiKey ?: "", providerFilter)
-                }
-            },
-        ) { providerFilter = it; resetList() }
-        ModelField("anthropic/claude-opus-4-0", p?.model, v) { m ->
-            save((p ?: AppConfig.LlmProviders.Endpoint(endpoint = "")).copy(model = m))
-        }
-        VerifyError(v)
-    }
-}
-
-/** Custom endpoint: API address (with verification ✓) / model / API key (optional) — same model-list interaction as Ollama. */
-@Composable
-private fun CustomEndpointCard(cfg: AppConfig, vm: NomiViewModel) {
-    val p = cfg.llmProviders.custom
-    val save = { np: AppConfig.LlmProviders.Endpoint? ->
-        vm.updateConfig { it.copy(llmProviders = it.llmProviders.copy(custom = np).autoSelectPrimaryIfFirst()) }
-    }
-    val probe = rememberEndpointProbe(p?.endpoint ?: "") { ctx, ep ->
-        com.nomily.app.llm.LlmModelService.custom(ctx, ep, p?.apiKey)
-    }
-    Group("Custom", footer = probe.footer()) {
-        Field(stringResource(R.string.llm_endpoint_url), p?.endpoint ?: "", url = true, trailing = { ProbeIcon(probe) }) { new ->
-            save(
-                if (new.isEmpty() && p?.apiKey.isNullOrEmpty()) null
-                else (p ?: AppConfig.LlmProviders.Endpoint(endpoint = "")).copy(endpoint = new),
-            )
-        }
-        ModelListField("gpt-4o-mini", p?.model, probe) { m ->
-            save((p ?: AppConfig.LlmProviders.Endpoint(endpoint = "")).copy(model = m))
-        }
-        Field(stringResource(R.string.llm_api_key_optional), p?.apiKey ?: "", secure = true, divider = false) { new ->
-            save((p ?: AppConfig.LlmProviders.Endpoint(endpoint = "")).copy(apiKey = new.ifEmpty { null }))
         }
     }
 }

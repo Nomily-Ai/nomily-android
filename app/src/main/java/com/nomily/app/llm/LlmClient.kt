@@ -19,8 +19,8 @@ import java.net.URL
 /**
  * Invoke a user‑configured LLM.
  *
- * The six providers fall into **three request shapes**:
- *  - OpenAI‑compatible (OpenAI / OpenRouter / Ollama / custom endpoint): `/chat/completions` + `messages`, streamed
+ * The providers fall into **three request shapes**:
+ *  - OpenAI‑compatible (OpenAI / OpenRouter / Ollama / custom endpoint / Qwen, DeepSeek, Doubao presets): `/chat/completions` + `messages`, streamed
  *  - Anthropic: `/v1/messages`, system as a separate field, `x-api-key` + `anthropic-version`
  *  - Gemini: `:generateContent?key=`, `system_instruction` + `contents`
  *
@@ -270,7 +270,14 @@ object LlmClient {
                     c.apiKey.orEmpty(), c.model!!, systemPrompt, userContent, maxTokens, timeout,
                 )
             }
-            else -> throw LlmException(ctx.getString(R.string.llm_error_no_provider))
+            else -> {
+                // A preset (Qwen / DeepSeek / Doubao): OpenAI-compatible, but a remote host, so the cloud timeout and cap apply.
+                val c = p.presets[key] ?: throw LlmException(ctx.getString(R.string.llm_error_no_provider))
+                openAiCompatible(
+                    ctx, "${c.endpoint.trimEnd('/')}/chat/completions",
+                    c.apiKey.orEmpty(), c.model!!, systemPrompt, userContent, maxTokens, timeout,
+                )
+            }
         }
     }
 
