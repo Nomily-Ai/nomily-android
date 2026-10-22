@@ -942,4 +942,17 @@
     <string name="find_history_more">и ещё %1$d более старых</string>
     <string name="find_clear_history">Очистить эту историю</string>
     <string name="find_connected">Подключена</string>
+    <string name="asr_aliyun">Aliyun Speech</string>
+    <string name="asr_aliyun_footer">Аудио временно загружается в ваш собственный бакет OSS (закрытый), Aliyun получает предподписанную ссылку на 2 часа, результат забирается, после чего файл удаляется. Appkey: nls-portal.console.aliyun.com → Проекты. AccessKey должен иметь доступ к OSS на чтение и запись, бакет — находиться в том же регионе. Проверка соединения проверяет только пару AccessKey.</string>
+    <string name="asr_aliyun_access_key_id">AccessKey ID</string>
+    <string name="asr_aliyun_access_key_secret">AccessKey Secret</string>
+    <string name="asr_aliyun_app_key">Appkey проекта</string>
+    <string name="asr_aliyun_oss_bucket">Бакет OSS</string>
+    <string name="asr_aliyun_region">Регион (по умолчанию cn-shanghai)</string>
+    <string name="asr_still_running">Задача Aliyun всё ещё выполняется через %1$d мин. Она НЕ была отправлена повторно (аудио оплачивалось бы дважды) — повторите позже из списка задач.</string>
+    <string name="asr_task_failed">Задача распознавания Aliyun завершилась ошибкой: %1$s</string>
+    <string name="asr_cloud_missing">Поле «%1$s» пусто</string>
+    <string name="asr_cloud_http">Сервис отклонил запрос (HTTP %1$d)</string>
+    <string name="asr_cloud_timeout">Нет ответа вовремя — недоступно или неверно указан регион</string>
+    <string name="asr_cloud_unreachable">Не удаётся связаться с хостом — проверьте адрес или сеть</string>
 </resources>

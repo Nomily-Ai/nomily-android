@@ -49,6 +49,9 @@ class ConfigStore(
 
         private const val FILE_NAME = "config.json"
 
+        /** Secret fields of `asr_providers.cloud.aliyun.secrets`; the other cloud vendors' entries pass through untouched. */
+        private val ALIYUN_SECRET_FIELDS = listOf("accessKeyId", "accessKeySecret")
+
         /**
          * ISO‑8601 with milliseconds + UTC.
          *
@@ -180,6 +183,11 @@ class ConfigStore(
             asr.optJSONObject("azure")?.let { action(it, "key", "asr.azure.key") }
             asr.optJSONObject("custom")?.let { action(it, "api_key", "asr.custom.api_key") }
             asr.optJSONObject("remote_live")?.let { action(it, "apiKey", "asr.remote_live.api_key") }
+            // cloud.aliyun.secrets.<field> ↔ `asr.cloud.aliyun.<field>`; the object is created when only the store has the values.
+            asr.optJSONObject("cloud")?.optJSONObject("aliyun")?.let { aliyun ->
+                val secretsObj = aliyun.optJSONObject("secrets") ?: org.json.JSONObject().also { aliyun.put("secrets", it) }
+                for (field in ALIYUN_SECRET_FIELDS) action(secretsObj, field, "asr.cloud.aliyun.$field")
+            }
         }
         root.optJSONObject("llm_providers")?.let { llm ->
             for (provider in llm.keys().asSequence().toList()) {

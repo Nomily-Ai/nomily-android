@@ -942,4 +942,17 @@
     <string name="find_history_more">und %1$d ältere</string>
     <string name="find_clear_history">Verlauf löschen</string>
     <string name="find_connected">Verbunden</string>
+    <string name="asr_aliyun">Aliyun Spracherkennung</string>
+    <string name="asr_aliyun_footer">Das Audio wird in deinem eigenen OSS-Bucket (privat) zwischengespeichert, Aliyun erhält einen 2 Stunden gültigen signierten Link, das Ergebnis wird abgeholt und die Datei anschließend gelöscht. Appkey: nls-portal.console.aliyun.com → Projekte. Der AccessKey braucht OSS-Lese-/Schreibrechte, der Bucket muss in derselben Region liegen. Der Verbindungstest prüft nur das AccessKey-Paar.</string>
+    <string name="asr_aliyun_access_key_id">AccessKey ID</string>
+    <string name="asr_aliyun_access_key_secret">AccessKey Secret</string>
+    <string name="asr_aliyun_app_key">Projekt-Appkey</string>
+    <string name="asr_aliyun_oss_bucket">OSS-Bucket</string>
+    <string name="asr_aliyun_region">Region (Standard cn-shanghai)</string>
+    <string name="asr_still_running">Die Aliyun-Aufgabe wird nach %1$d Minuten noch verarbeitet. Sie wurde NICHT erneut gesendet (das würde das Audio doppelt berechnen) – versuche es später in der Aufgabenliste erneut.</string>
+    <string name="asr_task_failed">Die Aliyun-Erkennungsaufgabe ist fehlgeschlagen: %1$s</string>
+    <string name="asr_cloud_missing">%1$s ist leer</string>
+    <string name="asr_cloud_http">Der Anbieter hat die Anfrage abgelehnt (HTTP %1$d)</string>
+    <string name="asr_cloud_timeout">Keine rechtzeitige Antwort – nicht erreichbar oder die Region ist falsch</string>
+    <string name="asr_cloud_unreachable">Dieser Host ist nicht erreichbar – prüfe Adresse oder Netzwerk</string>
 </resources>

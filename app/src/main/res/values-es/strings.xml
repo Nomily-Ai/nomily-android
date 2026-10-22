@@ -942,4 +942,17 @@
     <string name="find_history_more">y %1$d más antiguos</string>
     <string name="find_clear_history">Borrar este historial</string>
     <string name="find_connected">Conectada</string>
+    <string name="asr_aliyun">Aliyun Speech</string>
+    <string name="asr_aliyun_footer">El audio se guarda temporalmente en tu propio bucket de OSS (privado), se entrega a Aliyun un enlace prefirmado válido 2 horas, se recupera el resultado y el archivo se elimina después. Appkey: nls-portal.console.aliyun.com → Proyectos. La AccessKey necesita permisos de lectura/escritura en OSS y el bucket debe estar en la misma región. La prueba de conexión solo comprueba el par AccessKey.</string>
+    <string name="asr_aliyun_access_key_id">AccessKey ID</string>
+    <string name="asr_aliyun_access_key_secret">AccessKey Secret</string>
+    <string name="asr_aliyun_app_key">Appkey del proyecto</string>
+    <string name="asr_aliyun_oss_bucket">Bucket de OSS</string>
+    <string name="asr_aliyun_region">Región (por defecto cn-shanghai)</string>
+    <string name="asr_still_running">La tarea de Aliyun sigue procesándose tras %1$d minutos. NO se reenvió (se cobraría el audio dos veces); vuelve a intentarlo más tarde desde la lista de tareas.</string>
+    <string name="asr_task_failed">Falló la tarea de reconocimiento de Aliyun: %1$s</string>
+    <string name="asr_cloud_missing">%1$s está vacío</string>
+    <string name="asr_cloud_http">El proveedor rechazó la solicitud (HTTP %1$d)</string>
+    <string name="asr_cloud_timeout">Sin respuesta a tiempo: inaccesible o la región es incorrecta</string>
+    <string name="asr_cloud_unreachable">No se puede conectar con este host: revisa la dirección o la red</string>
 </resources>

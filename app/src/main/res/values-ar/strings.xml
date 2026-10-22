@@ -942,4 +942,17 @@
     <string name="find_history_more">و%1$d أقدم</string>
     <string name="find_clear_history">مسح هذا السجل</string>
     <string name="find_connected">متصلة</string>
+    <string name="asr_aliyun">Aliyun Speech</string>
+    <string name="asr_aliyun_footer">يُخزَّن الصوت مؤقتًا في حاوية OSS الخاصة بك (خاصة)، ويُمرَّر إلى Aliyun رابط موقَّع مسبقًا صالح لساعتين، ثم تُجلب النتيجة ويُحذف الملف بعدها. Appkey: nls-portal.console.aliyun.com ← المشاريع. يحتاج AccessKey إلى صلاحية قراءة/كتابة OSS ويجب أن تكون الحاوية في المنطقة نفسها. اختبار الاتصال يتحقق من زوج AccessKey فقط.</string>
+    <string name="asr_aliyun_access_key_id">AccessKey ID</string>
+    <string name="asr_aliyun_access_key_secret">AccessKey Secret</string>
+    <string name="asr_aliyun_app_key">Appkey للمشروع</string>
+    <string name="asr_aliyun_oss_bucket">حاوية OSS</string>
+    <string name="asr_aliyun_region">المنطقة (الافتراضي cn-shanghai)</string>
+    <string name="asr_still_running">لا تزال مهمة Aliyun قيد المعالجة بعد %1$d دقيقة. لم تُعَد إرسالها (حتى لا يُحاسَب على الصوت مرتين) — أعد المحاولة لاحقًا من قائمة المهام.</string>
+    <string name="asr_task_failed">فشلت مهمة التعرّف في Aliyun: %1$s</string>
+    <string name="asr_cloud_missing">الحقل %1$s فارغ</string>
+    <string name="asr_cloud_http">رفض المزوّد الطلب (HTTP %1$d)</string>
+    <string name="asr_cloud_timeout">لا استجابة في الوقت المناسب — تعذّر الوصول أو المنطقة غير صحيحة</string>
+    <string name="asr_cloud_unreachable">تعذّر الوصول إلى هذا المضيف — تحقق من العنوان أو الشبكة</string>
 </resources>

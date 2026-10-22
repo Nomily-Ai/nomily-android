@@ -67,6 +67,9 @@ data class WorkJob(
 /** The job's input is gone (clip deleted, transcript cleared): it can never succeed, so it is dropped, not retried. */
 class JobSourceMissing(message: String) : Exception(message)
 
+/** Failure that another attempt cannot fix (or would be billed twice): the job finishes with [message] instead of backing off and retrying. */
+class JobNonRetriable(message: String, cause: Throwable? = null) : Exception(message, cause)
+
 /**
  * Persistent queue for transcription, summaries, translations and audio exports (`filesDir/jobs.json`).
  *
@@ -179,6 +182,11 @@ class JobQueue(private val file: File, private val scope: CoroutineScope) {
                 is JobSourceMissing -> {
                     log("Dropping ${job.id}: ${failure.message}")
                     forget(job.id)
+                }
+                is JobNonRetriable -> {
+                    log("Giving up on ${job.id} without retry: ${failure.message}")
+                    mutate(job.id) { it.copy(attempts = MAX_ATTEMPTS) }
+                    finish(job.id, failure.message)
                 }
                 else -> {
                     val reason = failure.message ?: failure.javaClass.simpleName

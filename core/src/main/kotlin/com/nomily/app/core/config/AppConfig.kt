@@ -1,5 +1,6 @@
 package com.nomily.app.core.config
 
+import com.nomily.app.core.asr.aliyun
 import com.nomily.app.core.llm.LlmProviderSpec
 import com.nomily.app.core.llm.LlmStorage
 import com.nomily.app.core.json.JsonParser
@@ -83,6 +84,7 @@ data class AppConfig(
     val usesCloudService: Boolean
         get() {
             asrProviders.azure?.let { if (it.key.isNotEmpty() && it.region.isNotEmpty()) return true }
+            if (asrProviders.aliyun?.isComplete == true) return true
             return llmProviders.primary in setOf("openai", "claude", "gemini", "openRouter", "qwen", "deepseek", "doubao")
         }
 
@@ -137,7 +139,8 @@ data class AppConfig(
          * serves live transcription only, and every caller of this flag gates file transcription.
          */
         val hasConfiguredProvider: Boolean
-            get() = (azure?.let { it.key.isNotEmpty() && it.region.isNotEmpty() } ?: false) ||
+            get() = (aliyun?.isComplete == true) ||
+                (azure?.let { it.key.isNotEmpty() && it.region.isNotEmpty() } ?: false) ||
                 (local?.let { it.host.isNotEmpty() && it.port > 0 } ?: false) ||
                 (custom?.let { it.endpoint.isNotBlank() } ?: false)
 
@@ -148,6 +151,7 @@ data class AppConfig(
          */
         val selectable: List<String>
             get() = buildList {
+                if (aliyun?.isComplete == true) add("aliyun")
                 if (azure?.let { it.key.isNotEmpty() && it.region.isNotEmpty() && it.verification != false } == true) add("azure")
                 if (local?.host?.isNotEmpty() == true) add("local")
                 if (custom?.endpoint?.isNotBlank() == true) add("custom")

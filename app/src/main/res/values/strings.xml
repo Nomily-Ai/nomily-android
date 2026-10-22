@@ -1031,4 +1031,17 @@
     <string name="find_history_more">and %1$d older</string>
     <string name="find_clear_history">Clear this history</string>
     <string name="find_connected">Connected</string>
+    <string name="asr_aliyun">Aliyun Speech</string>
+    <string name="asr_aliyun_footer">Audio is staged in your own OSS bucket (private), a 2-hour presigned link is handed to Aliyun, and the result is fetched back; the staged file is deleted afterwards. Appkey: nls-portal.console.aliyun.com → Projects. The AccessKey needs OSS read/write access and the bucket must be in the same region. The connection test checks the AccessKey pair only.</string>
+    <string name="asr_aliyun_access_key_id">AccessKey ID</string>
+    <string name="asr_aliyun_access_key_secret">AccessKey Secret</string>
+    <string name="asr_aliyun_app_key">Project Appkey</string>
+    <string name="asr_aliyun_oss_bucket">OSS bucket</string>
+    <string name="asr_aliyun_region">Region (default cn-shanghai)</string>
+    <string name="asr_still_running">The Aliyun task is still processing after %1$d minutes. It was NOT resubmitted (that would bill the audio twice) — retry later from the job list.</string>
+    <string name="asr_task_failed">The Aliyun recognition task failed: %1$s</string>
+    <string name="asr_cloud_missing">%1$s is empty</string>
+    <string name="asr_cloud_http">The vendor rejected the request (HTTP %1$d)</string>
+    <string name="asr_cloud_timeout">No answer in time — unreachable, or the region is wrong</string>
+    <string name="asr_cloud_unreachable">Can’t reach this host — check the address or the network</string>
 </resources>

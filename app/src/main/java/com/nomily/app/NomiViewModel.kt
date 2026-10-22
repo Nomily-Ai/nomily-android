@@ -3269,7 +3269,9 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
             Log.i(TAG, "Skipping transcription (too short): ${e.message}")
             set { it.copy(error = str(R.string.asr_clip_too_short, e.duration, e.minimum.toDouble())) }
         } catch (e: com.nomily.app.asr.AsrException) {
-            throw IllegalStateException(e.messageRes?.let { str(it) } ?: failed(R.string.device_files_operation_failed, e), e)
+            val message = e.messageRes?.let { str(it, *e.messageArgs.toTypedArray()) } ?: failed(R.string.device_files_operation_failed, e)
+            // A retry can't go differently (or would bill the same audio twice): finish the job with the reason now.
+            throw if (e.retriable) IllegalStateException(message, e) else com.nomily.app.jobs.JobNonRetriable(message, e)
         }
     }
 

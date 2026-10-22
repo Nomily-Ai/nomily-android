@@ -4,6 +4,9 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.runtime.mutableIntStateOf
+import com.nomily.app.core.asr.AliyunConfig
+import com.nomily.app.core.asr.aliyun
+import com.nomily.app.core.asr.withAliyun
 import com.nomily.app.core.llm.LlmProviderSpec
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.graphics.SolidColor
@@ -474,6 +477,7 @@ private fun AsrSection(cfg: AppConfig, vm: NomiViewModel) {
         val configured = cfg.asrProviders.selectable.map { key ->
             key to stringResource(
                 when (key) {
+                    "aliyun" -> R.string.asr_aliyun
                     "azure" -> R.string.asr_azure
                     "local" -> R.string.asr_local_server_label
                     "custom" -> R.string.asr_custom_server
@@ -567,6 +571,8 @@ private fun AsrSection(cfg: AppConfig, vm: NomiViewModel) {
         if (pending.isNotEmpty()) TranscribeQueueRow(pending, inFlight)
 
     }
+
+    AliyunGroup(cfg, vm)
 
     // Azure is in its own group, with "How to obtain the key" placed on the right side of the group header
     var showAzureGuide by remember { mutableStateOf(false) }
@@ -834,6 +840,38 @@ private fun CustomAsrGroup(cfg: AppConfig, vm: NomiViewModel) {
                 probing = false
                 // The key is proven good — fetch the model dropdown too, so the next tap is picking a model.
                 if (probe?.ok == true) loadModels()
+            }
+        }
+    }
+}
+
+/**
+ * Aliyun file transcription (iOS Aliyun editor): AccessKey pair + NLS project Appkey + OSS bucket + region, with a
+ * credential probe. The AccessKey pair lives in [com.nomily.app.data.SecretStore], never in config.json.
+ */
+@Composable
+private fun AliyunGroup(cfg: AppConfig, vm: NomiViewModel) {
+    val a = cfg.asrProviders.aliyun ?: AliyunConfig()
+    val save = { n: AliyunConfig ->
+        vm.updateConfig { it.copy(asrProviders = it.asrProviders.withAliyun(n)).adoptAsrPrimaryIfUnset() }
+    }
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val probeKey = "${a.accessKeyId}|${a.accessKeySecret}"
+    var probe by remember(probeKey) { mutableStateOf<com.nomily.app.asr.LocalAsrProbe.Result?>(null) }
+    var probing by remember(probeKey) { mutableStateOf(false) }
+    Group(stringResource(R.string.asr_aliyun), footer = stringResource(R.string.asr_aliyun_footer)) {
+        Field(stringResource(R.string.asr_aliyun_access_key_id), a.accessKeyId, secure = true) { save(a.copy(accessKeyId = it.trim())) }
+        Field(stringResource(R.string.asr_aliyun_access_key_secret), a.accessKeySecret, secure = true) { save(a.copy(accessKeySecret = it.trim())) }
+        Field(stringResource(R.string.asr_aliyun_app_key), a.appKey) { save(a.copy(appKey = it.trim())) }
+        Field(stringResource(R.string.asr_aliyun_oss_bucket), a.ossBucket) { save(a.copy(ossBucket = it.trim())) }
+        Field(stringResource(R.string.asr_aliyun_region), a.region) { save(a.copy(region = it.trim())) }
+        LocalProbeRow(probe, probing, label = stringResource(R.string.asr_local_probe)) {
+            probing = true
+            probe = null
+            scope.launch {
+                probe = withContext(Dispatchers.IO) { com.nomily.app.asr.AliyunProbe.probe(ctx, a) }
+                probing = false
             }
         }
     }

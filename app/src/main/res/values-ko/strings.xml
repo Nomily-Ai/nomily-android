@@ -942,4 +942,17 @@
     <string name="find_history_more">이전 기록 %1$d개 더</string>
     <string name="find_clear_history">이 기록 지우기</string>
     <string name="find_connected">연결됨</string>
+    <string name="asr_aliyun">알리윤 음성 인식</string>
+    <string name="asr_aliyun_footer">오디오는 내 OSS 버킷(비공개)에 임시로 올라가고, 2시간 유효한 사전 서명 링크가 알리윤에 전달되며, 결과를 가져온 뒤 업로드한 파일은 삭제됩니다. Appkey: nls-portal.console.aliyun.com → 프로젝트 목록. AccessKey에는 OSS 읽기/쓰기 권한이 필요하며 버킷은 같은 리전에 있어야 합니다. 연결 테스트는 AccessKey 쌍만 확인합니다.</string>
+    <string name="asr_aliyun_access_key_id">AccessKey ID</string>
+    <string name="asr_aliyun_access_key_secret">AccessKey Secret</string>
+    <string name="asr_aliyun_app_key">프로젝트 Appkey</string>
+    <string name="asr_aliyun_oss_bucket">OSS 버킷</string>
+    <string name="asr_aliyun_region">리전 (기본값 cn-shanghai)</string>
+    <string name="asr_still_running">알리윤 작업이 %1$d분이 지나도 아직 처리 중입니다. 같은 오디오가 두 번 청구되지 않도록 다시 제출하지 않았습니다. 나중에 작업 목록에서 다시 시도하세요.</string>
+    <string name="asr_task_failed">알리윤 인식 작업이 실패했습니다: %1$s</string>
+    <string name="asr_cloud_missing">%1$s이(가) 비어 있습니다</string>
+    <string name="asr_cloud_http">서비스 업체가 요청을 거부했습니다 (HTTP %1$d)</string>
+    <string name="asr_cloud_timeout">제때 응답이 없습니다 — 연결할 수 없거나 리전이 잘못되었습니다</string>
+    <string name="asr_cloud_unreachable">이 호스트에 연결할 수 없습니다 — 주소나 네트워크를 확인하세요</string>
 </resources>

@@ -991,4 +991,17 @@
     <string name="find_history_more">另有 %1$d 条更早的</string>
     <string name="find_clear_history">清除这些记录</string>
     <string name="find_connected">已连接</string>
+    <string name="asr_aliyun">阿里云智能语音</string>
+    <string name="asr_aliyun_footer">转写时音频先上传到你自己的 OSS Bucket（私有），生成 2 小时有效的预签名链接交给阿里云识别，取回结果后删除上传的文件。Appkey 在 nls-portal.console.aliyun.com → 项目列表获取；AccessKey 需授权 OSS 读写，Bucket 须与区域一致。连通性测试只校验 AccessKey。</string>
+    <string name="asr_aliyun_access_key_id">AccessKey ID</string>
+    <string name="asr_aliyun_access_key_secret">AccessKey Secret</string>
+    <string name="asr_aliyun_app_key">项目 Appkey</string>
+    <string name="asr_aliyun_oss_bucket">OSS Bucket</string>
+    <string name="asr_aliyun_region">区域（默认 cn-shanghai）</string>
+    <string name="asr_still_running">阿里云任务仍在云端处理（已等待 %1$d 分钟）。为避免同一份音频重复计费，这次没有重新提交——请稍后在任务列表里重试。</string>
+    <string name="asr_task_failed">阿里云识别任务失败：%1$s</string>
+    <string name="asr_cloud_missing">%1$s 未填写</string>
+    <string name="asr_cloud_http">厂商拒绝了请求（HTTP %1$d）</string>
+    <string name="asr_cloud_timeout">等不到回应——连不上，或者区域填错了</string>
+    <string name="asr_cloud_unreachable">连不上这个主机——检查地址或网络</string>
 </resources>

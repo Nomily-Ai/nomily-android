@@ -942,4 +942,17 @@
     <string name="find_history_more">ほか %1$d 件の古い記録</string>
     <string name="find_clear_history">この履歴を消去</string>
     <string name="find_connected">接続済み</string>
+    <string name="asr_aliyun">Alibaba Cloud 音声認識</string>
+    <string name="asr_aliyun_footer">音声はご自身の OSS バケット（非公開）に一時保存され、2 時間有効の署名付きリンクを Alibaba Cloud に渡して認識し、結果を取得した後にファイルを削除します。Appkey は nls-portal.console.aliyun.com → プロジェクト一覧で取得します。AccessKey には OSS の読み書き権限が必要で、バケットは同じリージョンにしてください。接続テストは AccessKey のみを確認します。</string>
+    <string name="asr_aliyun_access_key_id">AccessKey ID</string>
+    <string name="asr_aliyun_access_key_secret">AccessKey Secret</string>
+    <string name="asr_aliyun_app_key">プロジェクト Appkey</string>
+    <string name="asr_aliyun_oss_bucket">OSS バケット</string>
+    <string name="asr_aliyun_region">リージョン（既定 cn-shanghai）</string>
+    <string name="asr_still_running">Alibaba Cloud のタスクは %1$d 分経ってもまだ処理中です。同じ音声が二重課金されないよう、再送信はしていません。後でタスク一覧から再試行してください。</string>
+    <string name="asr_task_failed">Alibaba Cloud の認識タスクが失敗しました：%1$s</string>
+    <string name="asr_cloud_missing">%1$s が未入力です</string>
+    <string name="asr_cloud_http">サービス側がリクエストを拒否しました（HTTP %1$d）</string>
+    <string name="asr_cloud_timeout">時間内に応答がありません——接続できないか、リージョンが間違っています</string>
+    <string name="asr_cloud_unreachable">このホストに接続できません——アドレスまたはネットワークを確認してください</string>
 </resources>

@@ -38,6 +38,13 @@ class AsrException(
      * otherwise the English message would be rendered directly in the UI (even on a Chinese interface).
      */
     val messageRes: Int? = null,
+    /** Format arguments for [messageRes]. */
+    val messageArgs: List<Any> = emptyList(),
+    /**
+     * `false` = another attempt cannot go differently, or would be billed twice (an Aliyun task still running past our
+     * wait cap, or failed server-side). The job queue then gives up at once instead of resubmitting.
+     */
+    val retriable: Boolean = true,
 ) : Exception(message, cause)
 
 /**

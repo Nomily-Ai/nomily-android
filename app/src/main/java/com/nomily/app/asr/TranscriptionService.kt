@@ -3,6 +3,7 @@ package com.nomily.app.asr
 import android.util.Log
 import com.nomily.app.core.asr.AsrResult
 import com.nomily.app.core.audio.oggDurationMs
+import com.nomily.app.core.asr.aliyun
 import com.nomily.app.core.config.AppConfig
 import com.nomily.app.audio.AudioExporter
 import com.nomily.app.audio.LocalVad
@@ -151,6 +152,7 @@ class TranscriptionService(private val clipsDir: File) {
     private fun hasCredentials(name: String, config: AppConfig): Boolean = when (name.lowercase()) {
         // If this set of credentials was validated on the settings page and then rejected, don’t use it for transcription — that round will inevitably return 401,
         // // The user would only see a single unexplained failure. Credentials that haven’t been validated can still be used.
+        "aliyun" -> config.asrProviders.aliyun?.isComplete == true
         "azure" -> config.asrProviders.azure
             ?.let { it.key.isNotEmpty() && it.region.isNotEmpty() && it.verification != false } ?: false
         "local" -> config.asrProviders.local?.let { it.host.isNotEmpty() && it.port > 0 } ?: false
@@ -165,6 +167,11 @@ class TranscriptionService(private val clipsDir: File) {
         config: AppConfig,
         locales: List<String>?,
     ): AsrResult = when (name.lowercase()) {
+        "aliyun" -> {
+            val a = config.asrProviders.aliyun?.takeIf { it.isComplete }
+                ?: throw AsrException("Aliyun credentials are not configured.")
+            AliyunFileAsr(a, locales).transcribe(audio)
+        }
         "azure" -> {
             val a = config.asrProviders.azure ?: throw AsrException("Azure credentials are not configured.")
             AzureAsr(a.key, a.region, locales).transcribe(audio)
