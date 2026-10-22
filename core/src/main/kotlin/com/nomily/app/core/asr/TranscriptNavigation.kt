@@ -78,7 +78,12 @@ object ClipQa {
      * Everything the Q&A may read: the summary plus the timestamped transcript. Capped so a three-hour
      * recording still fits one request. Null when there is neither — the Q&A block is then hidden.
      */
-    fun context(summary: String?, transcriptText: String?, segments: List<AsrSegment>): String? {
+    fun context(
+        summary: String?,
+        transcriptText: String?,
+        segments: List<AsrSegment>,
+        speakerNames: Map<String, String> = emptyMap(),
+    ): String? {
         val parts = mutableListOf<String>()
         if (!summary.isNullOrEmpty()) parts += "SUMMARY\n" + summary.take(SUMMARY_CAP)
         if (transcriptText != null) {
@@ -86,7 +91,7 @@ object ClipQa {
                 transcriptText
             } else {
                 segments.joinToString("\n") { s ->
-                    "[${ClockLabel.mmss(s.start)}] " + (s.speaker?.let { "$it: " } ?: "") + s.text
+                    "[${ClockLabel.mmss(s.start)}] " + (s.speaker?.let { "${SpeakerNames.nameOf(speakerNames, it) ?: it}: " } ?: "") + s.text
                 }
             }
             parts += "TRANSCRIPT\n" + body.take(TRANSCRIPT_CAP)

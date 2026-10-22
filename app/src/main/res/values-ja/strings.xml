@@ -824,6 +824,12 @@
     <string name="clip_detail_todos_need_summary">要約を生成すると、ここにアクション項目がまとめられます。</string>
     <string name="clip_detail_search_transcript">文字起こしを検索</string>
     <string name="clip_detail_speaker_all">すべての話者</string>
+    <string name="clip_detail_edit_speaker_names">話者名を変更</string>
+    <string name="clip_detail_rename_speakers">話者名</string>
+    <string name="clip_detail_speaker_line_count">%d 行</string>
+    <string name="clip_detail_reset_speaker_name">元のラベルに戻す</string>
+    <string name="clip_detail_reset_speaker_names">すべての話者名をリセット</string>
+    <string name="clip_detail_speaker_edit_hint">名前はこの録音にのみ適用されます。文字起こし、書き出し、AI の回答に反映されます。入力欄を空にすると元のラベルに戻ります。</string>
     <string name="clip_detail_no_transcript_match">一致する行はありません。</string>
     <string name="clip_detail_skip_back">15秒戻る</string>
     <string name="clip_detail_skip_forward">15秒進む</string>

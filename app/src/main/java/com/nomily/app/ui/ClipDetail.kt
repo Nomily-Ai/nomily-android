@@ -98,6 +98,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.filled.ArrowCircleUp
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Replay
@@ -109,6 +110,7 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
@@ -121,6 +123,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.withStyle
 import com.nomily.app.core.asr.ClipQa
+import com.nomily.app.core.asr.SpeakerNames
 import com.nomily.app.core.asr.ClockLabel
 import com.nomily.app.core.asr.TranscriptNavigation
 import com.nomily.app.core.text.MarkdownBlock
@@ -190,13 +193,25 @@ fun ClipDetail(
     if (showVad) VadPreviewDialog(clip) { showVad = false }
 
     val doc = remember(clip.transcriptJson, clip.transcript) { loadTranscript(clip) }
+    var speakerNames by remember(clip.base) { mutableStateOf(vm.speakerNames(clip.base)) }
+    var showSpeakerEditor by remember { mutableStateOf(false) }
     val summary = remember(clip.summary?.path, clip.summary?.lastModified()) { readText(clip.summary) }
     val chat = remember(clip.base) { ClipChat() }
-    val qaContext = remember(summary, doc) { ClipQa.context(summary, doc?.text, doc?.segments.orEmpty()) }
+    val qaContext = remember(summary, doc, speakerNames) { ClipQa.context(summary, doc?.text, doc?.segments.orEmpty(), speakerNames) }
     val scroll = rememberScrollState()
     // A new question or answer lands at the end of the page; bring it into view.
     LaunchedEffect(chat.messages.size, chat.busy) {
         if (chat.messages.isNotEmpty()) scroll.animateScrollTo(scroll.maxValue)
+    }
+
+    if (showSpeakerEditor && doc != null) {
+        SpeakerRenameSheet(
+            speakers = TranscriptNavigation.distinctSpeakers(doc.segments).map { sp -> sp to doc.segments.count { it.speaker == sp } },
+            names = speakerNames,
+            onRename = { sp, name -> speakerNames = SpeakerNames.with(speakerNames, sp, name).also { vm.saveSpeakerNames(clip.base, it) } },
+            onResetAll = { speakerNames = emptyMap(); vm.saveSpeakerNames(clip.base, emptyMap()) },
+            onDismiss = { showSpeakerEditor = false },
+        )
     }
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -217,6 +232,8 @@ fun ClipDetail(
                         onQuery = { transcriptQuery = it },
                         speaker = speakerFilter,
                         onSpeaker = { speakerFilter = it },
+                        speakerNames = speakerNames,
+                        onEditSpeakers = { showSpeakerEditor = true },
                     )
                     DetailTab.SUMMARY -> SummarySections(clip, summary, ui, vm, title, onOpenSettings)
                     DetailTab.TODOS -> TodosSection(summary, hasTranscript = doc != null)
@@ -466,7 +483,7 @@ private fun SkipButton(back: Boolean, onClick: () -> Unit) {
  * there; the playing line is tinted; [highlight] marks search hits in place.
  */
 @Composable
-private fun TranscriptSegmentRow(seg: AsrSegment, active: Boolean, highlight: String? = null, onTap: () -> Unit) {
+private fun TranscriptSegmentRow(seg: AsrSegment, active: Boolean, names: Map<String, String>, highlight: String? = null, onTap: () -> Unit) {
     val accent = MaterialTheme.colorScheme.primary
     Row(
         Modifier
@@ -491,13 +508,78 @@ private fun TranscriptSegmentRow(seg: AsrSegment, active: Boolean, highlight: St
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             seg.speaker?.takeIf { it.isNotEmpty() }?.let {
                 Text(
-                    stringResource(R.string.clip_detail_speaker, it),
+                    speakerLabel(names, it),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Text(highlighted(seg.text, highlight), style = MaterialTheme.typography.bodyLarge, lineHeight = READER_LINE_HEIGHT)
+        }
+    }
+}
+
+/** The user's name for [speaker], else the vendor label `Speaker N`. */
+@Composable
+private fun speakerLabel(names: Map<String, String>, speaker: String): String =
+    SpeakerNames.nameOf(names, speaker) ?: stringResource(R.string.clip_detail_speaker, speaker)
+
+/**
+ * Rename the speakers of this recording (iOS `SpeakerRenameSheet`): one field per speaker, applied as you type;
+ * the line count answers "which one is speaker 2?". An empty field restores the original label.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SpeakerRenameSheet(
+    speakers: List<Pair<String, Int>>,
+    names: Map<String, String>,
+    onRename: (String, String) -> Unit,
+    onResetAll: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    // Seeded with what is stored, not with the vendor label, so an untouched field shows the placeholder.
+    val drafts = remember { mutableStateMapOf<String, String>().apply { putAll(names) } }
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.clip_detail_rename_speakers),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_done)) }
+            }
+            speakers.forEach { (id, lines) ->
+                androidx.compose.material3.OutlinedTextField(
+                    value = drafts[id].orEmpty(),
+                    onValueChange = { drafts[id] = it; onRename(id, it) },
+                    placeholder = { Text(stringResource(R.string.clip_detail_speaker, id)) },
+                    supportingText = { Text(stringResource(R.string.clip_detail_speaker_line_count, lines)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words, autoCorrectEnabled = false),
+                    trailingIcon = if (drafts[id].orEmpty().isNotEmpty()) {
+                        {
+                            IconButton(onClick = { drafts[id] = ""; onRename(id, "") }) {
+                                Icon(Icons.Filled.Replay, stringResource(R.string.clip_detail_reset_speaker_name))
+                            }
+                        }
+                    } else {
+                        null
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                )
+            }
+            Text(
+                stringResource(R.string.clip_detail_speaker_edit_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+            if (drafts.values.any { it.isNotBlank() }) {
+                TextButton(onClick = { drafts.clear(); onResetAll() }) {
+                    Text(stringResource(R.string.clip_detail_reset_speaker_names), color = MaterialTheme.colorScheme.error)
+                }
+            }
         }
     }
 }
@@ -521,7 +603,7 @@ private fun positionSeconds(ui: NomiViewModel.Ui, clip: LocalClip): Double =
 
 /** Search field + speaker chips (iOS `transcriptSearchBar`); hidden for single-line transcripts. */
 @Composable
-private fun TranscriptSearchBar(doc: TranscriptDocument, query: String, onQuery: (String) -> Unit, speaker: String?, onSpeaker: (String?) -> Unit) {
+private fun TranscriptSearchBar(doc: TranscriptDocument, query: String, onQuery: (String) -> Unit, speaker: String?, onSpeaker: (String?) -> Unit, names: Map<String, String>, onEditSpeakers: () -> Unit) {
     if (doc.segments.size <= 1) return
     val secondary = MaterialTheme.colorScheme.onSurfaceVariant
     Row(
@@ -555,7 +637,17 @@ private fun TranscriptSearchBar(doc: TranscriptDocument, query: String, onQuery:
         ) {
             SpeakerChip(stringResource(R.string.clip_detail_speaker_all), speaker == null) { onSpeaker(null) }
             speakers.forEach { sp ->
-                SpeakerChip(stringResource(R.string.clip_detail_speaker, sp), speaker == sp) { onSpeaker(sp) }
+                SpeakerChip(speakerLabel(names, sp), speaker == sp) { onSpeaker(sp) }
+            }
+            val accent = MaterialTheme.colorScheme.primary
+            Row(
+                Modifier.clip(RoundedCornerShape(50)).background(accent.copy(alpha = 0.12f)).clickable(onClick = onEditSpeakers)
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Icon(Icons.Filled.Edit, null, tint = accent, modifier = Modifier.size(12.dp))
+                Text(stringResource(R.string.clip_detail_edit_speaker_names), style = MaterialTheme.typography.labelMedium, color = accent)
             }
         }
     }
@@ -582,7 +674,7 @@ private fun SpeakerChip(label: String, selected: Boolean, onClick: () -> Unit) {
  * four-line window that follows playback.
  */
 @Composable
-private fun TranscriptRows(clip: LocalClip, doc: TranscriptDocument, ui: NomiViewModel.Ui, vm: NomiViewModel, query: String, speaker: String?) {
+private fun TranscriptRows(clip: LocalClip, doc: TranscriptDocument, ui: NomiViewModel.Ui, vm: NomiViewModel, query: String, speaker: String?, names: Map<String, String>) {
     val active = TranscriptNavigation.activeIndex(doc.segments, positionSeconds(ui, clip))
     Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp)) {
         if (query.isNotEmpty() || speaker != null) {
@@ -597,7 +689,7 @@ private fun TranscriptRows(clip: LocalClip, doc: TranscriptDocument, ui: NomiVie
             } else {
                 matches.take(TranscriptNavigation.MAX_MATCHES).forEach { i ->
                     val seg = doc.segments[i]
-                    TranscriptSegmentRow(seg, active == i, highlight = query.ifEmpty { null }) { seekToSegment(vm, clip, seg) }
+                    TranscriptSegmentRow(seg, active == i, names, highlight = query.ifEmpty { null }) { seekToSegment(vm, clip, seg) }
                 }
                 if (matches.size > TranscriptNavigation.MAX_MATCHES) {
                     Text(
@@ -611,7 +703,7 @@ private fun TranscriptRows(clip: LocalClip, doc: TranscriptDocument, ui: NomiVie
         } else {
             TranscriptNavigation.inlineWindow(doc.segments.size, active).forEach { i ->
                 val seg = doc.segments[i]
-                TranscriptSegmentRow(seg, active == i) { seekToSegment(vm, clip, seg) }
+                TranscriptSegmentRow(seg, active == i, names) { seekToSegment(vm, clip, seg) }
             }
         }
     }
@@ -949,6 +1041,8 @@ private fun TranscriptSections(
     onQuery: (String) -> Unit,
     speaker: String?,
     onSpeaker: (String?) -> Unit,
+    speakerNames: Map<String, String>,
+    onEditSpeakers: () -> Unit,
 ) {
     val cfgNow by vm.config.collectAsStateWithLifecycle()
     val transcribing = clip.base in ui.transcribing
@@ -998,8 +1092,8 @@ private fun TranscriptSections(
                 if (doc.segments.isEmpty()) {
                     PreviewRow(transcriptPreview(doc))
                 } else {
-                    TranscriptSearchBar(doc, query, onQuery, speaker, onSpeaker)
-                    TranscriptRows(clip, doc, ui, vm, query, speaker)
+                    TranscriptSearchBar(doc, query, onQuery, speaker, onSpeaker, speakerNames, onEditSpeakers)
+                    TranscriptRows(clip, doc, ui, vm, query, speaker, speakerNames)
                 }
                 NavRow(stringResource(R.string.clip_detail_view_full_transcript)) { full = true }
             }
@@ -1020,7 +1114,7 @@ private fun TranscriptSections(
         }
     }
 
-    if (full && doc != null) TranscriptFullDialog(clip, doc, vm) { full = false }
+    if (full && doc != null) TranscriptFullDialog(clip, doc, vm, speakerNames) { full = false }
     if (fullTranslation && translation != null) {
         FullTextDialog(stringResource(R.string.clip_detail_translation), translation, markdown = false) { fullTranslation = false }
     }
@@ -1232,12 +1326,12 @@ private fun transcriptPreview(doc: TranscriptDocument): String =
     if (doc.segments.isEmpty()) doc.text.take(200) else doc.segments.joinToString(" ") { it.text }.take(200)
 
 /** What the transcript share button hands out: `[speaker] (m:ss–m:ss) text`, one blank line between segments. */
-private fun transcriptShareText(doc: TranscriptDocument): String =
+private fun transcriptShareText(doc: TranscriptDocument, names: Map<String, String>): String =
     if (doc.segments.isEmpty()) {
         doc.text
     } else {
         doc.segments.joinToString("\n\n") { seg ->
-            val speaker = seg.speaker?.takeIf { it.isNotEmpty() }?.let { "[$it] " }.orEmpty()
+            val speaker = seg.speaker?.takeIf { it.isNotEmpty() }?.let { "[${SpeakerNames.nameOf(names, it) ?: it}] " }.orEmpty()
             "$speaker(${stampLabel(seg)}) ${seg.text}"
         }
     }
@@ -1328,8 +1422,8 @@ private fun SummaryFullDialog(title: String, body: String, poster: LocalClip, on
  * line is highlighted and kept in view while audio plays.
  */
 @Composable
-private fun TranscriptFullDialog(clip: LocalClip, doc: TranscriptDocument, vm: NomiViewModel, onDismiss: () -> Unit) {
-    val shareBody = remember(doc) { transcriptShareText(doc) }
+private fun TranscriptFullDialog(clip: LocalClip, doc: TranscriptDocument, vm: NomiViewModel, names: Map<String, String>, onDismiss: () -> Unit) {
+    val shareBody = remember(doc, names) { transcriptShareText(doc, names) }
     val ui by vm.ui.collectAsStateWithLifecycle()
     FullPage(stringResource(R.string.clip_detail_transcript), onDismiss, actions = { ShareAction(shareBody) }) {
         if (doc.segments.isEmpty()) {
@@ -1349,7 +1443,7 @@ private fun TranscriptFullDialog(clip: LocalClip, doc: TranscriptDocument, vm: N
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 itemsIndexed(doc.segments) { i, seg ->
-                    TranscriptSegmentRow(seg, active == i) { seekToSegment(vm, clip, seg) }
+                    TranscriptSegmentRow(seg, active == i, names) { seekToSegment(vm, clip, seg) }
                 }
                 item { Spacer(Modifier.padding(bottom = 24.dp)) }
             }

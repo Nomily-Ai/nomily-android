@@ -824,6 +824,12 @@
     <string name="clip_detail_todos_need_summary">先生成摘要，待办事项会汇集在这里。</string>
     <string name="clip_detail_search_transcript">搜索转录内容</string>
     <string name="clip_detail_speaker_all">全部发言人</string>
+    <string name="clip_detail_edit_speaker_names">修改说话人</string>
+    <string name="clip_detail_rename_speakers">说话人名称</string>
+    <string name="clip_detail_speaker_line_count">%d 句</string>
+    <string name="clip_detail_reset_speaker_name">改回原来的编号</string>
+    <string name="clip_detail_reset_speaker_names">全部恢复默认名称</string>
+    <string name="clip_detail_speaker_edit_hint">名称只对这条录音生效——字幕、导出和 AI 回答都会用新名字；清空某一行就改回原来的编号。</string>
     <string name="clip_detail_no_transcript_match">没有匹配的内容。</string>
     <string name="clip_detail_skip_back">后退 15 秒</string>
     <string name="clip_detail_skip_forward">前进 15 秒</string>

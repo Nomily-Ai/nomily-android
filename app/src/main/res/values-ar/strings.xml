@@ -824,6 +824,12 @@
     <string name="clip_detail_todos_need_summary">أنشئ ملخصًا لتجميع المهام هنا.</string>
     <string name="clip_detail_search_transcript">البحث في النص</string>
     <string name="clip_detail_speaker_all">كل المتحدثين</string>
+    <string name="clip_detail_edit_speaker_names">إعادة تسمية المتحدثين</string>
+    <string name="clip_detail_rename_speakers">أسماء المتحدثين</string>
+    <string name="clip_detail_speaker_line_count">%d أسطر</string>
+    <string name="clip_detail_reset_speaker_name">استخدام التسمية الأصلية</string>
+    <string name="clip_detail_reset_speaker_names">إعادة ضبط كل أسماء المتحدثين</string>
+    <string name="clip_detail_speaker_edit_hint">تنطبق الأسماء على هذا التسجيل فقط، وتُستخدم في النص والتصدير وإجابات الذكاء الاصطناعي. إفراغ الحقل يعيد التسمية الأصلية.</string>
     <string name="clip_detail_no_transcript_match">لا توجد أسطر مطابقة.</string>
     <string name="clip_detail_skip_back">رجوع 15 ثانية</string>
     <string name="clip_detail_skip_forward">تقدّم 15 ثانية</string>

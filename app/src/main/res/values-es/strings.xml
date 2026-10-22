@@ -824,6 +824,12 @@
     <string name="clip_detail_todos_need_summary">Genera un resumen para reunir aquí las tareas.</string>
     <string name="clip_detail_search_transcript">Buscar en la transcripción</string>
     <string name="clip_detail_speaker_all">Todos los hablantes</string>
+    <string name="clip_detail_edit_speaker_names">Renombrar interlocutores</string>
+    <string name="clip_detail_rename_speakers">Nombres de interlocutores</string>
+    <string name="clip_detail_speaker_line_count">%d líneas</string>
+    <string name="clip_detail_reset_speaker_name">Usar la etiqueta original</string>
+    <string name="clip_detail_reset_speaker_names">Restablecer todos los nombres</string>
+    <string name="clip_detail_speaker_edit_hint">Los nombres solo se aplican a esta grabación: la transcripción, la exportación y las respuestas de IA los usan. Si vacías un campo, se restaura la etiqueta original.</string>
     <string name="clip_detail_no_transcript_match">Ninguna línea coincide.</string>
     <string name="clip_detail_skip_back">Retroceder 15 segundos</string>
     <string name="clip_detail_skip_forward">Avanzar 15 segundos</string>

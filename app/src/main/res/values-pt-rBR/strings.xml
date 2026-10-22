@@ -824,6 +824,12 @@
     <string name="clip_detail_todos_need_summary">Gere um resumo para reunir os itens de ação aqui.</string>
     <string name="clip_detail_search_transcript">Buscar na transcrição</string>
     <string name="clip_detail_speaker_all">Todos os falantes</string>
+    <string name="clip_detail_edit_speaker_names">Renomear falantes</string>
+    <string name="clip_detail_rename_speakers">Nomes dos falantes</string>
+    <string name="clip_detail_speaker_line_count">%d linhas</string>
+    <string name="clip_detail_reset_speaker_name">Usar o rótulo original</string>
+    <string name="clip_detail_reset_speaker_names">Redefinir todos os nomes</string>
+    <string name="clip_detail_speaker_edit_hint">Os nomes valem só para esta gravação: transcrição, exportação e respostas da IA os usam. Esvaziar um campo restaura o rótulo original.</string>
     <string name="clip_detail_no_transcript_match">Nenhuma linha corresponde.</string>
     <string name="clip_detail_skip_back">Voltar 15 segundos</string>
     <string name="clip_detail_skip_forward">Avançar 15 segundos</string>

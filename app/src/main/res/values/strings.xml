@@ -863,6 +863,12 @@
     <string name="clip_detail_todos_need_summary">Generate a summary to collect action items here.</string>
     <string name="clip_detail_search_transcript">Search transcript</string>
     <string name="clip_detail_speaker_all">All speakers</string>
+    <string name="clip_detail_edit_speaker_names">Rename speakers</string>
+    <string name="clip_detail_rename_speakers">Speaker names</string>
+    <string name="clip_detail_speaker_line_count">%d lines</string>
+    <string name="clip_detail_reset_speaker_name">Use the original label</string>
+    <string name="clip_detail_reset_speaker_names">Reset all speaker names</string>
+    <string name="clip_detail_speaker_edit_hint">Names apply to this recording only — transcript, export and AI answers all use them. Clearing a field restores the original label.</string>
     <string name="clip_detail_no_transcript_match">No lines match.</string>
     <string name="clip_detail_skip_back">Back 15 seconds</string>
     <string name="clip_detail_skip_forward">Forward 15 seconds</string>

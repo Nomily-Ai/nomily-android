@@ -16,10 +16,11 @@ data class AsrSegment(
     val end: Double,
     val duration: Double,
 ) {
-    /** `[    1.2s -     3.4s] Speaker 1: …`. */
-    fun formatted(): String {
+    /** `[    1.2s -     3.4s] Speaker 1: …`; a name in [speakerNames] replaces `Speaker N`. */
+    fun formatted(speakerNames: Map<String, String> = emptyMap()): String {
         val stamp = "[${fixed1(start)}s - ${fixed1(end)}s]"
-        return if (!speaker.isNullOrEmpty()) "$stamp Speaker $speaker: $text" else "$stamp $text"
+        if (speaker.isNullOrEmpty()) return "$stamp $text"
+        return "$stamp ${SpeakerNames.nameOf(speakerNames, speaker) ?: "Speaker $speaker"}: $text"
     }
 }
 
@@ -30,15 +31,15 @@ data class AsrResult(
     val locale: String,
 ) {
     /** The body written to `{name}.txt`: if there are segments, one line per segment; otherwise the whole text as a single block. */
-    fun formatTranscript(): String =
-        if (segments.isEmpty()) text else segments.joinToString("\n") { it.formatted() }
+    fun formatTranscript(speakerNames: Map<String, String> = emptyMap()): String =
+        if (segments.isEmpty()) text else segments.joinToString("\n") { it.formatted(speakerNames) }
 
     /**
      * The transcript handed to the LLM for summaries and translation: stamped lines when speakers are
      * known (the model needs them to attribute points), bare segment text otherwise, the whole text last.
      */
-    fun textForSummarization(): String = when {
-        segments.any { !it.speaker.isNullOrEmpty() } -> segments.joinToString("\n") { it.formatted() }
+    fun textForSummarization(speakerNames: Map<String, String> = emptyMap()): String = when {
+        segments.any { !it.speaker.isNullOrEmpty() } -> segments.joinToString("\n") { it.formatted(speakerNames) }
         segments.isNotEmpty() -> segments.joinToString("\n") { it.text }
         else -> text
     }

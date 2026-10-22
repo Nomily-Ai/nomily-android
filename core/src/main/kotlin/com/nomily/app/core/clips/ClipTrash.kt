@@ -2,6 +2,7 @@ package com.nomily.app.core.clips
 
 import com.nomily.app.core.json.JsonParser
 import com.nomily.app.core.json.writeJson
+import com.nomily.app.core.asr.SpeakerNames
 import java.io.File
 import java.util.UUID
 
@@ -256,7 +257,7 @@ class ClipTrash(private val clipsDir: File, private val now: () -> Long = System
         fun wholeClipFiles(clipsDir: File, base: String, audio: File?): List<File> =
             listOfNotNull(audio) + listOf(
                 ".txt", ".asr.json", ".translated.txt", ".translated.json",
-                ".summary.md", ".summary.translated.md", ClipArtefact.TITLE_SUFFIX,
+                ".summary.md", ".summary.translated.md", ClipArtefact.TITLE_SUFFIX, SpeakerNames.SUFFIX,
             ).map { File(clipsDir, base + it) }
     }
 }

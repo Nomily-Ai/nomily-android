@@ -824,6 +824,12 @@
     <string name="clip_detail_todos_need_summary">Создайте сводку, чтобы собрать задачи здесь.</string>
     <string name="clip_detail_search_transcript">Поиск по расшифровке</string>
     <string name="clip_detail_speaker_all">Все говорящие</string>
+    <string name="clip_detail_edit_speaker_names">Переименовать спикеров</string>
+    <string name="clip_detail_rename_speakers">Имена спикеров</string>
+    <string name="clip_detail_speaker_line_count">Реплик: %d</string>
+    <string name="clip_detail_reset_speaker_name">Вернуть исходную метку</string>
+    <string name="clip_detail_reset_speaker_names">Сбросить все имена</string>
+    <string name="clip_detail_speaker_edit_hint">Имена действуют только для этой записи — их используют расшифровка, экспорт и ответы ИИ. Если очистить поле, вернётся исходная метка.</string>
     <string name="clip_detail_no_transcript_match">Совпадений нет.</string>
     <string name="clip_detail_skip_back">Назад на 15 секунд</string>
     <string name="clip_detail_skip_forward">Вперёд на 15 секунд</string>

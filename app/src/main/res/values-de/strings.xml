@@ -824,6 +824,12 @@
     <string name="clip_detail_todos_need_summary">Erstelle eine Zusammenfassung, um hier Aufgaben zu sammeln.</string>
     <string name="clip_detail_search_transcript">Transkript durchsuchen</string>
     <string name="clip_detail_speaker_all">Alle Sprecher</string>
+    <string name="clip_detail_edit_speaker_names">Sprecher umbenennen</string>
+    <string name="clip_detail_rename_speakers">Sprechernamen</string>
+    <string name="clip_detail_speaker_line_count">%d Zeilen</string>
+    <string name="clip_detail_reset_speaker_name">Ursprüngliche Bezeichnung verwenden</string>
+    <string name="clip_detail_reset_speaker_names">Alle Sprechernamen zurücksetzen</string>
+    <string name="clip_detail_speaker_edit_hint">Die Namen gelten nur für diese Aufnahme – Transkript, Export und KI-Antworten verwenden sie. Wird ein Feld geleert, gilt wieder die ursprüngliche Bezeichnung.</string>
     <string name="clip_detail_no_transcript_match">Keine passenden Zeilen.</string>
     <string name="clip_detail_skip_back">15 Sekunden zurück</string>
     <string name="clip_detail_skip_forward">15 Sekunden vor</string>

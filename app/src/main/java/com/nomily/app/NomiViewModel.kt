@@ -3321,10 +3321,17 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** The transcript as the LLM should see it, or [JobSourceMissing] when there is none. */
+    /** The user's speaker names for [base] (`{base}.speakers.json`), empty when none. */
+    fun speakerNames(base: String): Map<String, String> = com.nomily.app.core.asr.SpeakerNames.read(library.dir, base)
+
+    // shortcut: written on the calling thread per keystroke; a few hundred bytes, so fine until names carry more than that.
+    fun saveSpeakerNames(base: String, names: Map<String, String>) =
+        com.nomily.app.core.asr.SpeakerNames.write(library.dir, base, names)
+
+    /** The transcript as the LLM should see it, or [JobSourceMissing] when there is none. Speaker names are read from disk, as the queue may run without the page. */
     private fun sourceText(base: String): String =
         clipFile(base, ".asr.json").takeIf(File::isFile)
-            ?.let { f -> runCatching { com.nomily.app.core.asr.parseAsrArtefact(f.readText()) }.getOrNull()?.textForSummarization() }
+            ?.let { f -> runCatching { com.nomily.app.core.asr.parseAsrArtefact(f.readText()) }.getOrNull()?.textForSummarization(speakerNames(base)) }
             ?.takeIf { it.isNotBlank() }
             ?: clipFile(base, ".txt").takeIf(File::isFile)?.readText()?.takeIf { it.isNotBlank() }
             ?: throw com.nomily.app.jobs.JobSourceMissing(str(R.string.jobs_source_missing, str(R.string.jobs_source_transcript)))

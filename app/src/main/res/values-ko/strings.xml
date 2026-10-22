@@ -824,6 +824,12 @@
     <string name="clip_detail_todos_need_summary">요약을 생성하면 실행 항목이 여기에 모입니다.</string>
     <string name="clip_detail_search_transcript">전사 검색</string>
     <string name="clip_detail_speaker_all">모든 화자</string>
+    <string name="clip_detail_edit_speaker_names">화자 이름 변경</string>
+    <string name="clip_detail_rename_speakers">화자 이름</string>
+    <string name="clip_detail_speaker_line_count">%d줄</string>
+    <string name="clip_detail_reset_speaker_name">원래 이름 사용</string>
+    <string name="clip_detail_reset_speaker_names">모든 화자 이름 초기화</string>
+    <string name="clip_detail_speaker_edit_hint">이름은 이 녹음에만 적용되며 대본, 내보내기, AI 답변에 모두 사용됩니다. 입력란을 비우면 원래 이름으로 돌아갑니다.</string>
     <string name="clip_detail_no_transcript_match">일치하는 줄이 없습니다.</string>
     <string name="clip_detail_skip_back">15초 뒤로</string>
     <string name="clip_detail_skip_forward">15초 앞으로</string>

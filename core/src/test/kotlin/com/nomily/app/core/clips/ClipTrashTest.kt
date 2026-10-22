@@ -21,6 +21,7 @@ class ClipTrashTest {
         val audio = write("20261016100000.ogg")
         write("20261016100000.txt")
         write("20261016100000.title", "Standup")
+        write("20261016100000.speakers.json", """{"1":"Ann"}""")
         manifest.recordDownload("20261016100000.opus", 10, "ble", "SN12345678", "D·NOTE", audio.name)
         assertEquals(ClipManifest.Source.Kind.CARD, manifest.source(audio.name).kind)
 
@@ -48,6 +49,7 @@ class ClipTrashTest {
         val reopened = ClipTrash(dir) { clock }
         assertTrue(reopened.restore(reopened.items.single(), manifest, null))
         assertTrue(audio.exists())
+        assertTrue(java.io.File(dir, "20261016100000.speakers.json").exists())
         assertEquals("Standup", File(dir, "20261016100000.title").readText())
         assertEquals("SN12345678", manifest.source(audio.name).serial)
         assertTrue(reopened.items.isEmpty())

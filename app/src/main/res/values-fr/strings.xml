@@ -824,6 +824,12 @@
     <string name="clip_detail_todos_need_summary">Générez un résumé pour rassembler les actions ici.</string>
     <string name="clip_detail_search_transcript">Rechercher dans la transcription</string>
     <string name="clip_detail_speaker_all">Tous les locuteurs</string>
+    <string name="clip_detail_edit_speaker_names">Renommer les intervenants</string>
+    <string name="clip_detail_rename_speakers">Noms des intervenants</string>
+    <string name="clip_detail_speaker_line_count">%d lignes</string>
+    <string name="clip_detail_reset_speaker_name">Utiliser l’étiquette d’origine</string>
+    <string name="clip_detail_reset_speaker_names">Réinitialiser tous les noms</string>
+    <string name="clip_detail_speaker_edit_hint">Les noms ne s’appliquent qu’à cet enregistrement : transcription, export et réponses IA les utilisent. Vider un champ rétablit l’étiquette d’origine.</string>
     <string name="clip_detail_no_transcript_match">Aucune ligne ne correspond.</string>
     <string name="clip_detail_skip_back">Reculer de 15 secondes</string>
     <string name="clip_detail_skip_forward">Avancer de 15 secondes</string>
