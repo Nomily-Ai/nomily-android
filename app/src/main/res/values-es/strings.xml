@@ -897,4 +897,19 @@
     <string name="llm_test_unreachable">No se puede llegar al host: revisa la dirección o si el teléfono tiene conexión</string>
     <string name="llm_test_unexpected_body">La dirección respondió, pero no con una respuesta de chat; probablemente no es la API de este proveedor</string>
     <string name="llm_test_http">El proveedor rechazó la solicitud (HTTP %d)</string>
+    <string name="clip_detail_export_document">Exportar documento</string>
+    <string name="clip_detail_export_as_txt">Exportar como TXT</string>
+    <string name="clip_detail_export_as_md">Exportar como Markdown</string>
+    <string name="clip_detail_export_as_pdf">Exportar como PDF</string>
+    <string name="clip_detail_export_as_png">Exportar mapa mental como PNG</string>
+    <string name="clip_detail_export_pdf_failed">Error al generar el PDF.</string>
+    <string name="clip_detail_email_title">Enviar por correo</string>
+    <string name="clip_detail_email_attach_summary">Adjuntar el resumen</string>
+    <string name="clip_detail_email_attach_transcript">Adjuntar la transcripción</string>
+    <string name="clip_detail_email_attach_mindmap">Adjuntar el mapa mental (imagen)</string>
+    <string name="clip_detail_email_attach_footer">Los adjuntos se generan a partir del contenido guardado de esta grabación. Las opciones atenuadas aún no tienen nada que adjuntar.</string>
+    <string name="clip_detail_email_compose">Redactar correo</string>
+    <string name="clip_detail_email_unavailable">No hay ninguna app de correo disponible en este dispositivo.</string>
+    <string name="clip_detail_email_subject">Nomily — %1$s</string>
+    <string name="clip_detail_email_body">Adjuntos exportados desde Nomily.</string>
 </resources>

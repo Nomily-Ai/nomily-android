@@ -99,6 +99,7 @@ import androidx.compose.material.icons.filled.ArrowCircleUp
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Replay
@@ -156,6 +157,7 @@ fun ClipDetail(
     var speakerFilter by remember { mutableStateOf<String?>(null) }
     var pendingDelete by remember { mutableStateOf<ClipArtefact?>(null) }
     var chooseExport by remember { mutableStateOf(false) }
+    var showMail by remember { mutableStateOf(false) }
     // Share automatically when the export the user just started finishes while they're still here.
     var shareWhenReady by remember { mutableStateOf(false) }
     val title = clip.title ?: RecordingName.displayTitle(clip.name)
@@ -173,6 +175,8 @@ fun ClipDetail(
                         currentClip.value,
                         vm,
                         onExport = { chooseExport = true },
+                        onExportDocument = { format -> shareWhenReady = true; vm.enqueueExport(currentClip.value, format.ext) },
+                        onMail = { showMail = true },
                         onDelete = { pendingDelete = it },
                     )
                 },
@@ -262,6 +266,7 @@ fun ClipDetail(
         }
     }
 
+    if (showMail) MailExportSheet(clip, vm, hasSummary = summary != null, onDismiss = { showMail = false })
     if (chooseExport) {
         ExportFormatDialog(
             onPick = { format ->
@@ -306,7 +311,10 @@ private fun DetailTabs(selected: DetailTab, onSelect: (DetailTab) -> Unit) {
  * independent deletes — each entry only while it applies.
  */
 @Composable
-private fun DetailMenu(clip: LocalClip, vm: NomiViewModel, onExport: () -> Unit, onDelete: (ClipArtefact) -> Unit) {
+private fun DetailMenu(
+    clip: LocalClip, vm: NomiViewModel, onExport: () -> Unit,
+    onExportDocument: (ExportFormat) -> Unit, onMail: () -> Unit, onDelete: (ClipArtefact) -> Unit,
+) {
     val context = LocalContext.current
     val allJobs by vm.jobs.jobs.collectAsStateWithLifecycle()
     val readyAny by vm.exports.ready.collectAsStateWithLifecycle()
@@ -318,6 +326,9 @@ private fun DetailMenu(clip: LocalClip, vm: NomiViewModel, onExport: () -> Unit,
         ClipArtefact.SUMMARY.takeIf { clip.summary != null },
     )
     var open by remember { mutableStateOf(false) }
+    var docOpen by remember { mutableStateOf(false) }
+    val hasTranscript = clip.transcript != null || clip.transcriptJson != null
+    val hasSummary = clip.summary != null
     Box {
         IconButton(onClick = { open = true }) {
             Icon(Icons.Filled.MoreHoriz, contentDescription = stringResource(R.string.clip_detail_more_actions), tint = MaterialTheme.colorScheme.primary)
@@ -331,13 +342,26 @@ private fun DetailMenu(clip: LocalClip, vm: NomiViewModel, onExport: () -> Unit,
                     onClick = { open = false; onExport() },
                 )
             }
+            if (hasTranscript || hasSummary) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.clip_detail_export_document)) },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.Article, null) },
+                    enabled = !exporting,
+                    onClick = { open = false; docOpen = true },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.clip_detail_email_title)) },
+                    leadingIcon = { Icon(Icons.Filled.Email, null) },
+                    onClick = { open = false; onMail() },
+                )
+            }
             if (ready != null) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.clip_detail_export_ready)) },
                     leadingIcon = { Icon(Icons.Filled.CheckCircle, null) },
                     onClick = {
                         open = false
-                        shareFile(context, vm.exports.fileOf(ready), if (ready.file.endsWith(".wav")) "audio/wav" else "audio/mp4")
+                        shareFile(context, vm.exports.fileOf(ready), exportMime(ready.file))
                     },
                 )
             }
@@ -352,6 +376,15 @@ private fun DetailMenu(clip: LocalClip, vm: NomiViewModel, onExport: () -> Unit,
                     text = { Text(stringResource(label), color = MaterialTheme.colorScheme.error) },
                     leadingIcon = { Icon(Icons.Filled.Delete, null, tint = MaterialTheme.colorScheme.error) },
                     onClick = { open = false; onDelete(what) },
+                )
+            }
+        }
+        DropdownMenu(expanded = docOpen, onDismissRequest = { docOpen = false }) {
+            ExportFormat.entries.filter { it.document }.forEach { format ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(format.labelRes)) },
+                    enabled = if (format == ExportFormat.PNG) hasSummary else hasTranscript,
+                    onClick = { docOpen = false; onExportDocument(format) },
                 )
             }
         }
@@ -1508,7 +1541,23 @@ private fun loadTranscript(clip: LocalClip): TranscriptDocument? {
 /** Unified representation of the two transcription forms. */
 private class TranscriptDocument(val text: String, val segments: List<AsrSegment>)
 
-private enum class ExportFormat(val ext: String) { M4A("m4a"), WAV("wav") }
+private enum class ExportFormat(val ext: String, val labelRes: Int, val document: Boolean = false) {
+    M4A("m4a", R.string.clip_detail_export_as_m4a),
+    WAV("wav", R.string.clip_detail_export_as_wav),
+    TXT("txt", R.string.clip_detail_export_as_txt, true),
+    MD("md", R.string.clip_detail_export_as_md, true),
+    PDF("pdf", R.string.clip_detail_export_as_pdf, true),
+    PNG("png", R.string.clip_detail_export_as_png, true),
+}
+
+private fun exportMime(fileName: String): String = when (fileName.substringAfterLast('.').lowercase()) {
+    "wav" -> "audio/wav"
+    "txt" -> "text/plain"
+    "md" -> "text/markdown"
+    "pdf" -> "application/pdf"
+    "png" -> "image/png"
+    else -> "audio/mp4"
+}
 
 /**
  * Export status: re-encoding to **M4A (AAC)** or decoding to **WAV (PCM)** runs as a background task started
@@ -1526,7 +1575,7 @@ private fun ExportStatusSection(clip: LocalClip, vm: NomiViewModel, shareWhenRea
     LaunchedEffect(ready, shareWhenReady) {
         if (shareWhenReady && ready != null) {
             onShared()
-            shareFile(context, vm.exports.fileOf(ready), if (ready.file.endsWith(".wav")) "audio/wav" else "audio/mp4")
+            shareFile(context, vm.exports.fileOf(ready), exportMime(ready.file))
         }
     }
     if (exportJobs.active == null && exportJobs.failed == null && ready == null) return
@@ -1541,7 +1590,7 @@ private fun ExportStatusSection(clip: LocalClip, vm: NomiViewModel, shareWhenRea
             ) {
                 Row(
                     Modifier.weight(1f).clickable {
-                        shareFile(context, vm.exports.fileOf(ready), if (ready.file.endsWith(".wav")) "audio/wav" else "audio/mp4")
+                        shareFile(context, vm.exports.fileOf(ready), exportMime(ready.file))
                     }.padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -1570,11 +1619,10 @@ private fun ExportFormatDialog(onPick: (ExportFormat) -> Unit, onDismiss: () -> 
         title = { Text(stringResource(R.string.clip_detail_export_audio)) },
         text = {
             Column {
-                TextButton(onClick = { onPick(ExportFormat.M4A) }, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.clip_detail_export_as_m4a))
-                }
-                TextButton(onClick = { onPick(ExportFormat.WAV) }, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.clip_detail_export_as_wav))
+                ExportFormat.entries.filter { !it.document }.forEach { format ->
+                    TextButton(onClick = { onPick(format) }, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(format.labelRes))
+                    }
                 }
             }
         },
@@ -1729,4 +1777,89 @@ private fun DeleteConfirmDialog(clip: LocalClip, what: ClipArtefact, vm: NomiVie
 internal fun formatClipDuration(ms: Int): String {
     val total = ms / 1000
     return "%d:%02d".format(total / 60, total % 60)
+}
+
+/**
+ * "Send by Email": picks which of summary (.md), transcript (.txt) and mind map (.png) to attach, then hands the
+ * files to a mail app through a chooser. The summary and the mind map need a summary to exist.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MailExportSheet(clip: LocalClip, vm: NomiViewModel, hasSummary: Boolean, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var summary by remember { mutableStateOf(hasSummary) }
+    var transcript by remember { mutableStateOf(clip.transcript != null || clip.transcriptJson != null) }
+    var mindMap by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val stem = clip.name.substringBeforeLast('.')
+
+    @Composable
+    fun Toggle(label: Int, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                stringResource(label),
+                modifier = Modifier.weight(1f),
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            )
+            androidx.compose.material3.Switch(checked = checked && enabled, onCheckedChange = onChange, enabled = enabled)
+        }
+    }
+
+    fun send() {
+        busy = true
+        error = null
+        scope.launch {
+            runCatching { vm.prepareMailAttachments(clip.base, summary, transcript, mindMap) }
+                .onSuccess { files ->
+                    busy = false
+                    val uris = ArrayList(files.map { androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", it) })
+                    val send = android.content.Intent(android.content.Intent.ACTION_SEND_MULTIPLE).apply {
+                        type = "message/rfc822"
+                        putParcelableArrayListExtra(android.content.Intent.EXTRA_STREAM, uris)
+                        putExtra(android.content.Intent.EXTRA_SUBJECT, context.getString(R.string.clip_detail_email_subject, stem))
+                        putExtra(android.content.Intent.EXTRA_TEXT, context.getString(R.string.clip_detail_email_body))
+                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        // The chooser forwards the grant only for URIs it can see in ClipData.
+                        clipData = android.content.ClipData.newRawUri(null, uris.first()).also { cd -> uris.drop(1).forEach { cd.addItem(android.content.ClipData.Item(it)) } }
+                    }
+                    try {
+                        context.startActivity(android.content.Intent.createChooser(send, null))
+                        onDismiss()
+                    } catch (_: android.content.ActivityNotFoundException) {
+                        error = context.getString(R.string.clip_detail_email_unavailable)
+                    }
+                }
+                .onFailure {
+                    busy = false
+                    error = it.message ?: context.getString(R.string.clip_detail_email_unavailable)
+                }
+        }
+    }
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
+            Text(stringResource(R.string.clip_detail_email_title), style = MaterialTheme.typography.titleMedium)
+            Toggle(R.string.clip_detail_email_attach_summary, summary, hasSummary) { summary = it }
+            Toggle(R.string.clip_detail_email_attach_transcript, transcript, true) { transcript = it }
+            Toggle(R.string.clip_detail_email_attach_mindmap, mindMap, hasSummary) { mindMap = it }
+            Text(
+                stringResource(R.string.clip_detail_email_attach_footer),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            error?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
+            }
+            OutlinedButton(
+                onClick = ::send,
+                enabled = !busy && (summary || transcript || mindMap),
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            ) {
+                if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                else Text(stringResource(R.string.clip_detail_email_compose))
+            }
+        }
+    }
 }

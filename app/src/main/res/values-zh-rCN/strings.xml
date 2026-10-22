@@ -946,4 +946,19 @@
     <string name="llm_test_unreachable">连不上这个主机——检查地址，或者手机是不是没网</string>
     <string name="llm_test_unexpected_body">地址有回应，但返回的不是对话结果——它多半不是这家的 API</string>
     <string name="llm_test_http">服务商拒绝了请求（HTTP %d）</string>
+    <string name="clip_detail_export_document">导出文档</string>
+    <string name="clip_detail_export_as_txt">导出为 TXT</string>
+    <string name="clip_detail_export_as_md">导出为 Markdown</string>
+    <string name="clip_detail_export_as_pdf">导出为 PDF</string>
+    <string name="clip_detail_export_as_png">导出思维导图为 PNG</string>
+    <string name="clip_detail_export_pdf_failed">PDF 生成失败。</string>
+    <string name="clip_detail_email_title">邮件发送</string>
+    <string name="clip_detail_email_attach_summary">附件：AI 纪要</string>
+    <string name="clip_detail_email_attach_transcript">附件：原文转写</string>
+    <string name="clip_detail_email_attach_mindmap">附件：思维导图（图片）</string>
+    <string name="clip_detail_email_attach_footer">附件由本条录音已生成的内容打包；置灰的选项表示还没有对应产物。</string>
+    <string name="clip_detail_email_compose">撰写邮件</string>
+    <string name="clip_detail_email_unavailable">本机没有可用的邮件应用。</string>
+    <string name="clip_detail_email_subject">Nomily — %1$s</string>
+    <string name="clip_detail_email_body">附件由 Nomily 导出。</string>
 </resources>

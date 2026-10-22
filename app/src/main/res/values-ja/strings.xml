@@ -897,4 +897,19 @@
     <string name="llm_test_unreachable">このホストに接続できません。アドレスか、端末のオンライン状態を確認してください</string>
     <string name="llm_test_unexpected_body">アドレスは応答しましたが、チャットの応答ではありません。このプロバイダのAPIではない可能性があります</string>
     <string name="llm_test_http">プロバイダがリクエストを拒否しました（HTTP %d）</string>
+    <string name="clip_detail_export_document">ドキュメントを書き出す</string>
+    <string name="clip_detail_export_as_txt">TXT で書き出す</string>
+    <string name="clip_detail_export_as_md">Markdown で書き出す</string>
+    <string name="clip_detail_export_as_pdf">PDF で書き出す</string>
+    <string name="clip_detail_export_as_png">マインドマップを PNG で書き出す</string>
+    <string name="clip_detail_export_pdf_failed">PDF の生成に失敗しました。</string>
+    <string name="clip_detail_email_title">メールで送信</string>
+    <string name="clip_detail_email_attach_summary">要約を添付</string>
+    <string name="clip_detail_email_attach_transcript">文字起こしを添付</string>
+    <string name="clip_detail_email_attach_mindmap">マインドマップ（画像）を添付</string>
+    <string name="clip_detail_email_attach_footer">添付ファイルは、この録音の保存済みコンテンツから生成されます。グレーの項目は、まだ添付できるものがありません。</string>
+    <string name="clip_detail_email_compose">メールを作成</string>
+    <string name="clip_detail_email_unavailable">この端末で使えるメールアプリがありません。</string>
+    <string name="clip_detail_email_subject">Nomily — %1$s</string>
+    <string name="clip_detail_email_body">Nomily から書き出した添付ファイルです。</string>
 </resources>

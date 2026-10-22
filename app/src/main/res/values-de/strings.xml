@@ -897,4 +897,19 @@
     <string name="llm_test_unreachable">Host nicht erreichbar – Adresse prüfen oder prüfen, ob das Telefon online ist</string>
     <string name="llm_test_unexpected_body">Die Adresse hat geantwortet, aber nicht mit einer Chat-Antwort – vermutlich nicht die API dieses Anbieters</string>
     <string name="llm_test_http">Der Anbieter hat die Anfrage abgelehnt (HTTP %d)</string>
+    <string name="clip_detail_export_document">Dokument exportieren</string>
+    <string name="clip_detail_export_as_txt">Als TXT exportieren</string>
+    <string name="clip_detail_export_as_md">Als Markdown exportieren</string>
+    <string name="clip_detail_export_as_pdf">Als PDF exportieren</string>
+    <string name="clip_detail_export_as_png">Mindmap als PNG exportieren</string>
+    <string name="clip_detail_export_pdf_failed">PDF-Erstellung fehlgeschlagen.</string>
+    <string name="clip_detail_email_title">Per E-Mail senden</string>
+    <string name="clip_detail_email_attach_summary">Zusammenfassung anhängen</string>
+    <string name="clip_detail_email_attach_transcript">Transkript anhängen</string>
+    <string name="clip_detail_email_attach_mindmap">Mindmap (Bild) anhängen</string>
+    <string name="clip_detail_email_attach_footer">Die Anhänge werden aus den gespeicherten Inhalten dieser Aufnahme erzeugt. Ausgegraute Optionen haben noch nichts zum Anhängen.</string>
+    <string name="clip_detail_email_compose">E-Mail verfassen</string>
+    <string name="clip_detail_email_unavailable">Auf diesem Gerät ist keine E-Mail-App verfügbar.</string>
+    <string name="clip_detail_email_subject">Nomily — %1$s</string>
+    <string name="clip_detail_email_body">Aus Nomily exportierte Anhänge.</string>
 </resources>

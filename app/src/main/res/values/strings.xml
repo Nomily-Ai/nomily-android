@@ -986,4 +986,19 @@
     <string name="llm_test_unreachable">Can\'t reach this host — check the address, or whether the phone is online</string>
     <string name="llm_test_unexpected_body">The address answered, but not with a chat completion — it\'s probably not this provider\'s API</string>
     <string name="llm_test_http">The provider refused the request (HTTP %d)</string>
+    <string name="clip_detail_export_document">Export Document</string>
+    <string name="clip_detail_export_as_txt">Export as TXT</string>
+    <string name="clip_detail_export_as_md">Export as Markdown</string>
+    <string name="clip_detail_export_as_pdf">Export as PDF</string>
+    <string name="clip_detail_export_as_png">Export mind map as PNG</string>
+    <string name="clip_detail_export_pdf_failed">PDF rendering failed.</string>
+    <string name="clip_detail_email_title">Send by Email</string>
+    <string name="clip_detail_email_attach_summary">Attach the summary</string>
+    <string name="clip_detail_email_attach_transcript">Attach the transcript</string>
+    <string name="clip_detail_email_attach_mindmap">Attach the mind map (image)</string>
+    <string name="clip_detail_email_attach_footer">Attachments are generated from this recording\'s saved artefacts. Greyed-out options have nothing to attach yet.</string>
+    <string name="clip_detail_email_compose">Compose Email</string>
+    <string name="clip_detail_email_unavailable">No email app is available on this device.</string>
+    <string name="clip_detail_email_subject">Nomily — %1$s</string>
+    <string name="clip_detail_email_body">Attachments exported from Nomily.</string>
 </resources>

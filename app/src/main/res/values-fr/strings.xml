@@ -897,4 +897,19 @@
     <string name="llm_test_unreachable">Hôte injoignable : vérifiez l\'adresse ou la connexion du téléphone</string>
     <string name="llm_test_unexpected_body">L\'adresse a répondu, mais pas avec une réponse de chat : ce n\'est probablement pas l\'API de ce fournisseur</string>
     <string name="llm_test_http">Le fournisseur a refusé la requête (HTTP %d)</string>
+    <string name="clip_detail_export_document">Exporter le document</string>
+    <string name="clip_detail_export_as_txt">Exporter en TXT</string>
+    <string name="clip_detail_export_as_md">Exporter en Markdown</string>
+    <string name="clip_detail_export_as_pdf">Exporter en PDF</string>
+    <string name="clip_detail_export_as_png">Exporter la carte mentale en PNG</string>
+    <string name="clip_detail_export_pdf_failed">Échec de la génération du PDF.</string>
+    <string name="clip_detail_email_title">Envoyer par e-mail</string>
+    <string name="clip_detail_email_attach_summary">Joindre le résumé</string>
+    <string name="clip_detail_email_attach_transcript">Joindre la transcription</string>
+    <string name="clip_detail_email_attach_mindmap">Joindre la carte mentale (image)</string>
+    <string name="clip_detail_email_attach_footer">Les pièces jointes sont générées à partir du contenu enregistré de cet enregistrement. Les options grisées n\'ont encore rien à joindre.</string>
+    <string name="clip_detail_email_compose">Rédiger un e-mail</string>
+    <string name="clip_detail_email_unavailable">Aucune application de messagerie n\'est disponible sur cet appareil.</string>
+    <string name="clip_detail_email_subject">Nomily — %1$s</string>
+    <string name="clip_detail_email_body">Pièces jointes exportées depuis Nomily.</string>
 </resources>

@@ -897,4 +897,19 @@
     <string name="llm_test_unreachable">Не удаётся связаться с хостом: проверьте адрес и подключение телефона к сети</string>
     <string name="llm_test_unexpected_body">Адрес ответил, но не ответом чата — вероятно, это не API этого провайдера</string>
     <string name="llm_test_http">Провайдер отклонил запрос (HTTP %d)</string>
+    <string name="clip_detail_export_document">Экспорт документа</string>
+    <string name="clip_detail_export_as_txt">Экспорт в TXT</string>
+    <string name="clip_detail_export_as_md">Экспорт в Markdown</string>
+    <string name="clip_detail_export_as_pdf">Экспорт в PDF</string>
+    <string name="clip_detail_export_as_png">Экспорт ментальной карты в PNG</string>
+    <string name="clip_detail_export_pdf_failed">Не удалось создать PDF.</string>
+    <string name="clip_detail_email_title">Отправить по почте</string>
+    <string name="clip_detail_email_attach_summary">Приложить конспект</string>
+    <string name="clip_detail_email_attach_transcript">Приложить расшифровку</string>
+    <string name="clip_detail_email_attach_mindmap">Приложить ментальную карту (изображение)</string>
+    <string name="clip_detail_email_attach_footer">Вложения создаются из сохранённых материалов этой записи. Неактивные пункты пока нечем заполнить.</string>
+    <string name="clip_detail_email_compose">Написать письмо</string>
+    <string name="clip_detail_email_unavailable">На устройстве нет почтового приложения.</string>
+    <string name="clip_detail_email_subject">Nomily — %1$s</string>
+    <string name="clip_detail_email_body">Вложения, экспортированные из Nomily.</string>
 </resources>

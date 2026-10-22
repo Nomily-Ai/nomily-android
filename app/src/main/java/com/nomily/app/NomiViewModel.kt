@@ -52,6 +52,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
 
     companion object {
         private const val TAG = "NomiVM"
+        private val DOCUMENT_FORMATS = setOf("txt", "md", "pdf", "png")
         private const val CONNECT_ATTEMPTS = 3
 
         /** When tapping the connect capsule for a known device, give up after not finding it for up to 10 seconds. */
@@ -3309,10 +3310,20 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun runExport(job: com.nomily.app.jobs.WorkJob) {
+        val format = job.exportFormat
+        if (format in DOCUMENT_FORMATS) {
+            withContext(Dispatchers.IO) {
+                val dir = exports.beginNewStaging()
+                val file = writeDocument(format!!, job.clip, dir)
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                exports.publish(dir, file, job.clip, origin = job.clip)
+            }
+            return
+        }
         val src = clipAudio(job.clip) ?: throw com.nomily.app.jobs.JobSourceMissing(str(R.string.jobs_source_missing, str(R.string.jobs_source_audio)))
         withContext(Dispatchers.IO) {
             val dir = exports.beginNewStaging()
-            val file = when (job.exportFormat) {
+            val file = when (format) {
                 "wav" -> com.nomily.app.audio.AudioExporter.exportAsWav(source = src, outDir = dir, stem = job.clip)
                 else -> com.nomily.app.audio.AudioExporter.exportAsM4a(source = src, outDir = dir, stem = job.clip)
             }
@@ -3320,6 +3331,56 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
             exports.publish(dir, file, job.clip, origin = job.clip)
         }
     }
+
+    private fun missing(@StringRes what: Int) = com.nomily.app.jobs.JobSourceMissing(str(R.string.jobs_source_missing, str(what)))
+
+    private fun summaryForExport(base: String): String? =
+        clipFile(base, ".summary.md").takeIf(File::isFile)?.readText()?.takeIf { it.isNotEmpty() }
+
+    private fun transcriptForExport(base: String): String =
+        com.nomily.app.core.export.DocumentText.transcript(
+            clipFile(base, ".asr.json").takeIf(File::isFile)?.readText(),
+            clipFile(base, ".txt").takeIf(File::isFile)?.readText(),
+            speakerNames(base),
+        ) ?: throw missing(R.string.jobs_source_transcript)
+
+    /** Writes one document export (`txt` / `md` / `pdf` / `png` = mind map) of [base] into [dir]. */
+    private fun writeDocument(format: String, base: String, dir: File): File {
+        val stem = com.nomily.app.core.export.DocumentText.stem(base)
+        val exporter = com.nomily.app.audio.DocumentExporter
+        val summary = summaryForExport(base)
+        return when (format) {
+            "txt" -> exporter.writeText(dir, stem, "txt", transcriptForExport(base))
+            "md" -> exporter.writeText(
+                dir, stem, "md",
+                com.nomily.app.core.export.DocumentText.markdown(
+                    stem, summary, transcriptForExport(base), str(R.string.clip_detail_tab_summary), str(R.string.clip_detail_tab_transcript),
+                ),
+            )
+            "pdf" -> runCatching {
+                exporter.writePdf(dir, stem, summary, transcriptForExport(base), str(R.string.clip_detail_tab_summary), str(R.string.clip_detail_tab_transcript))
+            }.getOrElse { if (it is com.nomily.app.jobs.JobSourceMissing) throw it else throw IllegalStateException(str(R.string.clip_detail_export_pdf_failed), it) }
+            "png" -> exporter.writeMindMap(dir, stem, summary ?: throw missing(R.string.jobs_source_summary))
+                ?: throw missing(R.string.jobs_source_summary)
+            else -> throw missing(R.string.jobs_source_format)
+        }
+    }
+
+    /**
+     * Files for the mail composer, under `cache/exports/mail` (covered by the FileProvider paths): the summary as
+     * `.md`, the transcript as `.txt`, the mind map as `-mindmap.png`, in that order. Throws when a chosen one cannot be made.
+     */
+    suspend fun prepareMailAttachments(base: String, summary: Boolean, transcript: Boolean, mindMap: Boolean): List<File> =
+        withContext(Dispatchers.IO) {
+            val dir = File(getApplication<Application>().cacheDir, "exports/mail").apply { deleteRecursively(); mkdirs() }
+            val stem = com.nomily.app.core.export.DocumentText.stem(base)
+            val exporter = com.nomily.app.audio.DocumentExporter
+            buildList {
+                if (summary) add(exporter.writeText(dir, stem, "md", summaryForExport(base) ?: throw missing(R.string.jobs_source_summary)))
+                if (transcript) add(exporter.writeText(dir, stem, "txt", transcriptForExport(base)))
+                if (mindMap) add(writeDocument("png", base, dir))
+            }
+        }
 
     /** The user's speaker names for [base] (`{base}.speakers.json`), empty when none. */
     fun speakerNames(base: String): Map<String, String> = com.nomily.app.core.asr.SpeakerNames.read(library.dir, base)

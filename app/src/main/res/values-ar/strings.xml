@@ -897,4 +897,19 @@
     <string name="llm_test_unreachable">تعذّر الوصول إلى المضيف — تحقق من العنوان أو من اتصال الهاتف بالإنترنت</string>
     <string name="llm_test_unexpected_body">ردّ العنوان لكن ليس برد محادثة — غالباً ليس واجهة API لهذا المزوّد</string>
     <string name="llm_test_http">رفض المزوّد الطلب (HTTP %d)</string>
+    <string name="clip_detail_export_document">تصدير مستند</string>
+    <string name="clip_detail_export_as_txt">تصدير بصيغة TXT</string>
+    <string name="clip_detail_export_as_md">تصدير بصيغة Markdown</string>
+    <string name="clip_detail_export_as_pdf">تصدير بصيغة PDF</string>
+    <string name="clip_detail_export_as_png">تصدير الخريطة الذهنية بصيغة PNG</string>
+    <string name="clip_detail_export_pdf_failed">فشل إنشاء ملف PDF.</string>
+    <string name="clip_detail_email_title">إرسال بالبريد الإلكتروني</string>
+    <string name="clip_detail_email_attach_summary">إرفاق الملخص</string>
+    <string name="clip_detail_email_attach_transcript">إرفاق النص المفرّغ</string>
+    <string name="clip_detail_email_attach_mindmap">إرفاق الخريطة الذهنية (صورة)</string>
+    <string name="clip_detail_email_attach_footer">تُنشأ المرفقات من المحتوى المحفوظ لهذا التسجيل. الخيارات الباهتة ليس لديها ما يُرفق بعد.</string>
+    <string name="clip_detail_email_compose">إنشاء رسالة</string>
+    <string name="clip_detail_email_unavailable">لا يوجد تطبيق بريد إلكتروني متاح على هذا الجهاز.</string>
+    <string name="clip_detail_email_subject">Nomily — %1$s</string>
+    <string name="clip_detail_email_body">مرفقات مُصدَّرة من Nomily.</string>
 </resources>

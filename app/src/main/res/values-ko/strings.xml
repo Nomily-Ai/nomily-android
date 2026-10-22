@@ -897,4 +897,19 @@
     <string name="llm_test_unreachable">이 호스트에 연결할 수 없습니다. 주소를 확인하거나 휴대폰이 온라인인지 확인하세요</string>
     <string name="llm_test_unexpected_body">주소는 응답했지만 채팅 응답이 아닙니다. 이 제공업체의 API가 아닐 가능성이 큽니다</string>
     <string name="llm_test_http">제공업체가 요청을 거부했습니다(HTTP %d)</string>
+    <string name="clip_detail_export_document">문서 내보내기</string>
+    <string name="clip_detail_export_as_txt">TXT로 내보내기</string>
+    <string name="clip_detail_export_as_md">Markdown으로 내보내기</string>
+    <string name="clip_detail_export_as_pdf">PDF로 내보내기</string>
+    <string name="clip_detail_export_as_png">마인드맵을 PNG로 내보내기</string>
+    <string name="clip_detail_export_pdf_failed">PDF 생성에 실패했습니다.</string>
+    <string name="clip_detail_email_title">이메일로 보내기</string>
+    <string name="clip_detail_email_attach_summary">요약 첨부</string>
+    <string name="clip_detail_email_attach_transcript">전사본 첨부</string>
+    <string name="clip_detail_email_attach_mindmap">마인드맵(이미지) 첨부</string>
+    <string name="clip_detail_email_attach_footer">첨부 파일은 이 녹음에 저장된 결과물로 만들어집니다. 회색으로 표시된 항목은 아직 첨부할 내용이 없습니다.</string>
+    <string name="clip_detail_email_compose">메일 작성</string>
+    <string name="clip_detail_email_unavailable">이 기기에 사용할 수 있는 메일 앱이 없습니다.</string>
+    <string name="clip_detail_email_subject">Nomily — %1$s</string>
+    <string name="clip_detail_email_body">Nomily에서 내보낸 첨부 파일입니다.</string>
 </resources>
