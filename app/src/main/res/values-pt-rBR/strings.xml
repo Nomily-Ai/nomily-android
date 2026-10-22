@@ -839,4 +839,18 @@
     <string name="poster_template_minimal">Simples</string>
     <string name="poster_template_midnight">Meia-noite</string>
     <string name="poster_template_business">Negócios</string>
+    <string name="settings_theme">Tema</string>
+    <string name="theme_footer">O tema define a cor principal do app: botões, links, seleção e o estado ativo da pílula de conexão. A tela de abertura mantém o vermelho da marca Nomily, então o vermelho continua sendo o padrão.</string>
+    <string name="theme_crimson">Carmim</string>
+    <string name="theme_crimson_subtitle">O vermelho da marca Nomily</string>
+    <string name="theme_graphite">Grafite</string>
+    <string name="theme_graphite_subtitle">Neutro, sem tom de cor</string>
+    <string name="theme_ocean">Oceano</string>
+    <string name="theme_ocean_subtitle">Frio e discreto</string>
+    <string name="theme_forest">Floresta</string>
+    <string name="theme_forest_subtitle">Um verde sóbrio</string>
+    <string name="theme_violet">Violeta</string>
+    <string name="theme_violet_subtitle">Suave, mas marcante</string>
+    <string name="theme_amber">Âmbar</string>
+    <string name="theme_amber_subtitle">Quente, com pouco brilho</string>
 </resources>

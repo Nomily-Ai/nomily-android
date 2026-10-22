@@ -58,6 +58,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -79,6 +80,9 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.TopAppBar
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.WindowInsets
@@ -144,10 +148,14 @@ const val CLIP_ROW_TAG = "clipRow"
  * off‑centre title — the most noticeable visual flaw this layout can produce.
  *
  * The child page reports itself via `onPush`; on exit it reports `null`; the system back button also follows the same `onBack`.
+ *
+ * [hidesTabBar] removes the bottom tab bar while the page is up (iOS `.toolbar(.hidden, for: .tabBar)`, clip detail only).
+ * The page then reaches the bottom edge and must keep its own last row clear of the navigation bar.
  */
 class PushedPage(
     val title: String,
     val actions: (@Composable androidx.compose.foundation.layout.RowScope.() -> Unit)? = null,
+    val hidesTabBar: Boolean = false,
     val onBack: () -> Unit,
 )
 
@@ -323,7 +331,7 @@ fun NomiApp(vm: NomiViewModel) {
             }
         },
         bottomBar = {
-            NavigationBar(containerColor = bottomBarColor) {
+            if (pushed?.hidesTabBar != true) NavigationBar(containerColor = bottomBarColor) {
                 Tab.entries.forEach { t ->
                     NavigationBarItem(
                         selected = tab == t,
@@ -339,13 +347,27 @@ fun NomiApp(vm: NomiViewModel) {
             }
         },
     ) { inner ->
+        // Without the tab bar the page runs to the bottom edge and pads its own last row (see `PushedPage.hidesTabBar`).
+        val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
+        val contentPadding = if (pushed?.hidesTabBar == true) {
+            PaddingValues(
+                start = inner.calculateStartPadding(layoutDirection),
+                top = inner.calculateTopPadding(),
+                end = inner.calculateEndPadding(layoutDirection),
+            )
+        } else {
+            inner
+        }
         Box(Modifier.fillMaxSize()) {
             Column(
                 Modifier
                     .fillMaxSize()
                     // **Don't add horizontal margins here**: some screens are full-width (the language bar on the Live page and the group cards on the Settings page bring their own),
                     // adding them uniformly would stack with the in-screen 16dp into 32dp — that's how the Template page originally ended up at 32+16.
-                    .padding(inner)
+                    .padding(contentPadding)
+                    // Consumed so the IME padding below only adds what the bars don't already cover: content then ends
+                    // at the keyboard's top edge instead of a tab-bar height above it.
+                    .consumeWindowInsets(contentPadding)
                     .imePadding(),
             ) {
                 when (tab) {

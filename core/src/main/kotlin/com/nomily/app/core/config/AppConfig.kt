@@ -62,6 +62,11 @@ data class AppConfig(
      */
     val appLanguage: String? = null,
     /**
+     * Colour theme tag ([AppTheme.tag]: `crimson` / `graphite` / `ocean` / …), same `app_theme` key as iOS.
+     * `null` = never chosen, rendered as [AppTheme.DEFAULT]; unknown tags resolve the same way (see [AppTheme.resolve]).
+     */
+    val appTheme: String? = null,
+    /**
      * Top‑level keys that are **not modeled** on this side (e.g., `wifi_ap`). Stored and written back unchanged.
      * The approach has been narrowed from “everything unmodeled goes into unknown” to “only truly unmodeled entries go into unknown” —
      * providers are now modeled because the settings UI needs to edit them.
@@ -225,7 +230,7 @@ data class AppConfig(
             "local_vad_enabled", "background_keep_alive_enabled", "auto_reconnect_enabled", "cloud_egress_consented",
             "developer_mode", "min_transcribe_duration", "fast_transfer_threshold_kb",
             "last_source_lang", "last_target_lang", "last_summary_lang", "wifi_ap",
-            "app_language",
+            "app_language", "app_theme",
         )
         private val KNOWN_DEVICE = setOf("name", "last_connected", "bond_id", "device_sid")
         private val KNOWN_ASR = setOf("azure", "local", "custom", "remote_live")
@@ -346,6 +351,7 @@ data class AppConfig(
                 lastTargetLang = str("last_target_lang"),
                 lastSummaryLang = str("last_summary_lang"),
                 appLanguage = str("app_language"),
+                appTheme = str("app_theme"),
                 wifiAp = (root["wifi_ap"] as? Map<*, *>)?.let { w ->
                     val ssid = w["ssid"] as? String ?: ""
                     val psk = w["psk"] as? String ?: ""
@@ -433,6 +439,7 @@ data class AppConfig(
                 // When following the system, **omit this key** (instead of writing null),
         // allowing the file to distinguish between “never set” and “explicitly chosen a language”.
         appLanguage?.let { m["app_language"] = it }
+        appTheme?.let { m["app_theme"] = it }
         wifiAp?.let { m["wifi_ap"] = sortedMapOf("psk" to it.psk, "ssid" to it.ssid) }
         return writeJson(m.toSortedMap())
     }

@@ -839,4 +839,18 @@
     <string name="poster_template_minimal">Минимал</string>
     <string name="poster_template_midnight">Полночь</string>
     <string name="poster_template_business">Деловой</string>
+    <string name="settings_theme">Тема</string>
+    <string name="theme_footer">Тема задаёт основной цвет приложения: кнопки, ссылки, выделение и активное состояние индикатора подключения. Экран запуска остаётся в фирменном красном Nomily, поэтому красный — цвет по умолчанию.</string>
+    <string name="theme_crimson">Багровый</string>
+    <string name="theme_crimson_subtitle">Фирменный красный Nomily</string>
+    <string name="theme_graphite">Графит</string>
+    <string name="theme_graphite_subtitle">Нейтральный, без оттенка</string>
+    <string name="theme_ocean">Океан</string>
+    <string name="theme_ocean_subtitle">Холодный и спокойный</string>
+    <string name="theme_forest">Лес</string>
+    <string name="theme_forest_subtitle">Сдержанный зелёный</string>
+    <string name="theme_violet">Фиолетовый</string>
+    <string name="theme_violet_subtitle">Мягкий, но выразительный</string>
+    <string name="theme_amber">Янтарь</string>
+    <string name="theme_amber_subtitle">Тёплый, не слепит</string>
 </resources>

@@ -839,4 +839,18 @@
     <string name="poster_template_minimal">Épuré</string>
     <string name="poster_template_midnight">Minuit</string>
     <string name="poster_template_business">Affaires</string>
+    <string name="settings_theme">Thème</string>
+    <string name="theme_footer">Le thème définit la couleur principale de l\'app : boutons, liens, sélection et état actif de la pastille de connexion. L\'écran de lancement garde le rouge de la marque Nomily, le rouge reste donc la valeur par défaut.</string>
+    <string name="theme_crimson">Cramoisi</string>
+    <string name="theme_crimson_subtitle">Le rouge de la marque Nomily</string>
+    <string name="theme_graphite">Graphite</string>
+    <string name="theme_graphite_subtitle">Neutre, sans dominante</string>
+    <string name="theme_ocean">Océan</string>
+    <string name="theme_ocean_subtitle">Frais et discret</string>
+    <string name="theme_forest">Forêt</string>
+    <string name="theme_forest_subtitle">Un vert posé</string>
+    <string name="theme_violet">Violet</string>
+    <string name="theme_violet_subtitle">Doux mais affirmé</string>
+    <string name="theme_amber">Ambre</string>
+    <string name="theme_amber_subtitle">Chaud, peu éblouissant</string>
 </resources>

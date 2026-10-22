@@ -839,4 +839,18 @@
     <string name="poster_template_minimal">심플</string>
     <string name="poster_template_midnight">미드나잇</string>
     <string name="poster_template_business">비즈니스</string>
+    <string name="settings_theme">테마</string>
+    <string name="theme_footer">테마는 앱의 메인 색상을 정합니다. 버튼, 링크, 선택 상태, 연결 표시의 활성 색상에 적용됩니다. 시작 화면은 Nomily 브랜드 레드를 유지하므로 기본값은 빨간색입니다.</string>
+    <string name="theme_crimson">크림슨</string>
+    <string name="theme_crimson_subtitle">Nomily 브랜드 레드</string>
+    <string name="theme_graphite">그래파이트</string>
+    <string name="theme_graphite_subtitle">색감 없는 중립 톤</string>
+    <string name="theme_ocean">오션</string>
+    <string name="theme_ocean_subtitle">차분하고 시원한</string>
+    <string name="theme_forest">포레스트</string>
+    <string name="theme_forest_subtitle">안정감 있는 초록</string>
+    <string name="theme_violet">바이올렛</string>
+    <string name="theme_violet_subtitle">부드럽지만 개성 있는</string>
+    <string name="theme_amber">앰버</string>
+    <string name="theme_amber_subtitle">따뜻하고 눈부심이 적은</string>
 </resources>

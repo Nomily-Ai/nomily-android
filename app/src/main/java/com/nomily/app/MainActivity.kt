@@ -17,6 +17,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.res.stringResource
@@ -25,6 +26,8 @@ import androidx.core.content.ContextCompat
 import com.nomily.app.data.AppLocale
 import com.nomily.app.ui.NomiApp
 import com.nomily.app.ui.theme.NomilyTheme
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
 /**
  * Host for the P0 main UI.
@@ -95,7 +98,10 @@ class MainActivity : ComponentActivity() {
         }
         requestBlePermissions()
         setContent {
-            NomilyTheme {
+            // Only the theme tag, so other config edits don't recompose the whole tree from here.
+            val themeTag by remember { vm.config.map { it.appTheme }.distinctUntilChanged() }
+                .collectAsStateWithLifecycle(vm.config.value.appTheme)
+            NomilyTheme(themeTag = themeTag) {
                 val actionPermission by vm.permissionRequest.collectAsStateWithLifecycle()
                 LaunchedEffect(actionPermission) {
                     actionPermission?.let { request ->

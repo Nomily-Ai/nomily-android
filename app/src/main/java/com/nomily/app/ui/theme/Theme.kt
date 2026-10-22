@@ -5,13 +5,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import com.nomily.app.core.config.AppTheme
 
 // Neutral gray-white background; group cards use a gray one shade lighter/darker than the background.
-// The accent color is the brand red #E41D25 (not the default blue #007AFF).
-// The dark variant is the lighter #FF6669 so accent text and icons stay readable on #1C1C1E.
-private val AppAccent = Color(0xFFE41D25)
-private val AppAccentDark = Color(0xFFFF6669)
+// The accent color comes from the user's theme ([AppTheme], default brand red #E41D25, not the default blue #007AFF).
+// Each theme has a lighter dark-mode variant so accent text and icons stay readable on #1C1C1E.
 /** The switch color is fixed to this green, independent of the accent color; Material defaults to using primary, so it must be explicitly overridden. */
 val AppSwitchGreen = Color(0xFF34C759)
 private val AppGroupedBg = Color(0xFFF2F2F7)     // Group page background
@@ -30,10 +30,18 @@ private val AppSeparatorDark = Color(0xFF38383A)
 val AppFillTertiary = Color(0xFFE5E5EA)
 val AppFillTertiaryDark = Color(0xFF2C2C2E)
 
-private val DarkColorScheme = darkColorScheme(
-    primary = AppAccentDark,
-    onPrimary = Color.White,
-    secondary = AppAccentDark,
+private fun rgb(value: Int) = Color(0xFF000000 or value.toLong())
+
+/** The theme's accent as a Compose colour — for previews of a theme other than the active one (the active one is `colorScheme.primary`). */
+fun AppTheme.accentColor(dark: Boolean): Color = rgb(accent(dark))
+
+/** Darker companion of [accentColor], for gradients only (contrast for text is not guaranteed). */
+fun AppTheme.deepColor(dark: Boolean): Color = rgb(deep(dark))
+
+private fun darkScheme(theme: AppTheme) = darkColorScheme(
+    primary = rgb(theme.accentDark),
+    onPrimary = if (theme.onAccentIsDark(dark = true)) Color.Black else Color.White,
+    secondary = rgb(theme.accentDark),
     background = AppGroupedBgDark,
     onBackground = AppLabelDark,
     surface = AppCardDark,
@@ -51,10 +59,10 @@ private val DarkColorScheme = darkColorScheme(
     onSecondaryContainer = Color(0xFFF2F2F7),
 )
 
-private val LightColorScheme = lightColorScheme(
-    primary = AppAccent,
-    onPrimary = Color.White,
-    secondary = AppAccent,
+private fun lightScheme(theme: AppTheme) = lightColorScheme(
+    primary = rgb(theme.accentLight),
+    onPrimary = if (theme.onAccentIsDark(dark = false)) Color.Black else Color.White,
+    secondary = rgb(theme.accentLight),
     background = AppGroupedBg,
     onBackground = AppLabel,
     surface = AppCard,
@@ -76,15 +84,17 @@ private val LightColorScheme = lightColorScheme(
 
 /**
  * ⚠️ **Do not use Material You dynamic color**: Dynamic color adapts to the user's wallpaper (on test devices, the entire UI appeared pink),
- * so a fixed neutral color scheme is used. A `dynamicColor` toggle was previously left in place,
+ * so a fixed neutral color scheme is used; only the accent follows the user's [AppTheme] ([themeTag] = `config.json` `app_theme`). A `dynamicColor` toggle was previously left in place,
  * but no callers ever enabled it, so it has been removed.
  */
 @Composable
 fun NomilyTheme(
+    themeTag: String? = null,
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val theme = AppTheme.resolve(themeTag)
+    val colorScheme = remember(theme, darkTheme) { if (darkTheme) darkScheme(theme) else lightScheme(theme) }
 
     MaterialTheme(
         colorScheme = colorScheme,

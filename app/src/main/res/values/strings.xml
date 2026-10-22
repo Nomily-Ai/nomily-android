@@ -878,4 +878,68 @@
     <string name="poster_template_minimal">Minimal</string>
     <string name="poster_template_midnight">Midnight</string>
     <string name="poster_template_business">Business</string>
+    <string name="settings_theme">Theme</string>
+    <string name="theme_footer">The theme controls the app\'s main colour — buttons, links, selection and the active state of the connection pill. The launch screen keeps Nomily\'s brand red, so red stays the default.</string>
+    <string name="theme_crimson">Crimson</string>
+    <string name="theme_crimson_subtitle">Nomily\'s brand red</string>
+    <string name="theme_graphite">Graphite</string>
+    <string name="theme_graphite_subtitle">Neutral, no colour cast</string>
+    <string name="theme_ocean">Ocean</string>
+    <string name="theme_ocean_subtitle">Cool and quiet</string>
+    <string name="theme_forest">Forest</string>
+    <string name="theme_forest_subtitle">Grounded green</string>
+    <string name="theme_violet">Violet</string>
+    <string name="theme_violet_subtitle">Soft but distinctive</string>
+    <string name="theme_amber">Amber</string>
+    <string name="theme_amber_subtitle">Warm, low glare</string>
+    <!-- Vobot library prompts: empty here on purpose. Only languages with a translation (zh-rCN) override them; empty falls back to the template's English prompt in code (localizedTemplatePrompt). -->
+    <string name="template_prompt_detailed_summary" formatted="false"></string>
+    <string name="template_prompt_meeting_report" formatted="false"></string>
+    <string name="template_prompt_key_points_decisions_tasks_deadlines_and_actions" formatted="false"></string>
+    <string name="template_prompt_meeting_minutes" formatted="false"></string>
+    <string name="template_prompt_lecture_summary" formatted="false"></string>
+    <string name="template_prompt_keynote_speech_summary" formatted="false"></string>
+    <string name="template_prompt_training_overview" formatted="false"></string>
+    <string name="template_prompt_phone_discussion_notes" formatted="false"></string>
+    <string name="template_prompt_manager_employee_1_1_meeting" formatted="false"></string>
+    <string name="template_prompt_customer_call_summary_analysis" formatted="false"></string>
+    <string name="template_prompt_business_call" formatted="false"></string>
+    <string name="template_prompt_interview_notes" formatted="false"></string>
+    <string name="template_prompt_panel_discussion" formatted="false"></string>
+    <string name="template_prompt_case_record" formatted="false"></string>
+    <string name="template_prompt_psychotherapy_session_record" formatted="false"></string>
+    <string name="template_prompt_medical_consultation" formatted="false"></string>
+    <string name="template_prompt_bant_customer_analysis" formatted="false"></string>
+    <string name="template_prompt_sales_call_customer_outreach" formatted="false"></string>
+    <string name="template_prompt_sales_discovery_call" formatted="false"></string>
+    <string name="template_prompt_client_needs" formatted="false"></string>
+    <string name="template_prompt_discussion_with_expert" formatted="false"></string>
+    <string name="template_prompt_senior_management_consultant" formatted="false"></string>
+    <string name="template_prompt_university_lecture" formatted="false"></string>
+    <string name="template_prompt_university_course_compilation" formatted="false"></string>
+    <string name="template_prompt_seminar_lecture_detailed_summary_and_notes" formatted="false"></string>
+    <string name="template_prompt_acceptance_checklist" formatted="false"></string>
+    <string name="template_prompt_engineering_project_meeting_minutes" formatted="false"></string>
+    <string name="template_prompt_site_inspection" formatted="false"></string>
+    <string name="template_prompt_multi_participant_project_team_meeting" formatted="false"></string>
+    <string name="template_prompt_it_knowledge_transfer_meeting" formatted="false"></string>
+    <string name="template_prompt_troubleshooting_summary" formatted="false"></string>
+    <string name="template_prompt_court_stenographer" formatted="false"></string>
+    <string name="template_prompt_meeting_secretary_legal" formatted="false"></string>
+    <string name="template_prompt_client_consultation" formatted="false"></string>
+    <string name="template_prompt_owners_committee_general_meeting" formatted="false"></string>
+    <string name="template_prompt_business_meeting_real_estate_project_template" formatted="false"></string>
+    <string name="template_prompt_real_estate_property_acquisition" formatted="false"></string>
+    <string name="template_prompt_client_review_summary" formatted="false"></string>
+    <string name="template_prompt_investment_consultation" formatted="false"></string>
+    <string name="template_prompt_stock_market_discussion" formatted="false"></string>
+    <string name="template_prompt_listed_company_research" formatted="false"></string>
+    <string name="template_prompt_from_chaos_to_clarity_tagged_daily_review" formatted="false"></string>
+    <string name="template_prompt_daily_log" formatted="false"></string>
+    <string name="template_prompt_key_data_points" formatted="false"></string>
+    <string name="template_prompt_meeting_highlights" formatted="false"></string>
+    <string name="template_prompt_work_report_summary" formatted="false"></string>
+    <string name="template_prompt_email_thread_summary" formatted="false"></string>
+    <string name="template_prompt_long_article_to_slide_deck_outline" formatted="false"></string>
+    <string name="template_prompt_turning_scattered_notes_into_a_to_do_list" formatted="false"></string>
 </resources>

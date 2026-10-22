@@ -91,6 +91,11 @@ import com.nomily.app.ui.theme.appSwitchColors
 import com.nomily.app.core.clips.ClipArtefact
 import com.nomily.app.core.config.AppConfig
 import com.nomily.app.core.config.AppLanguages
+import com.nomily.app.core.config.AppTheme
+import com.nomily.app.ui.theme.accentColor
+import com.nomily.app.ui.theme.deepColor
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import com.nomily.app.data.AppLocale
 
 /**
@@ -201,6 +206,7 @@ fun SettingsScreen(vm: NomiViewModel, onPush: (PushedPage?) -> Unit) {
                     WifiApSection(cfg, vm)
                 }
                 SettingsPage.Language -> LanguageSection(cfg, vm)
+                SettingsPage.Theme -> ThemeSection(cfg, vm)
                 SettingsPage.DevicesLibrary -> {
                     DevicesSection(cfg, vm)
                     KnownDevicesSection(cfg, vm)
@@ -258,6 +264,20 @@ fun SettingsScreen(vm: NomiViewModel, onPush: (PushedPage?) -> Unit) {
                     ?.let { AppLanguages.autonymOf(AppLanguages.resolve(it)) }
                     ?: stringResource(R.string.language_follow_system),
             ) { page = SettingsPage.Language }
+            RowDivider()
+            // Theme sits next to Language: both are "how the app looks and speaks". The leading dot is the
+            // active accent, so the row answers "which one am I on" without being opened.
+            val theme = AppTheme.resolve(cfg.appTheme)
+            NavRow(
+                stringResource(SettingsPage.Theme.titleRes),
+                value = stringResource(theme.titleRes),
+                leading = {
+                    Box(
+                        Modifier.padding(end = 10.dp).size(12.dp)
+                            .background(MaterialTheme.colorScheme.primary, androidx.compose.foundation.shape.CircleShape),
+                    )
+                },
+            ) { page = SettingsPage.Theme }
         }
         AboutSection(cfg, vm)
     }
@@ -270,15 +290,22 @@ private enum class SettingsPage(val titleRes: Int) {
     Recordings(R.string.settings_recordings),
     DevicesLibrary(R.string.settings_devices_library),
     Language(R.string.settings_language),
+    Theme(R.string.settings_theme),
 }
 
 /** Navigation row with an arrow. [value] is the current value displayed on the right. */
 @Composable
-private fun NavRow(title: String, value: String? = null, onClick: () -> Unit) {
+private fun NavRow(
+    title: String,
+    value: String? = null,
+    leading: (@Composable () -> Unit)? = null,
+    onClick: () -> Unit,
+) {
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).heightIn(min = NomiDimens.rowMinHeight).padding(horizontal = NomiDimens.rowInset),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        leading?.invoke()
         Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
         value?.let {
             Text(
@@ -1512,6 +1539,83 @@ private fun LanguageRow(
         }
     }
     if (divider) RowDivider()
+}
+
+/** Display name / one-line description of each theme; strings `theme_<tag>` and `theme_<tag>_subtitle` like iOS. */
+private val AppTheme.titleRes: Int
+    get() = when (this) {
+        AppTheme.CRIMSON -> R.string.theme_crimson
+        AppTheme.GRAPHITE -> R.string.theme_graphite
+        AppTheme.OCEAN -> R.string.theme_ocean
+        AppTheme.FOREST -> R.string.theme_forest
+        AppTheme.VIOLET -> R.string.theme_violet
+        AppTheme.AMBER -> R.string.theme_amber
+    }
+
+private val AppTheme.subtitleRes: Int
+    get() = when (this) {
+        AppTheme.CRIMSON -> R.string.theme_crimson_subtitle
+        AppTheme.GRAPHITE -> R.string.theme_graphite_subtitle
+        AppTheme.OCEAN -> R.string.theme_ocean_subtitle
+        AppTheme.FOREST -> R.string.theme_forest_subtitle
+        AppTheme.VIOLET -> R.string.theme_violet_subtitle
+        AppTheme.AMBER -> R.string.theme_amber_subtitle
+    }
+
+/**
+ * Colour theme picker (iOS ThemePickerView). Each row paints its own swatch — a gradient circle with a
+ * small control mock — so the choice is made by looking. Picking writes `config.json` at once and the
+ * root [com.nomily.app.ui.theme.NomilyTheme] repaints without a relaunch.
+ */
+@Composable
+private fun ThemeSection(cfg: AppConfig, vm: NomiViewModel) {
+    val current = AppTheme.resolve(cfg.appTheme)
+    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    Group("", footer = stringResource(R.string.theme_footer)) {
+        AppTheme.entries.forEachIndexed { i, theme ->
+            Row(
+                Modifier.fillMaxWidth()
+                    .clickable { if (theme != current) vm.setAppTheme(theme.tag) }
+                    .heightIn(min = NomiDimens.rowMinHeight)
+                    .padding(horizontal = NomiDimens.rowInset, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    Modifier.size(34.dp)
+                        .background(
+                            androidx.compose.ui.graphics.Brush.linearGradient(
+                                listOf(theme.accentColor(dark), theme.deepColor(dark)),
+                            ),
+                            androidx.compose.foundation.shape.CircleShape,
+                        )
+                        .border(0.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f), androidx.compose.foundation.shape.CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        Modifier.width(16.dp).height(6.dp)
+                            .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.92f), RoundedCornerShape(50)),
+                    )
+                }
+                Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                    Text(stringResource(theme.titleRes), style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        stringResource(theme.subtitleRes),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (theme == current) {
+                    Icon(
+                        Icons.Filled.Check,
+                        contentDescription = null,
+                        tint = theme.accentColor(dark),
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+            if (i != AppTheme.entries.lastIndex) RowDivider()
+        }
+    }
 }
 
 @Composable

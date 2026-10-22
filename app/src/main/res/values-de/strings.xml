@@ -839,4 +839,18 @@
     <string name="poster_template_minimal">Schlicht</string>
     <string name="poster_template_midnight">Mitternacht</string>
     <string name="poster_template_business">Business</string>
+    <string name="settings_theme">Design</string>
+    <string name="theme_footer">Das Design bestimmt die Hauptfarbe der App – Schaltflächen, Links, Auswahl und den aktiven Zustand der Verbindungsanzeige. Der Startbildschirm bleibt im Nomily-Markenrot, daher ist Rot der Standard.</string>
+    <string name="theme_crimson">Karmesin</string>
+    <string name="theme_crimson_subtitle">Nomilys Markenrot</string>
+    <string name="theme_graphite">Graphit</string>
+    <string name="theme_graphite_subtitle">Neutral, ohne Farbstich</string>
+    <string name="theme_ocean">Ozean</string>
+    <string name="theme_ocean_subtitle">Kühl und ruhig</string>
+    <string name="theme_forest">Wald</string>
+    <string name="theme_forest_subtitle">Erdiges Grün</string>
+    <string name="theme_violet">Violett</string>
+    <string name="theme_violet_subtitle">Sanft, aber markant</string>
+    <string name="theme_amber">Bernstein</string>
+    <string name="theme_amber_subtitle">Warm, blendarm</string>
 </resources>

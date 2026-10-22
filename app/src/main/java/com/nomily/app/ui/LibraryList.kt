@@ -522,7 +522,7 @@ private fun SearchField(query: String, onQuery: (String) -> Unit, enabled: Boole
 /** One filter pill: solid accent when selected, light grey otherwise; the count is a small tag inside. */
 @Composable
 private fun FilterChip(title: String, count: Int, selected: Boolean, onClick: () -> Unit) {
-    val fg = if (selected) Color.White else MaterialTheme.colorScheme.onSurface
+    val fg = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
     Row(
         Modifier
             .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface, RoundedCornerShape(50))
@@ -544,7 +544,7 @@ private fun FilterChip(title: String, count: Int, selected: Boolean, onClick: ()
             fontWeight = FontWeight.SemiBold,
             color = fg,
             modifier = Modifier.padding(start = 6.dp)
-                .background(if (selected) Color.White.copy(alpha = 0.28f) else fg.copy(alpha = 0.08f), RoundedCornerShape(50))
+                .background(if (selected) fg.copy(alpha = 0.28f) else fg.copy(alpha = 0.08f), RoundedCornerShape(50))
                 .padding(horizontal = 5.dp, vertical = 1.dp),
         )
     }

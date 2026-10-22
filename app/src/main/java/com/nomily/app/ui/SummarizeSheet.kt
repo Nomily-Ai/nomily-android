@@ -393,7 +393,7 @@ fun TemplateGrid(
                     label,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = if (on) androidx.compose.ui.text.font.FontWeight.SemiBold else null,
-                    color = if (on) Color.White else MaterialTheme.colorScheme.onSurface,
+                    color = if (on) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
                         .background(if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface, RoundedCornerShape(50))
                         .clickable { filter = value }

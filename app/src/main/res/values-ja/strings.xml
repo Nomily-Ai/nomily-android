@@ -839,4 +839,18 @@
     <string name="poster_template_minimal">シンプル</string>
     <string name="poster_template_midnight">ミッドナイト</string>
     <string name="poster_template_business">ビジネス</string>
+    <string name="settings_theme">テーマ</string>
+    <string name="theme_footer">テーマはアプリのメインカラーを決めます。ボタン、リンク、選択状態、接続ピルのアクティブ表示に反映されます。起動画面は Nomily のブランドレッドのままなので、既定は赤です。</string>
+    <string name="theme_crimson">クリムゾン</string>
+    <string name="theme_crimson_subtitle">Nomily のブランドレッド</string>
+    <string name="theme_graphite">グラファイト</string>
+    <string name="theme_graphite_subtitle">色味のないニュートラル</string>
+    <string name="theme_ocean">オーシャン</string>
+    <string name="theme_ocean_subtitle">落ち着いたクールな青</string>
+    <string name="theme_forest">フォレスト</string>
+    <string name="theme_forest_subtitle">落ち着いた緑</string>
+    <string name="theme_violet">バイオレット</string>
+    <string name="theme_violet_subtitle">やわらかく個性的</string>
+    <string name="theme_amber">アンバー</string>
+    <string name="theme_amber_subtitle">暖かく、まぶしさ控えめ</string>
 </resources>

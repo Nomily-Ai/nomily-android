@@ -173,6 +173,8 @@ fun ClipDetail(
                         onDelete = { pendingDelete = it },
                     )
                 },
+                // As on iOS the detail page drops the tab bar; the Q&A bar then sits on the bottom edge.
+                hidesTabBar = true,
                 onBack = onDismiss,
             )
         )
@@ -224,8 +226,9 @@ fun ClipDetail(
                 if (clip.hasAudio) ExportStatusSection(clip, vm, shareWhenReady) { shareWhenReady = false }
                 Spacer(Modifier.padding(bottom = 24.dp))
             }
-            // Answers scroll, the question box does not.
-            if (qaContext != null) AiChatInputBar(chat, vm, qaContext)
+            // Answers scroll, the question box does not. With the tab bar hidden this page owns the bottom
+            // edge, so the last row clears the navigation bar itself (the shell's IME padding consumes it while typing).
+            if (qaContext != null) AiChatInputBar(chat, vm, qaContext) else Spacer(Modifier.navigationBarsPadding())
         }
 
         // The detail page covers the error card on the main screen — if it were not shown here too,
@@ -775,7 +778,7 @@ private fun AiChatInputBar(chat: ClipChat, vm: NomiViewModel, material: String) 
     }
     Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {

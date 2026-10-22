@@ -738,6 +738,12 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Change the colour theme ([AppTheme] tag). Written through at once like iOS `applyTheme`: one tap repaints the whole app. */
+    fun setAppTheme(tag: String) {
+        configStore.update { it.copy(appTheme = tag) }
+        viewModelScope.launch { configStore.saveNow() }
+    }
+
     // ── Scan ──────────────────────────────────────────────────────────
 
     fun startScan() {

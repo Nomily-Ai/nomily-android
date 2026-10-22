@@ -839,4 +839,18 @@
     <string name="poster_template_minimal">بسيط</string>
     <string name="poster_template_midnight">منتصف الليل</string>
     <string name="poster_template_business">أعمال</string>
+    <string name="settings_theme">السمة</string>
+    <string name="theme_footer">تحدد السمة اللون الرئيسي للتطبيق: الأزرار والروابط والتحديد والحالة النشطة لمؤشر الاتصال. تحتفظ شاشة البدء بأحمر علامة Nomily، لذا يبقى الأحمر هو الافتراضي.</string>
+    <string name="theme_crimson">قرمزي</string>
+    <string name="theme_crimson_subtitle">أحمر علامة Nomily</string>
+    <string name="theme_graphite">جرافيت</string>
+    <string name="theme_graphite_subtitle">محايد بلا صبغة لونية</string>
+    <string name="theme_ocean">المحيط</string>
+    <string name="theme_ocean_subtitle">هادئ وبارد</string>
+    <string name="theme_forest">الغابة</string>
+    <string name="theme_forest_subtitle">أخضر رصين</string>
+    <string name="theme_violet">بنفسجي</string>
+    <string name="theme_violet_subtitle">ناعم لكن مميز</string>
+    <string name="theme_amber">كهرماني</string>
+    <string name="theme_amber_subtitle">دافئ وقليل الوهج</string>
 </resources>
