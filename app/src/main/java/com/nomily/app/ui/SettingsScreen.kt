@@ -68,6 +68,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -112,10 +113,10 @@ fun SettingsScreen(vm: NomiViewModel, onPush: (PushedPage?) -> Unit) {
     // so this no longer includes its own title row or Close button.
     // The root settings page **is not a long form**, but a menu: 5 arrowed entries + "About".
     // Each entry pushes a subpage.
-    var page by remember { mutableStateOf<SettingsPage?>(null) }
-    var showTemplates by remember { mutableStateOf(false) }
-    var showTrash by remember { mutableStateOf(false) }
-    var showTasks by remember { mutableStateOf(false) }
+    var page by rememberSaveable { mutableStateOf<SettingsPage?>(null) }
+    var showTemplates by rememberSaveable { mutableStateOf(false) }
+    var showTrash by rememberSaveable { mutableStateOf(false) }
+    var showTasks by rememberSaveable { mutableStateOf(false) }
     val jobs by vm.jobs.jobs.collectAsStateWithLifecycle()
     val trashItems by vm.library.trashItems.collectAsStateWithLifecycle()
 

@@ -2,8 +2,8 @@ package com.nomily.app.core.text
 
 /**
  * One drawable block of the summary poster body, mirroring iOS `PosterBlock`. Markdown structure is
- * flattened: headings keep their section role, list items become bullets, and a summary without any
- * structure falls back to plain paragraphs.
+ * flattened: headings keep their section role, list items become bullets, prose under a heading stays a
+ * paragraph, and a summary without any structure falls back to plain paragraphs.
  */
 sealed interface PosterBlock {
     val text: String
@@ -34,8 +34,13 @@ object SummaryPosterContent {
                 for (child in section.children) {
                     if (bulletsTotal >= MAX_BULLETS_TOTAL) break
                     if (child.kind == OutlineNode.Kind.HEADING) continue
-                    val text = truncate(child.title, MAX_BULLET_CHARACTERS)
-                    out += PosterBlock.Bullet(if (child.kind == OutlineNode.Kind.TASK) "☐ $text" else text)
+                    out += when (child.kind) {
+                        // Prose under a heading stays prose: a bullet would read as a list item that isn't there.
+                        OutlineNode.Kind.TEXT, OutlineNode.Kind.QUOTE ->
+                            PosterBlock.Paragraph(truncate(child.title, MAX_PARAGRAPH_CHARACTERS))
+                        OutlineNode.Kind.TASK -> PosterBlock.Bullet("☐ " + truncate(child.title, MAX_BULLET_CHARACTERS))
+                        else -> PosterBlock.Bullet(truncate(child.title, MAX_BULLET_CHARACTERS))
+                    }
                     bulletsTotal++
                     bulletsInSection++
                     if (bulletsInSection >= MAX_BULLETS_PER_SECTION) break

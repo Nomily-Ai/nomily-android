@@ -79,6 +79,20 @@ class MarkdownBlocksTest {
     }
 
     @Test
+    fun posterKeepsProseUnderHeadingAsParagraph() {
+        val blocks = SummaryPosterContent.blocks("# 会议纪要\n## 概要\n本次会议确定了发布计划。\n## 决定\n- 周五上线")
+        assertEquals(
+            listOf(
+                PosterBlock.Heading("概要"),
+                PosterBlock.Paragraph("本次会议确定了发布计划。"),
+                PosterBlock.Heading("决定"),
+                PosterBlock.Bullet("周五上线"),
+            ),
+            blocks,
+        )
+    }
+
+    @Test
     fun posterFallsBackToProse() {
         val blocks = SummaryPosterContent.blocks("Just one **paragraph** of prose.")
         assertEquals(listOf<PosterBlock>(PosterBlock.Paragraph("Just one paragraph of prose.")), blocks)

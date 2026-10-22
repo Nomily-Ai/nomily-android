@@ -763,7 +763,7 @@
     <string name="clip_detail_export_ready">Exported — tap to share</string>
     <string name="clip_detail_export_ready_files">%d file(s)</string>
     <string name="clip_detail_clear_export_staging">Delete exported files</string>
-    <string name="summarize_template_count">%d templates</string>
+    <string name="summarize_template_count">%d Vorlagen</string>
     <string name="summarize_custom_badge">Mine</string>
     <string name="summarize_built_in_badge">Built-in</string>
     <string name="summarize_template_about">What it produces</string>

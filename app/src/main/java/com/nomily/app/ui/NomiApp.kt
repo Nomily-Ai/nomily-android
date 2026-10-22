@@ -180,7 +180,7 @@ private enum class Tab(val titleRes: Int, val icon: ImageVector) {
 fun NomiApp(vm: NomiViewModel) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val cfg by vm.config.collectAsStateWithLifecycle()
-    var tab by remember { mutableStateOf(Tab.Recordings) }
+    var tab by rememberSaveable { mutableStateOf(Tab.Recordings) }
     var showScanner by remember { mutableStateOf(false) }
     var showDevicePanel by remember { mutableStateOf(false) }
     var pendingRemoval by remember { mutableStateOf<KnownDevice?>(null) }
@@ -188,7 +188,7 @@ fun NomiApp(vm: NomiViewModel) {
     var pushed by remember { mutableStateOf<PushedPage?>(null) }
     // The recording tab's sections (Device / Library) — **the action button at the top right of the navigation bar changes with it** (the Device section is 「Refresh」、
     //     // the Library section is 「Import Audio」), so the state must be placed where the navigation bar can see it.
-    var segment by remember { mutableStateOf(Segment.Device) }
+    var segment by rememberSaveable { mutableStateOf(Segment.Device) }
     // A finished transfer asks for the library (RecordingsTab then opens the clip, when one is named).
     LaunchedEffect(ui.showInLibrary) {
         val target = ui.showInLibrary ?: return@LaunchedEffect
@@ -593,7 +593,7 @@ private fun RecordingsTab(
 ) {
     // The detail page is a **pushed page**: it covers the entire content area (even the segmented control is hidden).
     // So this state lives at the tab level, rather than being stuffed into the library list.
-    var openBase by remember { mutableStateOf<String?>(null) }
+    var openBase by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(ui.showInLibrary, ui.clips) {
         val base = ui.showInLibrary?.takeIf { it.isNotEmpty() } ?: return@LaunchedEffect
         // Wait for the rescan that picks up the new clip before opening it.
