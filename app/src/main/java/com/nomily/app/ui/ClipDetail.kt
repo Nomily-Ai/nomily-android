@@ -307,8 +307,7 @@ private fun TranscriptSections(clip: LocalClip, ui: NomiViewModel.Ui, vm: NomiVi
     var chooseMode by remember { mutableStateOf(false) }
     var showLocales by remember { mutableStateOf(false) }
     var noAsr by remember { mutableStateOf(false) }
-    val hasAsr = cfgNow.asrProviders.azure?.key?.isNotEmpty() == true ||
-        cfgNow.asrProviders.local?.host?.isNotEmpty() == true
+    val hasAsr = cfgNow.asrProviders.hasConfiguredProvider
     val hasLlm = cfgNow.llmProviders.configuredProviders.isNotEmpty()
 
     Group(

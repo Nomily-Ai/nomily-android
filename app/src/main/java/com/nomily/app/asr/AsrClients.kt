@@ -4,6 +4,7 @@ import android.util.Log
 import com.nomily.app.R
 import com.nomily.app.core.asr.AsrEmptyException
 import com.nomily.app.core.asr.AsrResult
+import com.nomily.app.core.asr.CustomAsrEndpoint
 import com.nomily.app.core.asr.parseAzureResponse
 import com.nomily.app.core.asr.parseLocalResponse
 import java.io.File
@@ -142,7 +143,7 @@ class LocalAsr(private val host: String, private val port: Int) {
         }
 
         /** Audio length for the timeout only; null when it can't be read (falls back to the 600 s floor). */
-        private fun probeDurationSec(file: File): Double? = runCatching {
+        internal fun probeDurationSec(file: File): Double? = runCatching {
             if (file.extension.lowercase() in setOf("ogg", "opus")) {
                 // Ogg-Opus keeps the duration in the last page's granule position: the file tail is enough.
                 val tail = file.inputStream().use { input ->
@@ -201,5 +202,80 @@ class LocalAsr(private val host: String, private val port: Int) {
         } finally {
             conn.disconnect()
         }
+    }
+}
+
+/**
+ * User-defined server speaking the **OpenAI-compatible** `POST /v1/audio/transcriptions` (self-hosted whisper
+ * servers, Groq, SiliconFlow…), mirroring iOS `CustomASR`. Multipart: `model`, `response_format=verbose_json`,
+ * optional `language`, `file`. File transcription only.
+ *
+ * @param apiKey Sent as `Authorization: Bearer`; empty = no header (most self-hosted servers).
+ * @param language ISO-639-1 hint; empty = the first requested locale, else server-side detection.
+ */
+class CustomAsr(
+    private val endpoint: String,
+    private val apiKey: String,
+    model: String,
+    private val language: String,
+    private val locales: List<String>? = null,
+) {
+    private val model = model.ifBlank { CustomAsrEndpoint.DEFAULT_MODEL }
+
+    fun transcribe(file: File): AsrResult {
+        val url = CustomAsrEndpoint.transcriptionsUrl(endpoint)
+            ?: throw AsrException("Custom server (invalid endpoint)")
+        val hint = if (language.isBlank()) locales?.firstOrNull()?.let(CustomAsrEndpoint::shortCode) else CustomAsrEndpoint.shortCode(language)
+        val boundary = "nomily-asr-${UUID.randomUUID()}"
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            doOutput = true
+            connectTimeout = 30_000
+            readTimeout = LocalAsr.uploadTimeoutMs(LocalAsr.probeDurationSec(file))
+            setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
+            if (apiKey.isNotEmpty()) setRequestProperty("Authorization", "Bearer $apiKey")
+        }
+        Log.i(TAG, "custom transcribe start file=${file.name} host=${URL(url).host} model=$model hint=${hint ?: "-"}")
+        try {
+            conn.outputStream.buffered().use { out ->
+                fun w(s: String) = out.write(s.toByteArray(Charsets.UTF_8))
+                fun field(name: String, value: String) {
+                    w("--$boundary\r\nContent-Disposition: form-data; name=\"$name\"\r\n\r\n$value\r\n")
+                }
+                field("model", model)
+                field("response_format", "verbose_json")
+                hint?.let { field("language", it) }
+                w("--$boundary\r\n")
+                w("Content-Disposition: form-data; name=\"file\"; filename=\"${file.name}\"\r\n")
+                w("Content-Type: ${contentTypeFor(file)}\r\n\r\n")
+                file.inputStream().use { it.copyTo(out) }
+                w("\r\n--$boundary--\r\n")
+            }
+            val status = conn.responseCode
+            val body = (if (status in 200..299) conn.inputStream else conn.errorStream)
+                ?.bufferedReader()?.use { it.readText() } ?: ""
+            if (status !in 200..299) {
+                throw AsrException("Custom server returned HTTP $status: ${body.take(200)}", status = status)
+            }
+            val result = CustomAsrEndpoint.parseTranscription(body, "custom", hint ?: "auto")
+            Log.i(TAG, "custom transcribe done segments=${result.segments.size} chars=${result.text.length}")
+            return result
+        } catch (e: AsrException) {
+            throw e
+        } catch (e: AsrEmptyException) {
+            throw emptyTranscript(e)
+        } catch (e: Exception) {
+            throw AsrException(e.message ?: e.javaClass.simpleName, cause = e)
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    /** The orchestrator may hand over an m4a after a format rejection, so the part type follows the file. */
+    private fun contentTypeFor(file: File): String = when (file.extension.lowercase()) {
+        "wav" -> "audio/wav"
+        "m4a", "mp4" -> "audio/mp4"
+        "mp3" -> "audio/mpeg"
+        else -> "audio/ogg"
     }
 }

@@ -64,17 +64,21 @@ class SecretStore(context: Context) {
         }
     }
 
-    /** Store a credential; an empty string equals deletion (clearing the field in settings means “no longer use this provider”). */
-    fun put(name: String, value: String?) {
+    /**
+     * Store a credential; an empty string equals deletion (clearing the field in settings means “no longer use this provider”).
+     * Returns false when the value could not be stored, so the caller keeps its own copy instead of losing the key.
+     */
+    fun put(name: String, value: String?): Boolean {
         if (value.isNullOrEmpty()) {
             prefs.edit().remove(name).apply()
-            return
+            return true
         }
-        try {
+        return try {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.ENCRYPT_MODE, existingSecret() ?: createSecret())
             val blob = cipher.iv + cipher.doFinal(value.toByteArray(Charsets.UTF_8))
             prefs.edit().putString(name, Base64.encodeToString(blob, Base64.NO_WRAP)).apply()
+            true
         } catch (e: java.security.InvalidKeyException) {
             // Wrapping key invalidated (device change / factory reset leaves alias): recreate once before writing
             Log.w(TAG, "Wrapped key is unavailable (${e::class.simpleName}), retry after rebuilding")
@@ -84,9 +88,10 @@ class SecretStore(context: Context) {
                 cipher.init(Cipher.ENCRYPT_MODE, createSecret())
                 val blob = cipher.iv + cipher.doFinal(value.toByteArray(Charsets.UTF_8))
                 prefs.edit().putString(name, Base64.encodeToString(blob, Base64.NO_WRAP)).apply()
-            }.onFailure { Log.e(TAG, "$name failed to save: ${it.message}") }
+            }.onFailure { Log.e(TAG, "$name failed to save: ${it.message}") }.isSuccess
         } catch (e: Exception) {
             Log.e(TAG, "$name failed to save: ${e.message}")
+            false
         }
     }
 

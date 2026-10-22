@@ -7,6 +7,7 @@ import com.nomily.app.core.audio.OPUS_SAMPLES_PER_FRAME
 import com.nomily.app.core.audio.DNOTE_OGG_SERIAL
 import com.nomily.app.core.audio.oggAudioPage
 import com.nomily.app.core.audio.oggHeaders
+import com.nomily.app.core.asr.RemoteLiveEndpoint
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -23,7 +24,7 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 /**
- * Two WebSocket clients for real‑time transcription.
+ * WebSocket clients for real‑time transcription.
  *
  * Common interface: `connect()` opens the connection and emits events to [onEvent], `send()` streams raw OPUS frames, `close()` finalizes.
  * Three event types: `Partial` (interim result, overwrites the current line) / `Final` (server‑finalized segment) / `Closed`.
@@ -272,6 +273,128 @@ class LocalLiveAsr(private val host: String, private val port: Int) : LiveAsr {
         closed = true
         onEvent?.invoke(LiveAsrEvent.Closed(error))
         onEvent = null
+    }
+}
+
+/**
+ * The **remote secure** faster-whisper service (iOS `RemoteLiveASR`): the same `/v1/listen` + raw-Opus protocol as
+ * [LocalLiveAsr], but over WSS with an API key.
+ *
+ *  - `wss://` only — the endpoint is normalized by [RemoteLiveEndpoint.listenUrl]; plaintext `ws://` is rejected
+ *  - The key rides the **handshake headers only** (`Authorization: Bearer` + `X-API-Key`), never the URL, which would
+ *    leak it into server logs; it is never logged here either
+ *  - TLS validation is OkHttp's default and is never relaxed
+ *  - Only whole packets are sent: a raw byte stream has no container, so the server cuts frames by fixed length
+ *
+ * Configuration mistakes (bad scheme, missing key) throw from [connect]. A link that fails before any frame arrived
+ * is disambiguated by an HTTPS `/health` probe, since a failed handshake alone can't tell "wrong key" from
+ * "wrong address".
+ */
+class RemoteLiveAsr(
+    private val ctx: android.content.Context,
+    private val endpoint: String,
+    private val apiKey: String,
+) : LiveAsr {
+
+    private var ws: WebSocket? = null
+    @Volatile private var closed = false
+    @Volatile private var receivedFrames = 0
+    private var pendingTail = ByteArray(0)
+    private var onEvent: ((LiveAsrEvent) -> Unit)? = null
+
+    override fun connect(onEvent: (LiveAsrEvent) -> Unit) {
+        val url = RemoteLiveEndpoint.listenUrl(endpoint)
+            ?: throw IllegalStateException(RemoteLiveProbe.describe(ctx, RemoteLiveProbe.Failure.INVALID_ENDPOINT))
+        if (apiKey.isEmpty()) {
+            throw IllegalStateException(RemoteLiveProbe.describe(ctx, RemoteLiveProbe.Failure.MISSING_KEY))
+        }
+        this.onEvent = onEvent
+        val req = Request.Builder().url(url).apply {
+            RemoteLiveProbe.authHeaders(apiKey).forEach { (k, v) -> addHeader(k, v) }
+        }.build()
+        Log.i(TAG, "remote live connecting host=${req.url.host} path=${req.url.encodedPath} auth=bearer")
+        ws = wsClient.newWebSocket(
+            req,
+            object : WebSocketListener() {
+                override fun onMessage(webSocket: WebSocket, text: String) {
+                    receivedFrames++
+                    val json = runCatching { JSONObject(text) }.getOrNull() ?: return
+                    val t = json.optString("text")
+                    if (t.isEmpty()) return
+                    onEvent(if (json.optBoolean("is_final")) LiveAsrEvent.Final(t) else LiveAsrEvent.Partial(t))
+                }
+
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                    if (closed) return
+                    val message = classify(t, response)
+                    Log.e(TAG, "remote live failed: $message")
+                    reportClosed(message)
+                }
+
+                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                    if (closed) return
+                    reportClosed(
+                        if (receivedFrames == 0) verdict(null)
+                        else RemoteLiveProbe.describe(ctx, RemoteLiveProbe.Failure.SERVER_CLOSED, reason.ifEmpty { null }),
+                    )
+                }
+            },
+        )
+    }
+
+    /** A reason the user can act on: handshake-shaped failures (no frame yet) ask `/health`, mid-stream drops don't. */
+    private fun classify(t: Throwable, response: Response?): String {
+        // OkHttp, unlike URLSession, exposes the failed upgrade's HTTP status.
+        if (response?.code == 401 || response?.code == 403) {
+            return RemoteLiveProbe.describe(ctx, RemoteLiveProbe.Failure.UNAUTHORIZED)
+        }
+        if (receivedFrames == 0) return verdict(t.message ?: t.javaClass.simpleName)
+        return if (t is java.net.SocketTimeoutException) {
+            RemoteLiveProbe.describe(ctx, RemoteLiveProbe.Failure.TIMEOUT)
+        } else {
+            RemoteLiveProbe.describe(ctx, RemoteLiveProbe.Failure.SERVER_CLOSED, t.message)
+        }
+    }
+
+    /** Ask `/health`; fall back to the plain handshake error (with the transport's own words) when it adds nothing. */
+    private fun verdict(transport: String?): String {
+        val (failure, detail) = RemoteLiveProbe.healthVerdict(endpoint, apiKey)
+            ?: (RemoteLiveProbe.Failure.HANDSHAKE to transport)
+        return RemoteLiveProbe.describe(ctx, failure, detail)
+    }
+
+    override fun send(frames: ByteArray) {
+        val socket = ws ?: return
+        if (closed) return
+        val buf = pendingTail + frames
+        val whole = buf.size - buf.size % OPUS_FRAME_SIZE
+        var offset = 0
+        while (offset < whole) {
+            socket.send(buf.toByteString(offset, OPUS_FRAME_SIZE))
+            offset += OPUS_FRAME_SIZE
+        }
+        pendingTail = buf.copyOfRange(whole, buf.size)
+    }
+
+    override fun close() {
+        if (closed) return
+        closed = true
+        ws?.send("""{"type":"CloseStream"}""")
+        ws?.cancel()
+        ws = null
+        onEvent?.invoke(LiveAsrEvent.Closed(null))
+        onEvent = null
+    }
+
+    private fun reportClosed(error: String?) {
+        if (closed) return
+        closed = true
+        onEvent?.invoke(LiveAsrEvent.Closed(error))
+        onEvent = null
+    }
+
+    private companion object {
+        const val TAG = "RemoteLiveAsr"
     }
 }
 

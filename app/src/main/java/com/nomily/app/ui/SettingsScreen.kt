@@ -6,6 +6,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.UnfoldMore
+import androidx.compose.material.icons.filled.Keyboard
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircleOutline
 import androidx.compose.material.icons.filled.Cancel
@@ -431,15 +433,17 @@ private fun AsrSection(cfg: AppConfig, vm: NomiViewModel) {
     Group(stringResource(R.string.asr_transcription)) {
 
         // Default transcription: active provider (appears only when a provider is configured)
-        val configured = cfg.asrProviders.let {
-            buildList {
-                // List only services that are fully filled and whose credentials have not been rejected: exclude partial configurations and those that failed verification.
-                // Selecting such entries would produce no transcription; showing them would mislead users into thinking they are set up.
-                if (it.azure?.let { a -> a.key.isNotEmpty() && a.region.isNotEmpty() && a.verification != false } == true) {
-                    add("azure" to stringResource(R.string.asr_azure))
-                }
-                if (it.local?.let { l -> l.host.isNotEmpty() } == true) add("local" to stringResource(R.string.asr_local_server_label))
-            }
+        // Only services that are fully filled and whose credentials have not been rejected (see `selectable`):
+        // selecting anything else would produce no transcription.
+        val configured = cfg.asrProviders.selectable.map { key ->
+            key to stringResource(
+                when (key) {
+                    "azure" -> R.string.asr_azure
+                    "local" -> R.string.asr_local_server_label
+                    "custom" -> R.string.asr_custom_server
+                    else -> R.string.asr_remote_live
+                },
+            )
         }
         if (configured.isNotEmpty()) {
             // Use a single-row Picker style (current value on the right with up/down arrows), not a row of chips
@@ -468,10 +472,7 @@ private fun AsrSection(cfg: AppConfig, vm: NomiViewModel) {
                         DropdownMenuItem(
                             text = { Text(label) },
                             onClick = {
-                                vm.updateConfig {
-                                    val other = if (key == "azure") "local" else "azure"
-                                    it.copy(defaults = it.defaults.copy(asrPrimary = key, asrFallbacks = listOf(other)))
-                                }
+                                vm.updateConfig { it.withAsrPrimary(key) }
                                 openAsr = false
                             },
                         )
@@ -671,6 +672,183 @@ private fun AsrSection(cfg: AppConfig, vm: NomiViewModel) {
         // For "I don't know what a faster-whisper server is": a prompt for ChatGPT / Claude Code on the computer.
         SetupAssistantRow(cfg.appLanguage)
     }
+
+    CustomAsrGroup(cfg, vm)
+    RemoteLiveGroup(cfg, vm)
+}
+
+/**
+ * User-defined OpenAI-compatible transcription server (iOS `customSection`): endpoint / API key / model / language
+ * + connection test. A half-typed endpoint must not linger as a configured provider, so a blank one drops the record.
+ */
+@Composable
+private fun CustomAsrGroup(cfg: AppConfig, vm: NomiViewModel) {
+    val c = cfg.asrProviders.custom
+    val save = { nc: AppConfig.AsrProviders.Custom ->
+        vm.updateConfig {
+            it.copy(asrProviders = it.asrProviders.copy(custom = nc.takeIf { n -> n.endpoint.isNotBlank() }))
+                .adoptAsrPrimaryIfUnset()
+        }
+    }
+    val current = c ?: AppConfig.AsrProviders.Custom(endpoint = "")
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // A changed endpoint or key invalidates the last probe and the fetched model list.
+    val probeKey = "${c?.endpoint}|${c?.apiKey}"
+    var probe by remember(probeKey) { mutableStateOf<com.nomily.app.asr.LocalAsrProbe.Result?>(null) }
+    var probing by remember(probeKey) { mutableStateOf(false) }
+    var models by remember(c?.endpoint) { mutableStateOf<List<String>>(emptyList()) }
+    var manual by remember(c?.endpoint) { mutableStateOf(false) }
+    var loadingModels by remember(c?.endpoint) { mutableStateOf(false) }
+    var modelNotice by remember(c?.endpoint) { mutableStateOf<String?>(null) }
+
+    suspend fun loadModels() {
+        val cur = cfg.asrProviders.custom
+        if (cur == null || cur.endpoint.isBlank()) {
+            modelNotice = ctx.getString(R.string.asr_custom_models_none)
+            return
+        }
+        loadingModels = true
+        modelNotice = null
+        val list = withContext(Dispatchers.IO) { com.nomily.app.asr.CustomAsrProbe.listModels(cur.endpoint, cur.apiKey.orEmpty()) }
+        models = list.orEmpty()
+        manual = false
+        modelNotice = if (list != null) {
+            ctx.getString(R.string.asr_custom_models_loaded, list.size)
+        } else {
+            ctx.getString(R.string.asr_custom_models_none)
+        }
+        loadingModels = false
+    }
+
+    Group(stringResource(R.string.asr_custom_server), footer = stringResource(R.string.asr_custom_probe_footer)) {
+        Field(stringResource(R.string.asr_custom_endpoint), c?.endpoint ?: "", url = true) { new ->
+            save(current.copy(endpoint = new))
+        }
+        Field(stringResource(R.string.asr_custom_api_key), c?.apiKey ?: "", secure = true) { new ->
+            save(current.copy(apiKey = new.ifEmpty { null }))
+        }
+        if (models.isNotEmpty() && !manual) {
+            var open by remember { mutableStateOf(false) }
+            val model = c?.model
+            // Keep the saved value even when the server no longer lists it.
+            val options = if (model.isNullOrEmpty() || model in models) models else listOf(model) + models
+            Row(
+                Modifier.fillMaxWidth().clickable { open = true }.heightIn(min = NomiDimens.rowMinHeight).padding(horizontal = NomiDimens.rowInset),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(stringResource(R.string.llm_model), style = MaterialTheme.typography.bodyLarge)
+                Spacer(Modifier.weight(1f))
+                Text(
+                    model ?: stringResource(R.string.llm_select_model),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Icon(
+                    Icons.Filled.UnfoldMore,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 6.dp).size(18.dp),
+                )
+                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                    options.forEach { m ->
+                        DropdownMenuItem(text = { Text(m) }, onClick = { save(current.copy(model = m)); open = false })
+                    }
+                }
+            }
+            modelNotice?.let { StatusHint(it) }
+            TextButton(onClick = { manual = true }, modifier = Modifier.padding(start = 4.dp)) {
+                Icon(Icons.Filled.Keyboard, contentDescription = null, modifier = Modifier.size(16.dp))
+                Text(stringResource(R.string.asr_custom_models_manual), modifier = Modifier.padding(start = 6.dp))
+            }
+            RowDivider()
+        } else {
+            Field(
+                stringResource(R.string.asr_custom_model), c?.model ?: "",
+                trailing = {
+                    IconButton(
+                        onClick = { scope.launch { loadModels() } },
+                        enabled = !loadingModels && !c?.endpoint.isNullOrBlank(),
+                    ) {
+                        if (loadingModels) {
+                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.AutoMirrored.Filled.List, contentDescription = stringResource(R.string.asr_custom_load_models))
+                        }
+                    }
+                },
+                divider = modelNotice == null,
+            ) { new -> save(current.copy(model = new.ifEmpty { null })) }
+            modelNotice?.let {
+                StatusHint(it)
+                RowDivider()
+            }
+        }
+        Field(stringResource(R.string.asr_custom_language), c?.language ?: "") { new ->
+            save(current.copy(language = new.ifEmpty { null }))
+        }
+        LocalProbeRow(probe, probing, label = stringResource(R.string.asr_custom_probe)) {
+            val cur = cfg.asrProviders.custom
+            probing = true
+            probe = null
+            scope.launch {
+                probe = withContext(Dispatchers.IO) {
+                    com.nomily.app.asr.CustomAsrProbe.probe(ctx, cur?.endpoint ?: "", cur?.apiKey.orEmpty())
+                }
+                probing = false
+                // The key is proven good — fetch the model dropdown too, so the next tap is picking a model.
+                if (probe?.ok == true) loadModels()
+            }
+        }
+    }
+}
+
+/**
+ * Remote secure live server (iOS `remoteLiveSection`): `wss://` endpoint + required API key, scheme validation and a
+ * connection test. Live transcription only. The key lives in [com.nomily.app.data.SecretStore], never in config.json.
+ */
+@Composable
+private fun RemoteLiveGroup(cfg: AppConfig, vm: NomiViewModel) {
+    val r = cfg.asrProviders.remoteLive
+    val save = { nr: AppConfig.AsrProviders.RemoteLive ->
+        vm.updateConfig {
+            it.copy(asrProviders = it.asrProviders.copy(remoteLive = nr.takeIf { n -> n.endpoint.isNotBlank() }))
+                .adoptAsrPrimaryIfUnset()
+        }
+    }
+    val current = r ?: AppConfig.AsrProviders.RemoteLive(endpoint = "")
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val probeKey = "${r?.endpoint}|${r?.apiKey}"
+    var probe by remember(probeKey) { mutableStateOf<com.nomily.app.asr.LocalAsrProbe.Result?>(null) }
+    var probing by remember(probeKey) { mutableStateOf(false) }
+    Group(stringResource(R.string.asr_remote_live), footer = stringResource(R.string.asr_remote_footer)) {
+        Field(stringResource(R.string.asr_remote_endpoint), r?.endpoint ?: "", url = true) { new ->
+            save(current.copy(endpoint = new))
+        }
+        // An endpoint that can never work: an explicit plaintext ws:// (the LAN shape) or something unparsable.
+        if (!r?.endpoint.isNullOrBlank() && com.nomily.app.core.asr.RemoteLiveEndpoint.listenUrl(r!!.endpoint) == null) {
+            FieldHint(stringResource(R.string.asr_remote_err_invalid_scheme))
+        }
+        Field(stringResource(R.string.asr_remote_api_key), r?.apiKey ?: "", secure = true) { new ->
+            save(current.copy(apiKey = new.ifEmpty { null }))
+        }
+        LocalProbeRow(probe, probing, label = stringResource(R.string.asr_remote_probe)) {
+            val cur = cfg.asrProviders.remoteLive
+            if (cur == null || cur.endpoint.isBlank()) {
+                probe = com.nomily.app.asr.LocalAsrProbe.Result(false, error = ctx.getString(R.string.asr_local_probe_no_host))
+                return@LocalProbeRow
+            }
+            probing = true
+            probe = null
+            scope.launch {
+                probe = withContext(Dispatchers.IO) {
+                    com.nomily.app.asr.RemoteLiveProbe.probe(ctx, cur.endpoint, cur.apiKey.orEmpty())
+                }
+                probing = false
+            }
+        }
+    }
 }
 
 /**
@@ -682,6 +860,7 @@ private fun LocalProbeRow(
     result: com.nomily.app.asr.LocalAsrProbe.Result?,
     probing: Boolean,
     divider: Boolean = false,
+    label: String = stringResource(R.string.asr_local_probe),
     onProbe: () -> Unit,
 ) {
     Row(
@@ -689,7 +868,7 @@ private fun LocalProbeRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
-            Text(stringResource(R.string.asr_local_probe), style = MaterialTheme.typography.bodyLarge)
+            Text(label, style = MaterialTheme.typography.bodyLarge)
             val small = MaterialTheme.typography.labelSmall
             when {
                 probing -> Text(stringResource(R.string.asr_status_verifying), style = small, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -709,7 +888,7 @@ private fun LocalProbeRow(
             } else {
                 Icon(
                     if (result?.ok == false) Icons.Filled.Cancel else Icons.Filled.CheckCircleOutline,
-                    contentDescription = stringResource(R.string.asr_local_probe),
+                    contentDescription = label,
                     tint = when {
                         result == null -> MaterialTheme.colorScheme.outline
                         result.ok -> MaterialTheme.colorScheme.primary

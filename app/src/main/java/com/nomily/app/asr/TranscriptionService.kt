@@ -154,6 +154,8 @@ class TranscriptionService(private val clipsDir: File) {
         "azure" -> config.asrProviders.azure
             ?.let { it.key.isNotEmpty() && it.region.isNotEmpty() && it.verification != false } ?: false
         "local" -> config.asrProviders.local?.let { it.host.isNotEmpty() && it.port > 0 } ?: false
+        "custom" -> config.asrProviders.custom?.let { it.endpoint.isNotBlank() } ?: false
+        // `remote` (and anything unknown) serves live transcription only.
         else -> false
     }
 
@@ -170,6 +172,10 @@ class TranscriptionService(private val clipsDir: File) {
         "local" -> {
             val l = config.asrProviders.local ?: throw AsrException("Local ASR server is not configured.")
             LocalAsr(l.host, l.port).transcribe(audio)
+        }
+        "custom" -> {
+            val c = config.asrProviders.custom ?: throw AsrException("Custom server is not configured.")
+            CustomAsr(c.endpoint, c.apiKey.orEmpty(), c.model.orEmpty(), c.language.orEmpty(), locales).transcribe(audio)
         }
         else -> throw AsrException("Unknown ASR provider: $name")
     }

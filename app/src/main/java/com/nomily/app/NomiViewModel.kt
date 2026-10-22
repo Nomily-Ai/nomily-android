@@ -256,6 +256,11 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
          * so it is a gray banner rather than [error].
          */
         val translationNotice: String? = null,
+        /**
+         * No speech service could be opened: the session keeps recording and streaming, and the saved clip is
+         * transcribed afterwards. A soft notice, not [error] — nothing is broken from the user's side.
+         */
+        val serviceNotice: String? = null,
         /** The automatic save after stopping failed and its audio is still held: the page offers "Save to Library" to retry it. */
         val canSaveToLibrary: Boolean = false,
     )
@@ -2155,8 +2160,14 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     /** A provider that connected but never produced a result: do not reconnect it in this session, switch to the next one. */
     private val liveDeadProviders = mutableSetOf<String>()
 
-    /** `azure` / `local` — the provider the open ASR link belongs to (dead-provider bookkeeping and the saved transcript). */
+    /** `azure` / `remote` / `local` — the provider the open ASR link belongs to (badge and the saved transcript). */
     private var liveActiveProvider = ""
+    /**
+     * The **kind** of the open link, for dead-marking: `azuretranslate` vs `azure`. A dead translation link (e.g. a
+     * target Azure translation rejects by closing at once) must not poison plain Azure transcription, and must not be
+     * re-selected on every reconnect — that was a ~1 Hz connect/close loop with no text for the whole session.
+     */
+    private var liveActiveKind = ""
     private var liveReconnectAttempts = 0
     /** Exact bytes captured this session; [Live.bytes] is batched for the UI and too coarse for timestamps. */
     private var liveCapturedBytes = 0L
@@ -2199,13 +2210,9 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         liveCapturedBytes = 0
         endLiveTranslation()
         set { it.copy(live = it.live.copy(translationNotice = null)) }
-        val asr = try {
-            newLiveAsr(cfg)
-        } catch (e: Exception) {
-            set { it.copy(live = it.live.copy(error = e.message, status = LiveStatus.FAILED)) }
-            return
-        }
-        liveAsr = asr
+        // A missing speech service must not stop the recording: without one the card still records and streams,
+        // and the saved clip is transcribed afterwards.
+        val serviceNotice = openLiveAsrOrRecordOnly(cfg)
         liveDidPause = false
         liveAttachedToExisting = false
         preSessionFiles = null
@@ -2222,6 +2229,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                     provider = providerLabel(),
                     status = LiveStatus.CONNECTING,
                     translationNotice = it.live.translationNotice,
+                    serviceNotice = serviceNotice,
                 ),
             )
         }
@@ -2229,7 +2237,6 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
 
         liveJob = viewModelScope.launch {
             try {
-                asr.connect { ev -> onLiveEvent(ev) }
                 // If the device is already recording (started by hardware button or previous session didn’t finish), **don’t send 0x51** ——
                 // that would cause the device to split the ongoing segment. Just attach to the stream.
                 //
@@ -2245,7 +2252,8 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                     assumeIdle -> false
                     else -> {
                         Log.w(TAG, "Starting real-time session: unable to query device recording state, ask user before sending 0x51")
-                        runCatching { asr.close() }
+                        liveIntentionalClose = true
+                        liveAsr?.close()
                         liveAsr = null
                         com.nomily.app.LiveSessionService.stop(getApplication())
                         liveBuffer?.runCatching { close() }
@@ -2337,15 +2345,15 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     /** Resume: open a new ASR connection and continue sending frames. */
     fun resumeLive() {
         if (!_ui.value.live.running || !_ui.value.live.paused) return
-        runCatching {
-            liveIntentionalClose = false
-            val asr = newLiveAsr(configStore.config.value)
-            liveAsr = asr
-            asr.connect { ev -> onLiveEvent(ev) }
-        }.onSuccess {
-            set { it.copy(live = it.live.copy(paused = false, status = LiveStatus.STREAMING, error = null, provider = providerLabel())) }
-        }.onFailure { e ->
-            set { it.copy(live = it.live.copy(error = e.message, status = LiveStatus.FAILED)) }
+        // No service → resume as record-only; the frames are stored either way.
+        val notice = openLiveAsrOrRecordOnly(configStore.config.value)
+        set {
+            it.copy(
+                live = it.live.copy(
+                    paused = false, status = LiveStatus.STREAMING, error = null,
+                    provider = providerLabel(), serviceNotice = notice,
+                ),
+            )
         }
     }
 
@@ -2373,14 +2381,14 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         liveIntentionalClose = true
         liveAsr?.close(); liveAsr = null
         liveReconnectAttempts = 0
-        runCatching {
-            val asr = newLiveAsr(configStore.config.value)
-            liveAsr = asr
-            asr.connect { ev -> onLiveEvent(ev) }
-        }.onSuccess {
-            set { it.copy(live = it.live.copy(status = LiveStatus.RECONNECTING, error = null, provider = providerLabel())) }
-        }.onFailure { e ->
-            set { it.copy(live = it.live.copy(error = e.message, status = LiveStatus.FAILED)) }
+        val notice = openLiveAsrOrRecordOnly(configStore.config.value)
+        set {
+            it.copy(
+                live = it.live.copy(
+                    status = if (liveAsr != null) LiveStatus.RECONNECTING else LiveStatus.STREAMING,
+                    error = null, provider = providerLabel(), serviceNotice = notice,
+                ),
+            )
         }
     }
 
@@ -2706,7 +2714,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 // while the UI keeps showing it as active. Cross it off and fall through to the next provider in the chain right away.
                 val delayMs = if (!liveSawResult && liveActiveProvider.isNotEmpty()) {
                     Log.w(TAG, "ASR provider $liveActiveProvider connected but produced no results — considered dead end, switching to next")
-                    liveDeadProviders += liveActiveProvider
+                    liveDeadProviders += liveActiveKind.ifEmpty { liveActiveProvider }
                     liveReconnectAttempts = 0
                     0L
                 } else {
@@ -2724,15 +2732,15 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 viewModelScope.launch {
                     kotlinx.coroutines.delay(delayMs)
                     if (!_ui.value.live.running || _ui.value.live.paused || liveAsr != null) return@launch
-                    runCatching {
-                        val asr = newLiveAsr(configStore.config.value)
-                        liveAsr = asr
-                        asr.connect { e -> onLiveEvent(e) }
+                    val notice = openLiveAsrOrRecordOnly(configStore.config.value)
+                    if (liveAsr != null) {
                         // Socket opened **does not mean** transcription is active — state stays at “reconnecting”,
                         // only after the first result arrives is it considered connected (Partial/Final branches set STREAMING).
-                        set { it.copy(live = it.live.copy(error = null, provider = providerLabel())) }
-                    }.onFailure { e ->
-                        set { it.copy(live = it.live.copy(status = LiveStatus.FAILED, error = e.message)) }
+                        set { it.copy(live = it.live.copy(error = null, provider = providerLabel(), serviceNotice = null)) }
+                    } else {
+                        // Losing the speech service mid-session degrades the session, it does not end it: the card is
+                        // still recording, and the clip is transcribed from the saved file.
+                        set { it.copy(live = it.live.copy(status = LiveStatus.STREAMING, provider = "", serviceNotice = notice)) }
                     }
                 }
             }
@@ -2740,49 +2748,102 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Open the ASR link for this session, mirroring iOS `LiveModel.openASR`:
-     * - a translation is wanted and Azure is configured → Azure live translation (source and translation in one stream);
+     * Open and connect the ASR link for this session, mirroring iOS `LiveModel.openASR`:
+     * - a translation is wanted, Azure is configured and its translation link has not died this session → Azure live
+     *   translation (source and translation in one stream);
      * - otherwise walk the configured chain (`defaults.asr` primary → fallbacks), skipping providers that proved dead
      *   this session; a wanted translation is then produced line by line by the LLM.
+     *
+     * Each provider owns its failure: one whose `connect` throws (e.g. a remote server without a key) is marked dead
+     * and the next one is tried. The link lands in [liveAsr] **before** connecting, so a close that arrives at once
+     * is handled against the right link. Throws only when nothing is left.
      */
-    private fun newLiveAsr(cfg: com.nomily.app.core.config.AppConfig): com.nomily.app.asr.LiveAsr {
+    private fun openLiveAsr(cfg: com.nomily.app.core.config.AppConfig) {
+        liveIntentionalClose = false
         liveSawResult = false
+        liveActiveProvider = ""
+        liveActiveKind = ""
         val target = cfg.lastTargetLang
         val source = com.nomily.app.llm.LanguageService.liveSourceLang(cfg)
         // Only translate when the target language **differs** from the source; if identical (or not selected) only perform recognition.
         val wantTranslation = !target.isNullOrEmpty() &&
             target.substringBefore('-').lowercase() != source.substringBefore('-').lowercase()
         val azure = cfg.asrProviders.azure?.takeIf { it.key.isNotEmpty() && it.region.isNotEmpty() }
-        if (wantTranslation && azure != null) {
+
+        fun attempt(kind: String, provider: String, build: () -> com.nomily.app.asr.LiveAsr?): Boolean =
+            try {
+                val asr = build() ?: return false
+                liveActiveProvider = provider
+                liveActiveKind = kind
+                liveAsr = asr
+                asr.connect { ev -> onLiveEvent(ev) }
+                true
+            } catch (e: Exception) {
+                Log.w(TAG, "Live ASR $kind unavailable: ${e.message}")
+                liveDeadProviders += kind
+                liveAsr = null
+                liveActiveProvider = ""
+                liveActiveKind = ""
+                false
+            }
+
+        if (wantTranslation && azure != null && "azuretranslate" !in liveDeadProviders) {
             endLiveTranslation()
-            liveActiveProvider = "azure"
-            return com.nomily.app.asr.AzureLiveTranslation(azure.key, azure.region, source, target!!)
+            if (attempt("azuretranslate", "azure") {
+                    com.nomily.app.asr.AzureLiveTranslation(azure.key, azure.region, source, target!!)
+                }
+            ) return
         }
         if (wantTranslation) beginLiveTranslation(cfg, target!!) else endLiveTranslation()
 
         val chain = (listOf(cfg.defaults.asrPrimary) + cfg.defaults.asrFallbacks).map { it.lowercase() }.distinct()
         for (name in chain) {
             if (name in liveDeadProviders) continue
-            when (name) {
-                "azure" -> if (azure != null) {
-                    liveActiveProvider = "azure"
-                    return com.nomily.app.asr.AzureLiveAsr(azure.key, azure.region, source)
+            val opened = when (name) {
+                "azure" -> attempt("azure", "azure") {
+                    azure?.let { com.nomily.app.asr.AzureLiveAsr(it.key, it.region, source) }
                 }
-                "local" -> {
-                    val local = cfg.asrProviders.local
-                    if (local != null && local.host.isNotEmpty() && local.port > 0) {
-                        liveActiveProvider = "local"
-                        return com.nomily.app.asr.LocalLiveAsr(local.host, local.port)
+                // Remote secure server: wss:// enforced and the key in handshake headers only (see RemoteLiveAsr).
+                // A failed handshake is classified and marked dead, falling through to `local` per the fallback order.
+                "remote" -> attempt("remote", "remote") {
+                    cfg.asrProviders.remoteLive?.takeIf { it.endpoint.isNotBlank() }?.let {
+                        com.nomily.app.asr.RemoteLiveAsr(getApplication(), it.endpoint, it.apiKey.orEmpty())
                     }
                 }
+                "local" -> attempt("local", "local") {
+                    cfg.asrProviders.local?.takeIf { it.host.isNotEmpty() && it.port > 0 }?.let {
+                        com.nomily.app.asr.LocalLiveAsr(it.host, it.port)
+                    }
+                }
+                // `custom` is file transcription only.
+                else -> false
             }
+            if (opened) return
         }
         throw IllegalStateException(
             str(if (liveDeadProviders.isEmpty()) R.string.asr_no_provider_configured else R.string.asr_all_providers_unreachable),
         )
     }
 
-    private fun providerLabel(): String = if (liveActiveProvider == "local") "Local" else "Azure"
+    /**
+     * [openLiveAsr] into [liveAsr]; when nothing can be opened the session carries on record-only.
+     * @return the record-only notice, or null when a link is open.
+     */
+    private fun openLiveAsrOrRecordOnly(cfg: com.nomily.app.core.config.AppConfig): String? = try {
+        openLiveAsr(cfg)
+        null
+    } catch (e: Exception) {
+        Log.w(TAG, "No live ASR — continuing record-only: ${e.message}")
+        liveAsr = null
+        str(R.string.asr_live_recording_without_asr)
+    }
+
+    private fun providerLabel(): String = when (liveActiveProvider) {
+        "local" -> "Local"
+        "remote" -> "Remote"
+        "azure" -> "Azure"
+        else -> ""
+    }
 
     /** A delivered result proves the (possibly just-reconnected) link works: fresh reconnect budget. */
     private fun noteLiveResult() {

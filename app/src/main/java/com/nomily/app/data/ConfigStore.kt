@@ -131,7 +131,7 @@ class ConfigStore(
 
     // ── Credential split / assemble ────────────────────────────────────────────────
     //
-    // Only touch these three: `asr.azure.key`, `llm.<provider>.api_key`, `wifi_ap.psk`.
+    // Only touch these: `asr.azure.key`, `asr.custom.api_key`, `asr.remote_live.api_key`, `llm.<provider>.api_key`, `wifi_ap.psk`.
     // Do it at the JSON layer, not by modifying :core’s AppConfig — “which fields are
     // persisted” is decided by the platform storage, not part of the config format.
 
@@ -140,11 +140,9 @@ class ConfigStore(
     private fun stripSecrets(json: String): String {
         val root = org.json.JSONObject(json)
         forEachSecretSlot(root) { holder, field, name ->
-            val value = holder.optString(field, "")
-            if (value.isNotEmpty()) {
-                secrets.put(name, value)
-                holder.remove(field)
-            }
+            // An empty value deletes the slot: a key cleared in settings must not come back on the next launch.
+            // If the key can't be stored, it stays in the file: plaintext is better than losing it.
+            if (secrets.put(name, holder.optString(field, ""))) holder.remove(field)
         }
         return root.toString()
     }
@@ -167,7 +165,9 @@ class ConfigStore(
     }
 
     /**
-     * Iterate over all credential slots: `asr.azure.key`, `llm.<provider>.api_key`, `wifi_ap.psk`.
+     * Iterate over all credential slots: `asr.azure.key`, `asr.custom.api_key`, `asr.remote_live.api_key`,
+     * `llm.<provider>.api_key`, `wifi_ap.psk`. Slot names match the iOS Keychain slots; the JSON paths are
+     * `asr_providers` / `llm_providers`, as [AppConfig.toJson] writes them.
      *
      * Perform this at the JSON layer, not by modifying `:core`’s [AppConfig] — “which fields
      * are persisted” is decided by the platform storage, not part of the configuration format.
@@ -176,8 +176,12 @@ class ConfigStore(
         root: org.json.JSONObject,
         action: (holder: org.json.JSONObject, field: String, name: String) -> Unit,
     ) {
-        root.optJSONObject("asr")?.optJSONObject("azure")?.let { action(it, "key", "asr.azure.key") }
-        root.optJSONObject("llm")?.let { llm ->
+        root.optJSONObject("asr_providers")?.let { asr ->
+            asr.optJSONObject("azure")?.let { action(it, "key", "asr.azure.key") }
+            asr.optJSONObject("custom")?.let { action(it, "api_key", "asr.custom.api_key") }
+            asr.optJSONObject("remote_live")?.let { action(it, "apiKey", "asr.remote_live.api_key") }
+        }
+        root.optJSONObject("llm_providers")?.let { llm ->
             for (provider in llm.keys().asSequence().toList()) {
                 llm.optJSONObject(provider)?.let { action(it, "api_key", "llm.$provider.api_key") }
             }

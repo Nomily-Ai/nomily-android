@@ -24,7 +24,7 @@ import com.nomily.app.core.json.writeJson
 data class AppConfig(
     /** Known devices table, key = platform‑side device identifier (Android uses BLE MAC). */
     val devices: Map<String, DeviceRecord> = emptyMap(),
-    /** Transcription providers (Azure / local ASR server), corresponding to `asr_providers` in the JSON. */
+    /** Transcription providers (Azure / local server / custom / remote live), corresponding to `asr_providers` in the JSON. */
     val asrProviders: AsrProviders = AsrProviders(),
     /** LLM providers for summarization/translation, corresponding to `llm_providers` in the JSON. */
     val llmProviders: LlmProviders = LlmProviders(),
@@ -82,6 +82,10 @@ data class AppConfig(
     data class AsrProviders(
         val azure: Azure? = null,
         val local: Local? = null,
+        /** User-defined OpenAI-compatible transcription server (`custom`); file transcription only. */
+        val custom: Custom? = null,
+        /** Remote secure live server (`remote_live`): WSS + API key, live transcription only. */
+        val remoteLive: RemoteLive? = null,
         val unknown: Map<String, Any?> = emptyMap(),
     ) {
         data class Azure(
@@ -107,10 +111,44 @@ data class AppConfig(
         }
         data class Local(val host: String, val port: Int)
 
-        /** At least one provider must be configured. */
+        /**
+         * @property endpoint Base URL, e.g. `http://192.168.1.10:8000` or `https://api.groq.com/openai`.
+         * @property language Optional ISO-639-1 hint; empty = server-side detection.
+         */
+        data class Custom(
+            val endpoint: String,
+            val apiKey: String? = null,
+            val model: String? = null,
+            val language: String? = null,
+        )
+
+        /** @property endpoint `wss://host[:port][/v1/listen]`; see [com.nomily.app.core.asr.RemoteLiveEndpoint]. */
+        data class RemoteLive(val endpoint: String, val apiKey: String? = null)
+
+        /**
+         * At least one **file** transcription provider is configured. `remoteLive` is deliberately not counted: it
+         * serves live transcription only, and every caller of this flag gates file transcription.
+         */
         val hasConfiguredProvider: Boolean
             get() = (azure?.let { it.key.isNotEmpty() && it.region.isNotEmpty() } ?: false) ||
-                (local?.let { it.host.isNotEmpty() && it.port > 0 } ?: false)
+                (local?.let { it.host.isNotEmpty() && it.port > 0 } ?: false) ||
+                (custom?.let { it.endpoint.isNotBlank() } ?: false)
+
+        /**
+         * Keys the "active provider" picker offers, in display order: only services that are filled in **and** whose
+         * credentials were not rejected by verification — anything else would produce no transcription.
+         * `remote` serves the live chain only; the file chain skips it.
+         */
+        val selectable: List<String>
+            get() = buildList {
+                if (azure?.let { it.key.isNotEmpty() && it.region.isNotEmpty() && it.verification != false } == true) add("azure")
+                if (local?.host?.isNotEmpty() == true) add("local")
+                if (custom?.endpoint?.isNotBlank() == true) add("custom")
+                if (remoteLive?.let {
+                        !it.apiKey.isNullOrEmpty() && com.nomily.app.core.asr.RemoteLiveEndpoint.listenUrl(it.endpoint) != null
+                    } == true
+                ) add("remote")
+            }
     }
 
     data class LlmProviders(
@@ -149,6 +187,19 @@ data class AppConfig(
         val asrPrimary: String = "azure",
         val asrFallbacks: List<String> = listOf("local"),
     )
+
+    /** Make [key] the primary ASR; fallbacks become every other selectable provider, in picker order. */
+    fun withAsrPrimary(key: String): AppConfig =
+        copy(defaults = defaults.copy(asrPrimary = key, asrFallbacks = asrProviders.selectable.filter { it != key }))
+
+    /**
+     * After a provider edit: when the stored primary is not selectable but something is, adopt the first one — the
+     * picker already displays it as active, and without this the chain would never reach it.
+     */
+    fun adoptAsrPrimaryIfUnset(): AppConfig {
+        val selectable = asrProviders.selectable
+        return if (selectable.isEmpty() || defaults.asrPrimary in selectable) this else withAsrPrimary(selectable.first())
+    }
     /**
      * A remembered device.
      *
@@ -177,7 +228,7 @@ data class AppConfig(
             "app_language",
         )
         private val KNOWN_DEVICE = setOf("name", "last_connected", "bond_id", "device_sid")
-        private val KNOWN_ASR = setOf("azure", "local")
+        private val KNOWN_ASR = setOf("azure", "local", "custom", "remote_live")
         private val KNOWN_LLM = setOf(
             "primary", "openai", "open_router", "claude", "gemini", "ollama", "custom",
         )
@@ -200,7 +251,19 @@ data class AppConfig(
             val lo = (m["local"] as? Map<*, *>)?.let {
                 AppConfig.AsrProviders.Local(it["host"] as? String ?: "", (it["port"] as? Number)?.toInt() ?: 0)
             }?.takeIf { it.host.isNotEmpty() || it.port > 0 }
-            return AppConfig.AsrProviders(az, lo, m.unknownKeys(KNOWN_ASR))
+            val custom = (m["custom"] as? Map<*, *>)?.let {
+                AppConfig.AsrProviders.Custom(
+                    it["endpoint"] as? String ?: "",
+                    it["api_key"] as? String,
+                    it["model"] as? String,
+                    it["language"] as? String,
+                )
+            }
+            // `apiKey`, not `api_key`: iOS encodes this record with its default (camelCase) keys.
+            val remote = (m["remote_live"] as? Map<*, *>)?.let {
+                AppConfig.AsrProviders.RemoteLive(it["endpoint"] as? String ?: "", it["apiKey"] as? String)
+            }
+            return AppConfig.AsrProviders(az, lo, custom, remote, m.unknownKeys(KNOWN_ASR))
         }
 
         private fun keyed(v: Any?): AppConfig.LlmProviders.Keyed? =
@@ -316,6 +379,18 @@ data class AppConfig(
                 }
             }
             asr.local?.let { a["local"] = sortedMapOf<String, Any?>("host" to it.host, "port" to it.port) }
+            asr.custom?.let {
+                a["custom"] = sortedMapOf<String, Any?>("endpoint" to it.endpoint).apply {
+                    it.apiKey?.let { k -> put("api_key", k) }
+                    it.model?.let { v -> put("model", v) }
+                    it.language?.let { v -> put("language", v) }
+                }
+            }
+            asr.remoteLive?.let {
+                a["remote_live"] = sortedMapOf<String, Any?>("endpoint" to it.endpoint).apply {
+                    it.apiKey?.let { k -> put("apiKey", k) }
+                }
+            }
             m["asr_providers"] = a.toSortedMap()    // Non‑optional field; output {} even when empty
         }
         llmProviders.let { llm ->

@@ -1067,6 +1067,19 @@ private fun LiveTab(
             }
         }
 
+        // Recording continues without a speech service — say so instead of leaving an empty transcript that reads
+        // as a broken feature.
+        if (live.running) live.serviceNotice?.let { notice ->
+            Text(
+                notice,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.6f))
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+            )
+        }
+
         live.error?.let { msg ->
             Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
                 Column(Modifier.padding(12.dp)) {
