@@ -168,27 +168,16 @@ class LocalAsr(private val host: String, private val port: Int) {
     fun transcribe(file: File): AsrResult {
         if (host.isEmpty() || port <= 0) throw AsrException("Local ASR server is not configured.")
         val endpoint = URL("http://$host:${port + 1}/v1/transcribe")
-        val boundary = "----nomily-${UUID.randomUUID()}"
-        val conn = (endpoint.openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            doOutput = true
-            connectTimeout = 15_000
-            readTimeout = uploadTimeoutMs(probeDurationSec(file))
-            setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
-        }
+        val timeoutMs = uploadTimeoutMs(probeDurationSec(file))
         Log.i(TAG, "local transcribe start file=${file.name} host=$host:${port + 1}")
         try {
-            conn.outputStream.buffered().use { out ->
-                fun w(s: String) = out.write(s.toByteArray(Charsets.UTF_8))
-                w("--$boundary\r\n")
-                w("Content-Disposition: form-data; name=\"audio\"; filename=\"${file.name}\"\r\n")
-                w("Content-Type: audio/ogg\r\n\r\n")
-                file.inputStream().use { it.copyTo(out) }
-                w("\r\n--$boundary--\r\n")
+            // Our own server takes the raw bytes; a generic FastAPI whisper server answers that with a 422 naming the
+            // missing `file` field, and gets the same endpoint spoken as multipart once.
+            var (status, body) = post(endpoint, timeoutMs, file, multipart = false)
+            if (status == 422 && serverWantsMultipartFile(body)) {
+                Log.i(TAG, "local server wants multipart 'file' — retrying as multipart")
+                post(endpoint, timeoutMs, file, multipart = true).let { status = it.first; body = it.second }
             }
-            val status = conn.responseCode
-            val body = (if (status in 200..299) conn.inputStream else conn.errorStream)
-                ?.bufferedReader()?.use { it.readText() } ?: ""
             if (status !in 200..299) {
                 throw AsrException("Local ASR returned HTTP $status: ${body.take(200)}", status = status)
             }
@@ -199,9 +188,53 @@ class LocalAsr(private val host: String, private val port: Int) {
             throw emptyTranscript(e)
         } catch (e: Exception) {
             throw AsrException(e.message ?: e.javaClass.simpleName, cause = e)
+        }
+    }
+
+    private fun post(endpoint: URL, timeoutMs: Int, file: File, multipart: Boolean): Pair<Int, String> {
+        val boundary = "----nomily-${UUID.randomUUID()}"
+        val conn = (endpoint.openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            doOutput = true
+            connectTimeout = 15_000
+            readTimeout = timeoutMs
+            setRequestProperty("Content-Type", if (multipart) "multipart/form-data; boundary=$boundary" else "application/octet-stream")
+        }
+        try {
+            conn.outputStream.buffered().use { out ->
+                if (!multipart) {
+                    file.inputStream().use { it.copyTo(out) }
+                    return@use
+                }
+                fun w(s: String) = out.write(s.toByteArray(Charsets.UTF_8))
+                // `model` is sent because servers that validate it would otherwise 422 a second time.
+                w("--$boundary\r\nContent-Disposition: form-data; name=\"model\"\r\n\r\nwhisper-1\r\n")
+                w("--$boundary\r\nContent-Disposition: form-data; name=\"response_format\"\r\n\r\nverbose_json\r\n")
+                w("--$boundary\r\n")
+                w("Content-Disposition: form-data; name=\"file\"; filename=\"${file.name}\"\r\n")
+                w("Content-Type: ${mimeFor(file.name)}\r\n\r\n")
+                file.inputStream().use { it.copyTo(out) }
+                w("\r\n--$boundary--\r\n")
+            }
+            val status = conn.responseCode
+            val body = (if (status in 200..299) conn.inputStream else conn.errorStream)
+                ?.bufferedReader()?.use { it.readText() } ?: ""
+            return status to body
         } finally {
             conn.disconnect()
         }
+    }
+
+    /** Matches FastAPI's structured "missing body.file" error, so unrelated 422s (bad parameter, quota) don't retry. */
+    internal fun serverWantsMultipartFile(body: String): Boolean =
+        body.contains("\"body\",\"file\"") || (body.contains("\"type\"") && body.contains("\"missing\"") && body.contains("file"))
+
+    private fun mimeFor(name: String): String = when (name.substringAfterLast('.', "").lowercase()) {
+        "wav" -> "audio/wav"
+        "mp3" -> "audio/mpeg"
+        "m4a", "mp4" -> "audio/mp4"
+        "flac" -> "audio/flac"
+        else -> "audio/ogg"
     }
 }
 

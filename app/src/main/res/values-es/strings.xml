@@ -856,4 +856,6 @@
     <string name="fast_transfer_background_interrupted">La transferencia se detuvo porque la app pasó a segundo plano. Inténtalo de nuevo con la app abierta.</string>
     <string name="scanner_category_vobot">V05E</string>
     <string name="scanner_no_new_in_category">No hay nuevos %s cerca. Asegúrate de que el dispositivo esté encendido y en modo de emparejamiento.</string>
+    <string name="summarize_short_source_note">La transcripción es muy corta: se usó un resumen simplificado en lugar de la plantilla completa</string>
+    <string name="asr_clip_too_short">Esta grabación dura solo %1$.1f s, menos que el mínimo de %2$.0f s para la transcripción automática. Reduce el mínimo en Ajustes → Grabación, o abre la grabación y toca Transcribir (las ejecuciones manuales ignoran el mínimo).</string>
 </resources>

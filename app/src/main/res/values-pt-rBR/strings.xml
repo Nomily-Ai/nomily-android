@@ -856,4 +856,6 @@
     <string name="fast_transfer_background_interrupted">A transferência foi interrompida porque o app foi para segundo plano. Tente novamente com o app aberto.</string>
     <string name="scanner_category_vobot">V05E</string>
     <string name="scanner_no_new_in_category">Nenhum %s novo por perto. Verifique se o dispositivo está ligado e no modo de pareamento.</string>
+    <string name="summarize_short_source_note">A transcrição é muito curta: foi usado um resumo simplificado no lugar do modelo completo</string>
+    <string name="asr_clip_too_short">Esta gravação tem apenas %1$.1f s, menos que o mínimo de %2$.0f s para a transcrição automática. Reduza o mínimo em Ajustes → Gravação, ou abra a gravação e toque em Transcrever (execuções manuais ignoram o mínimo).</string>
 </resources>

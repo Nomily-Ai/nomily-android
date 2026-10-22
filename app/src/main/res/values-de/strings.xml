@@ -856,4 +856,6 @@
     <string name="fast_transfer_background_interrupted">Die Übertragung wurde beendet, weil die App in den Hintergrund gewechselt ist. Versuche es erneut und lasse die App geöffnet.</string>
     <string name="scanner_category_vobot">V05E</string>
     <string name="scanner_no_new_in_category">Keine neuen %s in der Nähe. Achte darauf, dass das Gerät eingeschaltet und im Kopplungsmodus ist.</string>
+    <string name="summarize_short_source_note">Das Transkript ist sehr kurz – es wurde eine vereinfachte Zusammenfassung statt der vollständigen Vorlage verwendet</string>
+    <string name="asr_clip_too_short">Diese Aufnahme ist nur %1$.1f s lang – kürzer als das Minimum von %2$.0f s für die automatische Transkription. Senke das Minimum unter Einstellungen → Aufnahme oder öffne die Aufnahme und tippe auf „Transkribieren“ (manuelle Läufe ignorieren das Minimum).</string>
 </resources>

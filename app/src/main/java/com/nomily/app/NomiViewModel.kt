@@ -3242,7 +3242,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         } catch (e: com.nomily.app.asr.TranscriptionService.TooShortException) {
             // Below the auto-transcribe threshold: nothing to retry.
             Log.i(TAG, "Skipping transcription (too short): ${e.message}")
-            set { it.copy(error = e.message) }
+            set { it.copy(error = str(R.string.asr_clip_too_short, e.duration, e.minimum.toDouble())) }
         } catch (e: com.nomily.app.asr.AsrException) {
             throw IllegalStateException(e.messageRes?.let { str(it) } ?: failed(R.string.device_files_operation_failed, e), e)
         }
@@ -3252,7 +3252,12 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         val prompt = job.prompt ?: throw com.nomily.app.jobs.JobSourceMissing(str(R.string.jobs_source_missing, str(R.string.jobs_source_prompt)))
         val source = sourceText(job.clip)
         val cfg = configStore.config.value
-        val outcome = com.nomily.app.llm.LlmClient.completeResilient(localized(), prompt, source, cfg) { done, total ->
+        // Short sources must not be inflated by the template; the gate lives here so queue re-runs take the same path.
+        val effectivePrompt = com.nomily.app.core.llm.ShortSource.adaptedPrompt(prompt, source)
+        // Finished chunk sections are reused only on a retry; a first run has none and "generate again" wants new text.
+        val outcome = com.nomily.app.llm.LlmClient.completeResilient(
+            localized(), effectivePrompt, source, cfg, allowSectionReuse = job.attempts > 0,
+        ) { done, total ->
             reporter.progress(done, total)
         }
         withContext(Dispatchers.IO) { clipFile(job.clip, ".summary.md").writeText(outcome.completion.text) }
@@ -3264,7 +3269,9 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
             ).completion.text.trim()
             if (title.isNotEmpty()) withContext(Dispatchers.IO) { clipFile(job.clip, ClipArtefact.TITLE_SUFFIX).writeText(title) }
         }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it else Log.w(TAG, "Title failed: ${it.message}") }
-        reporter.notes(com.nomily.app.llm.LlmClient.resultNotes(localized(), outcome, cfg), outcome.completion.truncated)
+        val notes = com.nomily.app.llm.LlmClient.resultNotes(localized(), outcome, cfg) +
+            if (effectivePrompt != prompt) listOf(str(R.string.summarize_short_source_note)) else emptyList()
+        reporter.notes(notes, outcome.completion.truncated)
     }
 
     /**

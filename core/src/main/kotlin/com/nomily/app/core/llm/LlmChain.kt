@@ -166,6 +166,15 @@ object LlmChain {
             "Do NOT add an introduction, do NOT add a closing summary, and do NOT refer to \"this part\" — " +
             "your output will be merged with the other parts afterwards."
 
+    /**
+     * Cache key of one finished chunk section: SHA-256 of (instruction + NUL + chunk). Both halves matter — the same
+     * transcript under a different template must not reuse the old sections.
+     */
+    fun sectionCacheKey(prompt: String, chunk: String): String =
+        java.security.MessageDigest.getInstance("SHA-256")
+            .digest((prompt + "\u0000" + chunk).toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+
     /** Input for the merge step; it says these are per-section findings so the model doesn't summarise a summary. */
     fun mergePrompt(sections: List<String>): String =
         "Below are the per-section findings from one long recording, in order. " +

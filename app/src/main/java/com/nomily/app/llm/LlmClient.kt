@@ -84,6 +84,8 @@ object LlmClient {
      *
      * @param preferred the provider that did the work last time; it goes first so a title right after a summary
      *   doesn't wait for the primary to fail again.
+     * @param allowSectionReuse reuse chunk sections finished by an earlier attempt (resume a long summary); a deliberate
+     *   "generate again" passes false so it doesn't hand back the old text.
      * @param onChunk `(completed, total)` while a long transcript is chunked; the merge step counts as one more unit.
      */
     suspend fun completeResilient(
@@ -93,6 +95,7 @@ object LlmClient {
         config: AppConfig,
         allowChunking: Boolean = true,
         preferred: String? = null,
+        allowSectionReuse: Boolean = true,
         onChunk: ((Int, Int) -> Unit)? = null,
     ): Outcome {
         val chain = LlmChain.preferring(LlmChain.candidateChain(config), preferred)
@@ -109,11 +112,17 @@ object LlmClient {
         onChunk?.invoke(0, chunks.size + 1)
         var warnings = emptyList<String>()
         val sections = chunks.mapIndexed { i, chunk ->
-            val out = runChain(
-                ctx, chain, LlmChain.sectionSystemPrompt(systemPrompt, i, chunks.size), chunk, config,
-                chunkCount = chunks.size, seeded = warnings,
-            )
+            val sectionPrompt = LlmChain.sectionSystemPrompt(systemPrompt, i, chunks.size)
+            val key = LlmChain.sectionCacheKey(sectionPrompt, chunk)
+            val hit = if (allowSectionReuse) cachedSection(ctx, key) else null
+            if (hit != null) {
+                Log.i(TAG, "chunk ${i + 1}/${chunks.size} reused from cache")
+                onChunk?.invoke(i + 1, chunks.size + 1)
+                return@mapIndexed hit
+            }
+            val out = runChain(ctx, chain, sectionPrompt, chunk, config, chunkCount = chunks.size, seeded = warnings)
             warnings = out.warnings
+            storeSection(ctx, key, out.completion.text)
             onChunk?.invoke(i + 1, chunks.size + 1)
             out.completion.text
         }
@@ -123,6 +132,32 @@ object LlmClient {
         )
         onChunk?.invoke(chunks.size + 1, chunks.size + 1)
         return merged
+    }
+
+    // ── Per-chunk section cache (resume a long summary) ────────────────
+
+    private const val SECTION_PRUNE_AFTER_FILES = 40
+    private const val SECTION_MAX_AGE_MS = 2 * 24 * 3600 * 1000L
+
+    private fun sectionDir(ctx: Context) = java.io.File(ctx.cacheDir, "llm-sections").apply { mkdirs() }
+
+    /** A hit is touched so the age-based prune keeps what is in use. The system may purge the cache: recomputing is only slow. */
+    private fun cachedSection(ctx: Context, key: String): String? = runCatching {
+        val f = java.io.File(sectionDir(ctx), "$key.txt")
+        f.takeIf { it.isFile }?.readText()?.takeIf { it.isNotEmpty() }?.also { f.setLastModified(System.currentTimeMillis()) }
+    }.getOrNull()
+
+    private fun storeSection(ctx: Context, key: String, text: String) {
+        if (text.isEmpty()) return
+        runCatching {
+            val dir = sectionDir(ctx)
+            java.io.File(dir, "$key.txt").writeText(text)
+            val files = dir.listFiles().orEmpty()
+            if (files.size > SECTION_PRUNE_AFTER_FILES) {
+                val cutoff = System.currentTimeMillis() - SECTION_MAX_AGE_MS
+                files.filter { it.lastModified() < cutoff }.forEach { it.delete() }
+            }
+        }
     }
 
     /**

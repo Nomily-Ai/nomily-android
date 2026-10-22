@@ -945,4 +945,6 @@
     <string name="fast_transfer_background_interrupted">Transfer stopped because the app moved to the background. Retry with the app open.</string>
     <string name="scanner_category_vobot">V05E</string>
     <string name="scanner_no_new_in_category">No new %s nearby. Make sure the device is on and in pairing mode.</string>
+    <string name="summarize_short_source_note">The transcript is very short — a simplified summary was used instead of the full template</string>
+    <string name="asr_clip_too_short">This clip is only %1$.1f s — shorter than the %2$.0f s minimum for automatic transcription. Lower the minimum in Settings → Recording, or open the clip and tap Transcribe (manual runs ignore the minimum).</string>
 </resources>

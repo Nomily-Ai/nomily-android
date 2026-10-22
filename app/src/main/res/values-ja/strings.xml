@@ -856,4 +856,6 @@
     <string name="fast_transfer_background_interrupted">Appがバックグラウンドに移動したため、転送を中止しました。Appを開いたまま再試行してください。</string>
     <string name="scanner_category_vobot">V05E</string>
     <string name="scanner_no_new_in_category">近くに新しい %s は見つかりません。デバイスの電源が入っていて、ペアリングモードになっているか確認してください。</string>
+    <string name="summarize_short_source_note">文字起こしが非常に短いため、テンプレート全体ではなく簡易な要約を使用しました</string>
+    <string name="asr_clip_too_short">この録音は %1$.1f 秒しかなく、自動文字起こしの最短 %2$.0f 秒に満たないため処理されませんでした。「設定 → 録音」で最短時間を下げるか、録音を開いて「文字起こし」をタップしてください（手動実行には最短時間の制限がありません）。</string>
 </resources>

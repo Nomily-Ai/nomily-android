@@ -856,4 +856,6 @@
     <string name="fast_transfer_background_interrupted">앱이 백그라운드로 전환되어 전송이 중지되었습니다. 앱을 연 상태로 다시 시도하세요.</string>
     <string name="scanner_category_vobot">V05E</string>
     <string name="scanner_no_new_in_category">근처에 새 %s 기기가 없습니다. 기기가 켜져 있고 페어링 모드인지 확인하세요.</string>
+    <string name="summarize_short_source_note">전사본이 매우 짧아 전체 템플릿 대신 간단한 요약을 사용했습니다</string>
+    <string name="asr_clip_too_short">이 녹음은 %1$.1f초밖에 되지 않아 자동 전사 최소 길이인 %2$.0f초보다 짧습니다. 「설정 → 녹음」에서 최소 길이를 낮추거나, 녹음을 열어 「전사」를 직접 누르세요(수동 실행은 최소 길이 제한이 없습니다).</string>
 </resources>

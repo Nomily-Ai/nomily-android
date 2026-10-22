@@ -856,4 +856,6 @@
     <string name="fast_transfer_background_interrupted">توقف النقل لأن التطبيق انتقل إلى الخلفية. حاول مرة أخرى مع إبقاء التطبيق مفتوحًا.</string>
     <string name="scanner_category_vobot">V05E</string>
     <string name="scanner_no_new_in_category">لا توجد أجهزة %s جديدة قريبة. تأكد من تشغيل الجهاز ومن أنه في وضع الإقران.</string>
+    <string name="summarize_short_source_note">النص المفرغ قصير جداً — تم استخدام ملخص مبسّط بدلاً من القالب الكامل</string>
+    <string name="asr_clip_too_short">مدة هذا التسجيل %1$.1f ث فقط، أي أقل من الحد الأدنى للنسخ التلقائي وهو %2$.0f ث. اخفض الحد الأدنى من الإعدادات ← التسجيل، أو افتح التسجيل واضغط «نسخ» (التشغيل اليدوي يتجاهل الحد الأدنى).</string>
 </resources>

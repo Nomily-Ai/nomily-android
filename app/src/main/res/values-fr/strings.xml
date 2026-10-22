@@ -856,4 +856,6 @@
     <string name="fast_transfer_background_interrupted">Le transfert s’est arrêté lorsque l’app est passée en arrière-plan. Réessayez en gardant l’app ouverte.</string>
     <string name="scanner_category_vobot">V05E</string>
     <string name="scanner_no_new_in_category">Aucun nouvel appareil %s à proximité. Vérifiez que l’appareil est allumé et en mode d’appairage.</string>
+    <string name="summarize_short_source_note">La transcription est très courte : un résumé simplifié a été utilisé à la place du modèle complet</string>
+    <string name="asr_clip_too_short">Cet enregistrement ne dure que %1$.1f s, moins que le minimum de %2$.0f s pour la transcription automatique. Baissez le minimum dans Réglages → Enregistrement, ou ouvrez l’enregistrement et touchez Transcrire (un lancement manuel ignore le minimum).</string>
 </resources>
