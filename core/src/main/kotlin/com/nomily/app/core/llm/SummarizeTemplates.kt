@@ -17,6 +17,12 @@ data class SummarizeTemplate(
     val summary: String? = null,
 )
 
+/**
+ * Identity used to remember the default template in `summary_template_key`: `category` + U+001F + `name`, the same
+ * string the other clients write. Not [SummarizeTemplate.id] — that one is per-client.
+ */
+val SummarizeTemplate.storeKey: String get() = "$category\u001F$name"
+
 /** 16 original built‑in templates, divided into 6 categories. */
 val BUILTIN_SUMMARIZE_TEMPLATES: List<SummarizeTemplate> = listOf(
     SummarizeTemplate(

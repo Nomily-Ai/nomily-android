@@ -25,6 +25,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import com.nomily.app.core.llm.SummarizeTemplate
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Check
+import com.nomily.app.core.llm.storeKey
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -105,7 +107,11 @@ fun SummarizeSheet(clip: LocalClip, vm: NomiViewModel, onDismiss: () -> Unit) {
     val langName = languages.firstOrNull { it.code == langCode }?.name
     val sameAsTranscript = stringResource(R.string.summarize_same_as_transcript)
 
-    var previewing by remember { mutableStateOf<SummarizeTemplate?>(null) }
+    // The default template (Settings → Templates, long-press) opens pre-selected: one tap on "Use this template".
+    // A default that no longer exists is ignored silently.
+    var previewing by remember {
+        mutableStateOf(cfg.summaryTemplateKey?.let { key -> templates.firstOrNull { it.storeKey == key } })
+    }
     var runningTemplate by remember { mutableStateOf<SummarizeTemplate?>(null) }
     var jobId by remember { mutableStateOf<String?>(null) }
     var result by remember { mutableStateOf<String?>(null) }
@@ -222,6 +228,17 @@ fun SummarizeSheet(clip: LocalClip, vm: NomiViewModel, onDismiss: () -> Unit) {
                             OutlinedButton(onClick = onDismiss, modifier = Modifier.padding(top = 10.dp)) {
                                 Text(stringResource(R.string.common_close))
                             }
+                            // Close only leaves; this stops the job (same as the task page) and leaves too — nothing to wait for.
+                            OutlinedButton(
+                                onClick = {
+                                    jobId?.let { vm.jobs.cancel(it) }
+                                    onDismiss()
+                                },
+                                colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                                modifier = Modifier.padding(top = 6.dp),
+                            ) {
+                                Text(stringResource(R.string.common_cancel))
+                            }
                         }
                         return@Column
                     }
@@ -297,7 +314,7 @@ fun SummarizeSheet(clip: LocalClip, vm: NomiViewModel, onDismiss: () -> Unit) {
                     Text(langName ?: sameAsTranscript, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
                     Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.outline)
                 }
-                TemplateGrid(templates, onOpen = { previewing = it })
+                TemplateGrid(templates, onOpen = { previewing = it }, defaultKey = cfg.summaryTemplateKey)
             }
         }
     }
@@ -317,18 +334,32 @@ fun SummarizeSheet(clip: LocalClip, vm: NomiViewModel, onDismiss: () -> Unit) {
     }
 }
 
+/** Template filter chip: the curated built-ins, the user's own, or one category. */
+private sealed interface TemplateFilter {
+    data object Recommended : TemplateFilter
+    data object Mine : TemplateFilter
+    data class Category(val name: String) : TemplateFilter
+}
+
 /**
  * Templates as tiles by category, with a search field. A tile opens the template's overview; nothing runs from
  * the grid itself. Shared by the summary sheet and the template settings page.
+ *
+ * @param defaultKey [storeKey] of the default template, which gets a "Default" badge.
+ * @param filterChips Show the Recommended / Mine / per-category chip row (settings page).
+ * @param longPressMenu Items of the tile's long-press menu (label to action); none = no menu.
  */
 @Composable
 fun TemplateGrid(
     templates: List<SummarizeTemplate>,
     onOpen: (SummarizeTemplate) -> Unit,
-    onLongPress: ((SummarizeTemplate) -> Unit)? = null,
+    defaultKey: String? = null,
+    filterChips: Boolean = false,
+    longPressMenu: ((SummarizeTemplate) -> List<Pair<String, () -> Unit>>)? = null,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var search by remember { mutableStateOf("") }
+    var filter by remember { mutableStateOf<TemplateFilter>(TemplateFilter.Recommended) }
     TextField(
         value = search,
         onValueChange = { search = it },
@@ -344,9 +375,41 @@ fun TemplateGrid(
         shape = RoundedCornerShape(10.dp),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
     )
-    val shown = remember(search, templates) {
+    if (filterChips) {
+        val chips = listOf(
+            TemplateFilter.Recommended to stringResource(R.string.summarize_chip_recommended),
+            TemplateFilter.Mine to stringResource(R.string.summarize_chip_custom),
+        ) + templates.categoriesInOrder().map { c ->
+            TemplateFilter.Category(c) to localizedTemplateCategory(context, c, templates.any { it.category == c && it.isBuiltIn })
+        }
+        androidx.compose.foundation.lazy.LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(chips.size) { i ->
+                val (value, label) = chips[i]
+                val on = filter == value
+                Text(
+                    label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (on) androidx.compose.ui.text.font.FontWeight.SemiBold else null,
+                    color = if (on) Color.White else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .background(if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface, RoundedCornerShape(50))
+                        .clickable { filter = value }
+                        .padding(horizontal = 14.dp, vertical = 7.dp),
+                )
+            }
+        }
+    }
+    val shown = remember(search, templates, filter, filterChips) {
+        val base = if (!filterChips) templates else when (val f = filter) {
+            TemplateFilter.Recommended -> templates.filter { it.isBuiltIn }
+            TemplateFilter.Mine -> templates.filter { !it.isBuiltIn }
+            is TemplateFilter.Category -> templates.filter { it.category == f.name }
+        }
         val q = search.trim().lowercase()
-        if (q.isEmpty()) templates else templates.filter {
+        if (q.isEmpty()) base else base.filter {
             localizedTemplateName(context, it.name, it.isBuiltIn).lowercase().contains(q) ||
                 it.name.lowercase().contains(q) || it.category.lowercase().contains(q) ||
                 // The one-line description too, so "interview" finds templates that only mention it there.
@@ -380,22 +443,37 @@ fun TemplateGrid(
                     )
                 }
             }
-            items(inCategory, key = { it.id }) { t -> TemplateTile(t, onClick = { onOpen(t) }, onLongPress = onLongPress?.let { f -> { f(t) } }) }
+            items(inCategory, key = { it.id }) { t ->
+                TemplateTile(t, isDefault = defaultKey != null && t.storeKey == defaultKey, onClick = { onOpen(t) }, menu = longPressMenu?.let { m -> { m(t) } })
+            }
         }
     }
 }
 
 @Composable
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-private fun TemplateTile(t: SummarizeTemplate, onClick: () -> Unit, onLongPress: (() -> Unit)?) {
+private fun TemplateTile(
+    t: SummarizeTemplate,
+    isDefault: Boolean,
+    onClick: () -> Unit,
+    menu: (() -> List<Pair<String, () -> Unit>>)?,
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    var menuOpen by remember { mutableStateOf(false) }
     Column(
         Modifier.fillMaxWidth().heightIn(min = 88.dp)
             .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(14.dp))
             .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f), RoundedCornerShape(14.dp))
-            .combinedClickable(onClick = onClick, onLongClick = onLongPress)
+            .combinedClickable(onClick = onClick, onLongClick = menu?.let { { menuOpen = true } })
             .padding(12.dp),
     ) {
+        if (menu != null) {
+            androidx.compose.material3.DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                menu().forEach { (label, action) ->
+                    androidx.compose.material3.DropdownMenuItem(text = { Text(label) }, onClick = { menuOpen = false; action() })
+                }
+            }
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 if (t.isBuiltIn) Icons.AutoMirrored.Filled.InsertDriveFile else Icons.Filled.Edit,
@@ -404,6 +482,16 @@ private fun TemplateTile(t: SummarizeTemplate, onClick: () -> Unit, onLongPress:
                 modifier = Modifier.size(14.dp),
             )
             Spacer(Modifier.weight(1f))
+            if (isDefault) {
+                Icon(Icons.Filled.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(12.dp))
+                Text(
+                    stringResource(R.string.summarize_default_badge),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 2.dp, end = 4.dp),
+                )
+            }
             if (!t.isBuiltIn) Badge(stringResource(R.string.summarize_custom_badge), MaterialTheme.colorScheme.primary)
         }
         Text(

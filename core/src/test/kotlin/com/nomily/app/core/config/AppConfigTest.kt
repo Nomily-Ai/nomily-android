@@ -64,7 +64,7 @@ class AppConfigTest {
         val keys = (JsonParser(json).parse() as Map<*, *>).keys
         val expected = setOf(
             "devices", "asr_providers", "llm_providers", "defaults",
-            "auto_delete_after_transfer", "auto_transcribe_after_download",
+            "auto_delete_after_transfer", "auto_transcribe_after_download", "auto_summarize_after_transcription",
             "local_vad_enabled", "background_keep_alive_enabled", "auto_reconnect_enabled", "cloud_egress_consented",
             "developer_mode", "min_transcribe_duration", "fast_transfer_threshold_kb",
         )
@@ -76,7 +76,9 @@ class AppConfigTest {
     fun `default values match config schema`() {
         val c = AppConfig()
         assertEquals(true, c.autoDeleteAfterTransfer)
-        assertEquals(false, c.autoTranscribeAfterDownload)
+        assertEquals(true, c.autoTranscribeAfterDownload)
+        assertEquals(true, c.autoSummarizeAfterTranscription)
+        assertNull(c.summaryTemplateKey)
         assertEquals(true, c.localVadEnabled)
         assertEquals(true, c.autoReconnectEnabled)
         assertEquals(false, c.cloudEgressConsented)
@@ -91,7 +93,7 @@ class AppConfigTest {
         val a = AppConfig()
             .rememberDevice("MAC-1", "D·NOTE", "AABBCC", "2026-07-30T15:50:17.000Z")
             .setBondId("MAC-1", "D·NOTE", "0".repeat(32))
-            .copy(lastSourceLang = "zh-CN")
+            .copy(lastSourceLang = "zh-CN", summaryTemplateKey = "Meeting Notes\u001FFormal Meeting Minutes")
         val b = AppConfig.parse(a.toJson())
         assertEquals(a, b)
         assertEquals(a.toJson(), b.toJson(), "Serialization must be idempotent (key order fixed)")

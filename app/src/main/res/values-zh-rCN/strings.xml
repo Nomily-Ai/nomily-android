@@ -774,4 +774,15 @@
     <string name="summarize_back_to_templates">模板</string>
     <string name="summarize_template_overview_title">模板</string>
     <string name="summarize_no_matching_templates">没有找到匹配的模板</string>
+    <string name="asr_auto_summarize">转写完成后自动生成摘要</string>
+    <string name="asr_auto_summarize_footer">转写一完成就交给已配置的 AI 服务生成摘要，打开这条录音时摘要已经在了。需要先配置 AI 服务；没配置就跳过。</string>
+    <string name="banner_transcribe_done">转录完成</string>
+    <string name="asr_queue_waiting">等待 %d</string>
+    <string name="setup_assistant_title">复制 AI 配置助手提示词</string>
+    <string name="setup_assistant_copied">已复制，粘贴给 ChatGPT 或 Claude Code</string>
+    <string name="setup_assistant_hint">在电脑上运行它，AI 会自动装好本地转录和 Ollama，并把要填进这里的地址打印给你。</string>
+    <string name="summarize_chip_recommended">推荐</string>
+    <string name="summarize_chip_custom">自定义</string>
+    <string name="summarize_default_badge">默认</string>
+    <string name="summarize_set_default">设为默认模板</string>
 </resources>

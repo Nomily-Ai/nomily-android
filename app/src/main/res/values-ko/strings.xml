@@ -774,4 +774,15 @@
     <string name="summarize_back_to_templates">Templates</string>
     <string name="summarize_template_overview_title">Template</string>
     <string name="summarize_no_matching_templates">No templates match your search</string>
+    <string name="asr_auto_summarize">전사 후 자동 요약</string>
+    <string name="asr_auto_summarize_footer">전사가 끝나는 즉시 설정된 AI 서비스가 요약을 만들어, 녹음을 열면 요약이 이미 준비되어 있습니다. AI 서비스 설정이 필요하며, 없으면 건너뜁니다.</string>
+    <string name="banner_transcribe_done">전사 완료</string>
+    <string name="asr_queue_waiting">대기 중 %d</string>
+    <string name="setup_assistant_title">AI 설정 프롬프트 복사</string>
+    <string name="setup_assistant_copied">복사됨 — ChatGPT 또는 Claude Code에 붙여넣으세요</string>
+    <string name="setup_assistant_hint">컴퓨터에서 실행하면 로컬 전사와 Ollama를 설치하고 여기에 입력할 값을 출력합니다.</string>
+    <string name="summarize_chip_recommended">추천</string>
+    <string name="summarize_chip_custom">사용자 정의</string>
+    <string name="summarize_default_badge">기본</string>
+    <string name="summarize_set_default">기본 템플릿으로 설정</string>
 </resources>

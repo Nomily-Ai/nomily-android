@@ -774,4 +774,15 @@
     <string name="summarize_back_to_templates">Templates</string>
     <string name="summarize_template_overview_title">Template</string>
     <string name="summarize_no_matching_templates">No templates match your search</string>
+    <string name="asr_auto_summarize">Сводка сразу после расшифровки</string>
+    <string name="asr_auto_summarize_footer">Как только расшифровка готова, настроенный ИИ-сервис делает из неё сводку — при открытии записи она уже на месте. Нужен настроенный ИИ-сервис; без него шаг пропускается.</string>
+    <string name="banner_transcribe_done">Расшифровка готова</string>
+    <string name="asr_queue_waiting">В очереди: %d</string>
+    <string name="setup_assistant_title">Скопировать промпт для настройки ИИ</string>
+    <string name="setup_assistant_copied">Скопировано — вставьте в ChatGPT или Claude Code</string>
+    <string name="setup_assistant_hint">Запустите на компьютере: он установит локальную расшифровку и Ollama и выведет значения для ввода здесь.</string>
+    <string name="summarize_chip_recommended">Рекомендуемые</string>
+    <string name="summarize_chip_custom">Свои</string>
+    <string name="summarize_default_badge">По умолчанию</string>
+    <string name="summarize_set_default">Сделать шаблоном по умолчанию</string>
 </resources>

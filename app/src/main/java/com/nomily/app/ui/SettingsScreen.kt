@@ -9,6 +9,8 @@ import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircleOutline
 import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.CircularProgressIndicator
@@ -499,6 +501,13 @@ private fun AsrSection(cfg: AppConfig, vm: NomiViewModel) {
             }
         }
 
+        // Speech → text → summary with no tap in between.
+        ToggleRow(
+            stringResource(R.string.asr_auto_summarize),
+            info = stringResource(R.string.asr_auto_summarize_footer),
+            checked = cfg.autoSummarizeAfterTranscription,
+        ) { on -> vm.updateConfig { it.copy(autoSummarizeAfterTranscription = on) } }
+
         ToggleRow(
             stringResource(R.string.asr_local_vad),
             info = stringResource(R.string.asr_local_vad_footer),
@@ -507,14 +516,18 @@ private fun AsrSection(cfg: AppConfig, vm: NomiViewModel) {
 
         // The queue survives restarts, so a row only appears while transcriptions are queued or have given up.
         val jobs by vm.jobs.jobs.collectAsStateWithLifecycle()
-        val pending = jobs.filter { it.kind == com.nomily.app.jobs.JobKind.TRANSCRIBE && it.finishedAt == null }
+        val inFlight by vm.jobs.running.collectAsStateWithLifecycle()
+        // Gave-up jobs are finished in the ledger but still count here: they need the user, and say why.
+        val pending = jobs.filter {
+            it.kind == com.nomily.app.jobs.JobKind.TRANSCRIBE && (it.finishedAt == null || it.lastError != null)
+        }
         ToggleRow(
             stringResource(R.string.asr_background_keep_alive),
             info = stringResource(R.string.asr_background_keep_alive_footer),
             checked = cfg.backgroundKeepAliveEnabled,
             divider = pending.isNotEmpty(),
         ) { on -> vm.setBackgroundKeepAlive(on) }
-        if (pending.isNotEmpty()) TranscribeQueueRow(pending)
+        if (pending.isNotEmpty()) TranscribeQueueRow(pending, inFlight)
 
     }
 
@@ -644,7 +657,7 @@ private fun AsrSection(cfg: AppConfig, vm: NomiViewModel) {
         if (cfg.asrProviders.local?.let { (it.host.isNotEmpty() || it.port > 0) && it.port !in 1..65535 } == true) {
             FieldHint(stringResource(R.string.asr_port_invalid))
         }
-        LocalProbeRow(probe, probing) {
+        LocalProbeRow(probe, probing, divider = true) {
             val local = cfg.asrProviders.local
             probing = true
             probe = null
@@ -655,6 +668,8 @@ private fun AsrSection(cfg: AppConfig, vm: NomiViewModel) {
                 probing = false
             }
         }
+        // For "I don't know what a faster-whisper server is": a prompt for ChatGPT / Claude Code on the computer.
+        SetupAssistantRow(cfg.appLanguage)
     }
 }
 
@@ -663,7 +678,12 @@ private fun AsrSection(cfg: AppConfig, vm: NomiViewModel) {
  * mistyped port or a phone on another network otherwise only surface as a failed transcription later.
  */
 @Composable
-private fun LocalProbeRow(result: com.nomily.app.asr.LocalAsrProbe.Result?, probing: Boolean, onProbe: () -> Unit) {
+private fun LocalProbeRow(
+    result: com.nomily.app.asr.LocalAsrProbe.Result?,
+    probing: Boolean,
+    divider: Boolean = false,
+    onProbe: () -> Unit,
+) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = NomiDimens.rowMinHeight).padding(start = NomiDimens.rowInset, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -697,6 +717,54 @@ private fun LocalProbeRow(result: com.nomily.app.asr.LocalAsrProbe.Result?, prob
                     },
                 )
             }
+        }
+    }
+    if (divider) RowDivider()
+}
+
+/**
+ * Copies the one-prompt setup (local faster-whisper server + Ollama) for the user to paste into ChatGPT / Claude Code
+ * on their computer. A row, not a footer link: the point is copying it on the phone.
+ */
+@Composable
+private fun SetupAssistantRow(appLanguage: String?) {
+    val ctx = LocalContext.current
+    var copied by remember { mutableStateOf(false) }
+    LaunchedEffect(copied) {
+        if (copied) {
+            kotlinx.coroutines.delay(2_500)
+            copied = false
+        }
+    }
+    Row(
+        Modifier.fillMaxWidth()
+            .clickable {
+                val cm = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                cm.setPrimaryClip(
+                    android.content.ClipData.newPlainText("Nomily setup", com.nomily.app.core.config.SetupAssistant.prompt(appLanguage)),
+                )
+                copied = true
+            }
+            .heightIn(min = NomiDimens.rowMinHeight)
+            .padding(horizontal = NomiDimens.rowInset, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            if (copied) Icons.Filled.CheckCircle else Icons.Filled.ContentCopy,
+            contentDescription = null,
+            tint = if (copied) com.nomily.app.ui.theme.AppSwitchGreen else MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp),
+        )
+        Column(Modifier.padding(start = 10.dp).weight(1f)) {
+            Text(
+                stringResource(if (copied) R.string.setup_assistant_copied else R.string.setup_assistant_title),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Text(
+                stringResource(R.string.setup_assistant_hint),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -785,7 +853,8 @@ private fun LlmSection(cfg: AppConfig, vm: NomiViewModel) {
         vm.updateConfig { it.copy(llmProviders = it.llmProviders.copy(gemini = p).autoSelectPrimaryIfFirst()) }
     }
     EndpointProvider("Ollama", "qwen2.5:3b", cfg.llmProviders.ollama,
-        fetchModels = { ctx, _, e -> com.nomily.app.llm.LlmModelService.ollama(ctx, e) }) { p ->
+        fetchModels = { ctx, _, e -> com.nomily.app.llm.LlmModelService.ollama(ctx, e) },
+        lastRow = { SetupAssistantRow(cfg.appLanguage) }) { p ->
         vm.updateConfig { it.copy(llmProviders = it.llmProviders.copy(ollama = p).autoSelectPrimaryIfFirst()) }
     }
     CustomEndpointCard(cfg, vm)
@@ -953,6 +1022,8 @@ private fun EndpointProvider(
     example: String,
     p: AppConfig.LlmProviders.Endpoint?,
     fetchModels: (android.content.Context, String?, String) -> com.nomily.app.llm.LlmModelService.Result,
+    /** Extra row closing the card (Ollama: the setup-prompt row). */
+    lastRow: (@Composable () -> Unit)? = null,
     onChange: (AppConfig.LlmProviders.Endpoint?) -> Unit,
 ) {
     val probe = rememberEndpointProbe(p?.endpoint ?: "") { ctx, ep -> fetchModels(ctx, p?.apiKey, ep) }
@@ -966,9 +1037,10 @@ private fun EndpointProvider(
                 else (p ?: AppConfig.LlmProviders.Endpoint(endpoint = "")).copy(endpoint = new),
             )
         }
-        ModelListField(example, p?.model, probe, divider = false) { m ->
+        ModelListField(example, p?.model, probe, divider = lastRow != null) { m ->
             onChange((p ?: AppConfig.LlmProviders.Endpoint(endpoint = "")).copy(model = m))
         }
+        lastRow?.invoke()
     }
 }
 
@@ -1735,11 +1807,12 @@ private fun randomHex(bytes: Int): String =
 /** The "Developer mode enabled" line uses a fixed orange color, not following the theme's accent color. */
 private val DeveloperModeAccent = androidx.compose.ui.graphics.Color(0xFFFF9500)
 
-/** "Transcription queue": how many are queued and how many gave up, plus why the first one gave up. */
+/** "Transcription queue": how many are running, waiting and gave up, plus why the first one gave up. */
 @Composable
-private fun TranscribeQueueRow(pending: List<com.nomily.app.jobs.WorkJob>) {
-    val running = pending.count { it.isRunnable }
-    val stuck = pending.filterNot { it.isRunnable }
+private fun TranscribeQueueRow(pending: List<com.nomily.app.jobs.WorkJob>, inFlight: Set<String>) {
+    val running = pending.count { it.id in inFlight }
+    val waiting = pending.count { it.finishedAt == null && it.id !in inFlight }
+    val stuck = pending.filter { it.finishedAt != null }
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (running > 0) {
@@ -1750,6 +1823,7 @@ private fun TranscribeQueueRow(pending: List<com.nomily.app.jobs.WorkJob>) {
             Text(
                 listOfNotNull(
                     if (running > 0) stringResource(R.string.asr_queue_running, running) else null,
+                    if (waiting > 0) stringResource(R.string.asr_queue_waiting, waiting) else null,
                     if (stuck.isNotEmpty()) stringResource(R.string.asr_queue_stuck, stuck.size) else null,
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.labelMedium,

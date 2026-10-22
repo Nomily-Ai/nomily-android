@@ -774,4 +774,15 @@
     <string name="summarize_back_to_templates">Templates</string>
     <string name="summarize_template_overview_title">Template</string>
     <string name="summarize_no_matching_templates">No templates match your search</string>
+    <string name="asr_auto_summarize">التلخيص فور انتهاء التفريغ</string>
+    <string name="asr_auto_summarize_footer">بمجرد جاهزية النص، تنشئ خدمة الذكاء الاصطناعي المهيأة ملخصًا له، فيكون جاهزًا عند فتح التسجيل. يتطلب خدمة ذكاء اصطناعي مهيأة؛ ويُتخطى إن لم توجد.</string>
+    <string name="banner_transcribe_done">النص جاهز</string>
+    <string name="asr_queue_waiting">في الانتظار %d</string>
+    <string name="setup_assistant_title">نسخ موجّه الإعداد بالذكاء الاصطناعي</string>
+    <string name="setup_assistant_copied">تم النسخ — الصقه في ChatGPT أو Claude Code</string>
+    <string name="setup_assistant_hint">شغّله على حاسوبك: يثبّت التفريغ المحلي وOllama ويطبع القيم التي تُدخلها هنا.</string>
+    <string name="summarize_chip_recommended">موصى بها</string>
+    <string name="summarize_chip_custom">مخصصة</string>
+    <string name="summarize_default_badge">افتراضي</string>
+    <string name="summarize_set_default">تعيين كقالب افتراضي</string>
 </resources>

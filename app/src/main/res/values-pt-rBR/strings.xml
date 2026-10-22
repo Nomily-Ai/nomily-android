@@ -774,4 +774,15 @@
     <string name="summarize_back_to_templates">Templates</string>
     <string name="summarize_template_overview_title">Template</string>
     <string name="summarize_no_matching_templates">No templates match your search</string>
+    <string name="asr_auto_summarize">Resumir logo após transcrever</string>
+    <string name="asr_auto_summarize_footer">Assim que a transcrição fica pronta, o serviço de IA configurado gera um resumo, então ele já está lá quando você abre a gravação. Requer um serviço de IA configurado; sem ele, é ignorado.</string>
+    <string name="banner_transcribe_done">Transcrição pronta</string>
+    <string name="asr_queue_waiting">%d aguardando</string>
+    <string name="setup_assistant_title">Copiar prompt de configuração de IA</string>
+    <string name="setup_assistant_copied">Copiado — cole no ChatGPT ou no Claude Code</string>
+    <string name="setup_assistant_hint">Execute no seu computador: ele instala a transcrição local + Ollama e mostra os valores a preencher aqui.</string>
+    <string name="summarize_chip_recommended">Recomendados</string>
+    <string name="summarize_chip_custom">Personalizados</string>
+    <string name="summarize_default_badge">Padrão</string>
+    <string name="summarize_set_default">Definir como padrão</string>
 </resources>

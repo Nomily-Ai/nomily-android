@@ -63,6 +63,7 @@ import com.nomily.app.R
 import com.nomily.app.core.llm.SummarizeTemplate
 import com.nomily.app.core.llm.categoriesInOrder
 import com.nomily.app.core.llm.inCategory
+import com.nomily.app.core.llm.storeKey
 import com.nomily.app.llm.PROMPT_MAX_CHARACTERS
 import com.nomily.app.llm.localizedTemplateCategory
 import com.nomily.app.llm.localizedTemplateName
@@ -92,6 +93,7 @@ import com.nomily.app.llm.localizedTemplateSubtitle
 @Composable
 fun TemplateManagerPage(vm: NomiViewModel, onPush: (PushedPage?) -> Unit, onDismiss: () -> Unit) {
     val templates by vm.templates.collectAsStateWithLifecycle()
+    val cfg by vm.config.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var editing by remember { mutableStateOf<SummarizeTemplate?>(null) }
     var previewing by remember { mutableStateOf<SummarizeTemplate?>(null) }
@@ -136,13 +138,25 @@ fun TemplateManagerPage(vm: NomiViewModel, onPush: (PushedPage?) -> Unit, onDism
     }
     DisposableEffect(Unit) { onDispose { onPush(null) } }
 
-    // Tiles by category, as in the summary sheet. A tile opens the preview (edit / clone live there);
-    // long-press a custom template to delete it.
+    // Tiles by category under a Recommended / Mine / category chip row. A tile opens the preview (edit / clone live
+    // there); long-press for "Set as default" (the summary sheet opens on it) and, for custom templates, delete.
+    val setDefaultLabel = stringResource(R.string.summarize_set_default)
+    val deleteLabel = stringResource(R.string.common_delete)
     Column(Modifier.fillMaxSize()) {
         TemplateGrid(
             templates,
             onOpen = { previewing = it },
-            onLongPress = { if (!it.isBuiltIn) pendingDelete = it },
+            defaultKey = cfg.summaryTemplateKey,
+            filterChips = true,
+            longPressMenu = { t ->
+                listOfNotNull(
+                    // Setting the current default again clears it.
+                    setDefaultLabel to {
+                        vm.updateConfig { c -> c.copy(summaryTemplateKey = t.storeKey.takeIf { it != c.summaryTemplateKey }) }
+                    },
+                    if (t.isBuiltIn) null else deleteLabel to { pendingDelete = t },
+                )
+            },
         )
     }
 
@@ -197,6 +211,7 @@ fun TemplateManagerPage(vm: NomiViewModel, onPush: (PushedPage?) -> Unit, onDism
             confirmButton = {
                 TextButton(onClick = {
                     vm.updateTemplates { list -> list.filterNot { it.id == t.id } }
+                    if (cfg.summaryTemplateKey == t.storeKey) vm.updateConfig { it.copy(summaryTemplateKey = null) }
                     pendingDelete = null
                 }) { Text(stringResource(R.string.common_delete)) }
             },

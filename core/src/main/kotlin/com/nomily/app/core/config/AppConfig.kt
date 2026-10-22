@@ -31,7 +31,14 @@ data class AppConfig(
     /** Default ASR chain: primary + fallbacks. */
     val defaults: Defaults = Defaults(),
     val autoDeleteAfterTransfer: Boolean = true,
-    val autoTranscribeAfterDownload: Boolean = false,
+    val autoTranscribeAfterDownload: Boolean = true,
+    /**
+     * Queue a summary as soon as a transcript lands. "On" means "when an AI service is configured" — the caller checks
+     * that first, and never replaces an existing summary.
+     */
+    val autoSummarizeAfterTranscription: Boolean = true,
+    /** The default summary template, keyed by [com.nomily.app.core.llm.storeKey] (`category\u001Fname`); `null` = none. */
+    val summaryTemplateKey: String? = null,
     val localVadEnabled: Boolean = true,
     /** Keep background tasks (transcription, summaries…) running under a foreground-service notification when the app is not in front. */
     val backgroundKeepAliveEnabled: Boolean = true,
@@ -162,7 +169,8 @@ data class AppConfig(
         /** Modeled top‑level keys — everything else goes into [unknown]. */
         private val KNOWN_TOP = setOf(
             "devices", "asr_providers", "llm_providers", "defaults",
-            "auto_delete_after_transfer", "auto_transcribe_after_download",
+            "auto_delete_after_transfer", "auto_transcribe_after_download", "auto_summarize_after_transcription",
+            "summary_template_key",
             "local_vad_enabled", "background_keep_alive_enabled", "auto_reconnect_enabled", "cloud_egress_consented",
             "developer_mode", "min_transcribe_duration", "fast_transfer_threshold_kb",
             "last_source_lang", "last_target_lang", "last_summary_lang", "wifi_ap",
@@ -261,7 +269,9 @@ data class AppConfig(
                 llmProviders = (root["llm_providers"] as? Map<*, *>)?.let { parseLlm(it) } ?: AppConfig.LlmProviders(),
                 defaults = defaults,
                 autoDeleteAfterTransfer = bool("auto_delete_after_transfer", true),
-                autoTranscribeAfterDownload = bool("auto_transcribe_after_download", false),
+                autoTranscribeAfterDownload = bool("auto_transcribe_after_download", true),
+                autoSummarizeAfterTranscription = bool("auto_summarize_after_transcription", true),
+                summaryTemplateKey = str("summary_template_key"),
                 localVadEnabled = bool("local_vad_enabled", true),
                 backgroundKeepAliveEnabled = bool("background_keep_alive_enabled", true),
                 autoReconnectEnabled = bool("auto_reconnect_enabled", true),
@@ -333,6 +343,8 @@ data class AppConfig(
         )
         m["auto_delete_after_transfer"] = autoDeleteAfterTransfer
         m["auto_transcribe_after_download"] = autoTranscribeAfterDownload
+        m["auto_summarize_after_transcription"] = autoSummarizeAfterTranscription
+        summaryTemplateKey?.let { m["summary_template_key"] = it }
         m["local_vad_enabled"] = localVadEnabled
         m["background_keep_alive_enabled"] = backgroundKeepAliveEnabled
         m["auto_reconnect_enabled"] = autoReconnectEnabled

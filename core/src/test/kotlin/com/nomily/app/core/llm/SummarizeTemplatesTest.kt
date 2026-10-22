@@ -30,4 +30,9 @@ class SummarizeTemplatesTest {
         }
         assertEquals(15, VOBOT_SUMMARIZE_TEMPLATES.map { it.category }.toSet().size)
     }
+
+    @Test
+    fun storeKeyIsCategoryUnitSeparatorName() {
+        assertEquals("Meeting Notes\u001FFormal Meeting Minutes", BUILTIN_SUMMARIZE_TEMPLATES.first().storeKey)
+    }
 }

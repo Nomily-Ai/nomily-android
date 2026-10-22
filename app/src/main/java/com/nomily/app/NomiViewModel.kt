@@ -2512,6 +2512,16 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         }
         set { it.copy(live = it.live.copy(savedClip = saved.name)) }
         Log.i(TAG, "Real-time session saved as ${saved.name}")
+        val savedBase = saved.name.substringBeforeLast('.')
+        if (lines.isNotEmpty()) {
+            // The live transcript was written straight to disk, so no transcription job fires its follow-ups.
+            maybeAutoSummarize(savedBase)
+        } else if (configStore.config.value.autoTranscribeAfterDownload) {
+            // No live transcript (live ASR off or never ran): treat the clip like any other import.
+            refreshClips()
+            clipsJob?.join()
+            _ui.value.clips.firstOrNull { it.base == savedBase }?.let { transcribe(it, enforceMinDuration = true) }
+        }
 
         // If paused (or this session is attached to a segment the device is already recording) → the phone’s copy is incomplete,
         // the device’s copy is full; ask the user whether to replace. In attachment scenarios **there is no pause**, the wording is a single sentence.
@@ -2987,6 +2997,11 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 transcription.transcribe(audio, configStore.config.value, enforceMinDuration = job.enforceMinDuration, locales = job.locales)
             }
             Log.i(TAG, "Transcription completed ${job.clip}: ${outcome.result.segments.size} segments, provider=${outcome.result.provider}")
+            // Manual, auto-after-download and resumed transcriptions all land here: one place for the follow-ups.
+            withContext(Dispatchers.Main) {
+                maybeAutoSummarize(job.clip)
+                showTranscribedBanner(job.clip)
+            }
             // A fallback provider isn't an error, but the user should know a non-preferred one did the work.
             outcome.warnings.joinToString("; ").ifEmpty { null }?.let { w -> set { it.copy(error = w) } }
         } catch (e: com.nomily.app.asr.TranscriptionService.TooShortException) {
@@ -3069,6 +3084,48 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         )
         jobs.enqueue(job)
         return job.id
+    }
+
+    /**
+     * "Summarize right after transcribing": queue a summary with the first built-in template once a transcript lands.
+     * Skipped when the switch is off, when no AI service can run (the job would only fail and sit in the queue as
+     * stuck), and when the clip already has a summary — a hand-edited result is never replaced by a machine one.
+     */
+    fun maybeAutoSummarize(base: String) {
+        val cfg = configStore.config.value
+        if (!cfg.autoSummarizeAfterTranscription) return
+        if (com.nomily.app.core.llm.LlmChain.candidateChain(cfg).isEmpty()) return
+        if (clipFile(base, ".summary.md").isFile) return
+        val template = com.nomily.app.core.llm.DEFAULT_SUMMARIZE_TEMPLATES.first()
+        val prompt = com.nomily.app.llm.localizedTemplatePrompt(localized(), template)
+        jobs.enqueue(
+            com.nomily.app.jobs.WorkJob.summarize(base, com.nomily.app.core.llm.withLanguageInstruction(prompt, null), template.name),
+        )
+    }
+
+    // ── "Transcript ready" banner ─────────────────────────────────────────
+
+    private val bannerQueue = com.nomily.app.core.clips.TranscriptionBanners()
+    private val _transcribedBanner = MutableStateFlow<com.nomily.app.core.clips.TranscriptionBanners.Banner?>(null)
+    /** The "transcript ready" toast on screen; tapping it opens the clip ([openInLibrary]). */
+    val transcribedBanner: StateFlow<com.nomily.app.core.clips.TranscriptionBanners.Banner?> = _transcribedBanner.asStateFlow()
+
+    private fun showTranscribedBanner(base: String) {
+        val title = clipFile(base, ClipArtefact.TITLE_SUFFIX).takeIf(File::isFile)?.readText()?.trim()?.takeIf { it.isNotEmpty() }
+            ?: com.nomily.app.ble.RecordingName.displayTitle(base)
+        bannerQueue.enqueue(base, title, System.currentTimeMillis())
+        _transcribedBanner.value = bannerQueue.current
+    }
+
+    fun dismissTranscribedBanner() {
+        bannerQueue.dismissCurrent()
+        _transcribedBanner.value = bannerQueue.current
+    }
+
+    /** Back in front: toasts for transcripts that finished a while ago would only confuse. */
+    fun dropStaleBanners() {
+        bannerQueue.dropStale(System.currentTimeMillis())
+        _transcribedBanner.value = bannerQueue.current
     }
 
     /**

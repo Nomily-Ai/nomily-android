@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The system splash (API 31+) shows the same brand red as the in-app splash that follows it. -->
+    <style name="Theme.Nomily" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowSplashScreenBackground">#E41D25</item>
+    </style>
+</resources>

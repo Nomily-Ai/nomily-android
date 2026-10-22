@@ -774,4 +774,15 @@
     <string name="summarize_back_to_templates">Templates</string>
     <string name="summarize_template_overview_title">Template</string>
     <string name="summarize_no_matching_templates">No templates match your search</string>
+    <string name="asr_auto_summarize">Nach der Transkription automatisch zusammenfassen</string>
+    <string name="asr_auto_summarize_footer">Sobald ein Transkript fertig ist, erstellt der eingerichtete KI-Dienst daraus eine Zusammenfassung – beim Öffnen der Aufnahme ist sie schon da. Erfordert einen eingerichteten KI-Dienst; ohne wird sie übersprungen.</string>
+    <string name="banner_transcribe_done">Transkript fertig</string>
+    <string name="asr_queue_waiting">%d wartend</string>
+    <string name="setup_assistant_title">KI-Einrichtungsprompt kopieren</string>
+    <string name="setup_assistant_copied">Kopiert – in ChatGPT oder Claude Code einfügen</string>
+    <string name="setup_assistant_hint">Auf deinem Computer ausführen: Es installiert lokale Transkription + Ollama und gibt die hier einzutragenden Werte aus.</string>
+    <string name="summarize_chip_recommended">Empfohlen</string>
+    <string name="summarize_chip_custom">Eigene</string>
+    <string name="summarize_default_badge">Standard</string>
+    <string name="summarize_set_default">Als Standard festlegen</string>
 </resources>

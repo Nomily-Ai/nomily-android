@@ -774,4 +774,15 @@
     <string name="summarize_back_to_templates">Templates</string>
     <string name="summarize_template_overview_title">Template</string>
     <string name="summarize_no_matching_templates">No templates match your search</string>
+    <string name="asr_auto_summarize">Résumer dès la fin de la transcription</string>
+    <string name="asr_auto_summarize_footer">Dès qu’une transcription est prête, le service d’IA configuré en fait un résumé : il est déjà là quand vous ouvrez l’enregistrement. Nécessite un service d’IA configuré ; ignoré sinon.</string>
+    <string name="banner_transcribe_done">Transcription prête</string>
+    <string name="asr_queue_waiting">%d en attente</string>
+    <string name="setup_assistant_title">Copier le prompt de configuration IA</string>
+    <string name="setup_assistant_copied">Copié — collez-le dans ChatGPT ou Claude Code</string>
+    <string name="setup_assistant_hint">À lancer sur votre ordinateur : il installe la transcription locale + Ollama et affiche les valeurs à saisir ici.</string>
+    <string name="summarize_chip_recommended">Recommandés</string>
+    <string name="summarize_chip_custom">Personnalisés</string>
+    <string name="summarize_default_badge">Par défaut</string>
+    <string name="summarize_set_default">Définir par défaut</string>
 </resources>

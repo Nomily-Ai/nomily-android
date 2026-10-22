@@ -774,4 +774,15 @@
     <string name="summarize_back_to_templates">Templates</string>
     <string name="summarize_template_overview_title">Template</string>
     <string name="summarize_no_matching_templates">No templates match your search</string>
+    <string name="asr_auto_summarize">文字起こし後に自動で要約</string>
+    <string name="asr_auto_summarize_footer">文字起こしが完了するとすぐに、設定済みの AI サービスで要約を作成します。録音を開いたときには要約ができています。AI サービスの設定が必要で、未設定の場合はスキップします。</string>
+    <string name="banner_transcribe_done">文字起こし完了</string>
+    <string name="asr_queue_waiting">待機中 %d</string>
+    <string name="setup_assistant_title">AI セットアップ用プロンプトをコピー</string>
+    <string name="setup_assistant_copied">コピーしました。ChatGPT または Claude Code に貼り付けてください</string>
+    <string name="setup_assistant_hint">パソコンで実行すると、ローカル文字起こしと Ollama をインストールし、ここに入力する値を表示します。</string>
+    <string name="summarize_chip_recommended">おすすめ</string>
+    <string name="summarize_chip_custom">カスタム</string>
+    <string name="summarize_default_badge">デフォルト</string>
+    <string name="summarize_set_default">デフォルトに設定</string>
 </resources>

@@ -339,32 +339,36 @@ fun NomiApp(vm: NomiViewModel) {
             }
         },
     ) { inner ->
-        Column(
-            Modifier
-                .fillMaxSize()
-                // **Don't add horizontal margins here**: some screens are full-width (the language bar on the Live page and the group cards on the Settings page bring their own),
-                // adding them uniformly would stack with the in-screen 16dp into 32dp — that's how the Template page originally ended up at 32+16.
-                .padding(inner)
-                .imePadding(),
-        ) {
-            when (tab) {
-                Tab.Recordings -> RecordingsTab(
-                    ui, vm,
-                    segment = segment,
-                    onSegment = { segment = it; librarySelecting = false },
-                    librarySelecting = librarySelecting,
-                    onLibrarySelecting = { librarySelecting = it },
-                    onPush = { pushed = it },
-                    onOpenSettings = { tab = Tab.Settings },
-                )
-                Tab.Live -> LiveTab(
-                    ui,
-                    vm,
-                    onOpenSettings = { tab = Tab.Settings },
-                    onViewInLibrary = { tab = Tab.Recordings },
-                )
-                Tab.Settings -> SettingsScreen(vm, onPush = { pushed = it })
+        Box(Modifier.fillMaxSize()) {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    // **Don't add horizontal margins here**: some screens are full-width (the language bar on the Live page and the group cards on the Settings page bring their own),
+                    // adding them uniformly would stack with the in-screen 16dp into 32dp — that's how the Template page originally ended up at 32+16.
+                    .padding(inner)
+                    .imePadding(),
+            ) {
+                when (tab) {
+                    Tab.Recordings -> RecordingsTab(
+                        ui, vm,
+                        segment = segment,
+                        onSegment = { segment = it; librarySelecting = false },
+                        librarySelecting = librarySelecting,
+                        onLibrarySelecting = { librarySelecting = it },
+                        onPush = { pushed = it },
+                        onOpenSettings = { tab = Tab.Settings },
+                    )
+                    Tab.Live -> LiveTab(
+                        ui,
+                        vm,
+                        onOpenSettings = { tab = Tab.Settings },
+                        onViewInLibrary = { tab = Tab.Recordings },
+                    )
+                    Tab.Settings -> SettingsScreen(vm, onPush = { pushed = it })
+                }
             }
+            // "Transcript ready" toast, right under the top bar whatever the screen.
+            TranscriptionBanner(vm, Modifier.align(Alignment.TopCenter).padding(top = inner.calculateTopPadding()))
         }
     }
 

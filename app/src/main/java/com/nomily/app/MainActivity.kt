@@ -104,6 +104,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 NomiApp(vm)
+                com.nomily.app.ui.SplashOverlay()
                 permissionPrompt?.let { prompt ->
                     AlertDialog(
                         onDismissRequest = { },

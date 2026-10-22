@@ -813,4 +813,15 @@
     <string name="summarize_back_to_templates">Templates</string>
     <string name="summarize_template_overview_title">Template</string>
     <string name="summarize_no_matching_templates">No templates match your search</string>
+    <string name="asr_auto_summarize">Summarise right after transcribing</string>
+    <string name="asr_auto_summarize_footer">As soon as a transcript is ready, the configured AI service turns it into a summary, so the clip is already readable when you open it. Needs an AI service configured; skipped when there is none.</string>
+    <string name="banner_transcribe_done">Transcript ready</string>
+    <string name="asr_queue_waiting">%d waiting</string>
+    <string name="setup_assistant_title">Copy AI Setup Prompt</string>
+    <string name="setup_assistant_copied">Copied — paste into ChatGPT or Claude Code</string>
+    <string name="setup_assistant_hint">Run it on your computer; it installs local transcription + Ollama and prints the values to fill in here.</string>
+    <string name="summarize_chip_recommended">Recommended</string>
+    <string name="summarize_chip_custom">Custom</string>
+    <string name="summarize_default_badge">Default</string>
+    <string name="summarize_set_default">Set as default</string>
 </resources>
