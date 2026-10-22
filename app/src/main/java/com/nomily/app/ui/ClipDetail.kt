@@ -89,11 +89,50 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.filled.ArrowCircleUp
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.withStyle
+import com.nomily.app.core.asr.ClipQa
+import com.nomily.app.core.asr.ClockLabel
+import com.nomily.app.core.asr.TranscriptNavigation
+import com.nomily.app.core.text.MarkdownBlock
+import com.nomily.app.core.text.MarkdownBlocks
+import com.nomily.app.core.text.TodoExtract
 
 /**
- * Clip detail page, mirroring iOS `ClipDetailView`: hero card (opens the player sheet), transcript,
- * translation, summary (with mind map), translated summary, export and independent deletes — each a
- * grouped card in that order.
+ * Clip detail page, mirroring iOS `ClipDetailView`: the inline player card, then three tabs —
+ * Transcript (segment list with search / speaker filter, translation), AI Minutes (summary, mind map,
+ * translated summary) and To-dos (action items lifted from the summary) — and the AI Q&A, whose input bar
+ * is pinned below the scrolling content. Export and the independent deletes live in the top-right menu;
+ * only a running / failed / ready export keeps an inline row.
  */
 @Composable
 fun ClipDetail(
@@ -109,60 +148,666 @@ fun ClipDetail(
     // Opening the clip clears its unread dot in the list.
     LaunchedEffect(clip.base) { vm.markSeen(clip) }
     var showVad by remember { mutableStateOf(false) }
-    var showPlayer by remember { mutableStateOf(false) }
+    var tab by remember { mutableStateOf(DetailTab.TRANSCRIPT) }
+    var transcriptQuery by remember { mutableStateOf("") }
+    var speakerFilter by remember { mutableStateOf<String?>(null) }
+    var pendingDelete by remember { mutableStateOf<ClipArtefact?>(null) }
+    var chooseExport by remember { mutableStateOf(false) }
+    // Share automatically when the export the user just started finishes while they're still here.
+    var shareWhenReady by remember { mutableStateOf(false) }
     val title = clip.title ?: RecordingName.displayTitle(clip.name)
     // VAD preview available only in developer mode (waveform icon in the detail page top bar)
     val showVadAction = cfg.developerMode && clip.hasAudio
+    // The menu is composed by the outer top bar; reading the clip through this state keeps it current.
+    val currentClip = rememberUpdatedState(clip)
     LaunchedEffect(title, showVadAction) {
         onPush(
             PushedPage(
                 title = title,
-                actions = if (showVadAction) {
-                    { TextButton(onClick = { showVad = true }) { Text("VAD") } }
-                } else {
-                    null
+                actions = {
+                    if (showVadAction) TextButton(onClick = { showVad = true }) { Text("VAD") }
+                    DetailMenu(
+                        currentClip.value,
+                        vm,
+                        onExport = { chooseExport = true },
+                        onDelete = { pendingDelete = it },
+                    )
                 },
                 onBack = onDismiss,
             )
         )
     }
-    // Leaving the page stops this clip's playback, as on iOS.
+    // Leaving the page stops this clip's playback and drops the page's speed, as on iOS (one player per page).
     DisposableEffect(Unit) {
         onDispose {
             onPush(null)
             if (vm.ui.value.playing == clip.audio?.name) vm.stopPlayback()
+            vm.setPlaybackRate(1f)
         }
     }
     if (showVad) VadPreviewDialog(clip) { showVad = false }
-    if (showPlayer) PlayerSheet(clip, ui, vm, title) { showPlayer = false }
+
+    val doc = remember(clip.transcriptJson, clip.transcript) { loadTranscript(clip) }
+    val summary = remember(clip.summary?.path, clip.summary?.lastModified()) { readText(clip.summary) }
+    val chat = remember(clip.base) { ClipChat() }
+    val qaContext = remember(summary, doc) { ClipQa.context(summary, doc?.text, doc?.segments.orEmpty()) }
+    val scroll = rememberScrollState()
+    // A new question or answer lands at the end of the page; bring it into view.
+    LaunchedEffect(chat.messages.size, chat.busy) {
+        if (chat.messages.isNotEmpty()) scroll.animateScrollTo(scroll.maxValue)
+    }
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-        ) {
-            if (clip.hasAudio) HeroCard(clip, ui) { showPlayer = true }
-            TranscriptSections(clip, ui, vm, onOpenSettings)
-            SummarySections(clip, ui, vm, title, onOpenSettings)
+        Column(Modifier.fillMaxSize()) {
+            Column(
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(scroll)
+                    .padding(horizontal = 16.dp),
+            ) {
+                if (clip.hasAudio) HeroCard(clip, ui, vm)
+                DetailTabs(tab) { tab = it }
+                when (tab) {
+                    DetailTab.TRANSCRIPT -> TranscriptSections(
+                        clip, doc, ui, vm, onOpenSettings,
+                        query = transcriptQuery,
+                        onQuery = { transcriptQuery = it },
+                        speaker = speakerFilter,
+                        onSpeaker = { speakerFilter = it },
+                    )
+                    DetailTab.SUMMARY -> SummarySections(clip, summary, ui, vm, title, onOpenSettings)
+                    DetailTab.TODOS -> TodosSection(summary, hasTranscript = doc != null)
+                }
+                // AI Q&A closes the page: the questions a user has after reading are about this clip.
+                if (qaContext != null) AiChatSection(chat)
+                if (clip.hasAudio) ExportStatusSection(clip, vm, shareWhenReady) { shareWhenReady = false }
+                Spacer(Modifier.padding(bottom = 24.dp))
+            }
+            // Answers scroll, the question box does not.
+            if (qaContext != null) AiChatInputBar(chat, vm, qaContext)
+        }
 
-            // The detail page is a full‑screen Dialog that covers the error card on the main screen —
-            // if it were not shown here too, tapping "Transcribe" would appear to do nothing.
-            ui.error?.let { msg ->
-                AlertDialog(
-                    onDismissRequest = vm::clearError,
-                    title = { Text(stringResource(R.string.device_files_operation_failed)) },
-                    text = { Text(msg) },
-                    confirmButton = {
-                        TextButton(onClick = vm::clearError) { Text(stringResource(R.string.common_ok)) }
+        // The detail page covers the error card on the main screen — if it were not shown here too,
+        // tapping "Transcribe" would appear to do nothing.
+        ui.error?.let { msg ->
+            AlertDialog(
+                onDismissRequest = vm::clearError,
+                title = { Text(stringResource(R.string.device_files_operation_failed)) },
+                text = { Text(msg) },
+                confirmButton = {
+                    TextButton(onClick = vm::clearError) { Text(stringResource(R.string.common_ok)) }
+                },
+            )
+        }
+    }
+
+    if (chooseExport) {
+        ExportFormatDialog(
+            onPick = { format ->
+                chooseExport = false
+                shareWhenReady = true
+                vm.enqueueExport(clip, format.ext)
+            },
+            onDismiss = { chooseExport = false },
+        )
+    }
+    pendingDelete?.let { what -> DeleteConfirmDialog(clip, what, vm, onDone = { pendingDelete = null }, onDeletedEverything = onDismiss) }
+}
+
+/** iOS `DetailTab`: Transcript / AI Minutes / To-dos. */
+private enum class DetailTab(val titleRes: Int) {
+    TRANSCRIPT(R.string.clip_detail_tab_transcript),
+    SUMMARY(R.string.clip_detail_tab_summary),
+    TODOS(R.string.clip_detail_tab_todos),
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DetailTabs(selected: DetailTab, onSelect: (DetailTab) -> Unit) {
+    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(top = 12.dp).heightIn(min = 32.dp)) {
+        DetailTab.entries.forEachIndexed { i, t ->
+            SegmentedButton(
+                selected = selected == t,
+                onClick = { onSelect(t) },
+                shape = SegmentedButtonDefaults.itemShape(i, DetailTab.entries.size),
+                icon = {},
+                colors = SegmentedButtonDefaults.colors(
+                    activeContainerColor = MaterialTheme.colorScheme.surface,
+                    inactiveContainerColor = com.nomily.app.ui.theme.AppFillTertiary,
+                ),
+            ) { Text(stringResource(t.titleRes), style = MaterialTheme.typography.labelMedium) }
+        }
+    }
+}
+
+/**
+ * Top-right overflow menu (iOS `ellipsis.circle`): export audio, share the finished export, and the three
+ * independent deletes — each entry only while it applies.
+ */
+@Composable
+private fun DetailMenu(clip: LocalClip, vm: NomiViewModel, onExport: () -> Unit, onDelete: (ClipArtefact) -> Unit) {
+    val context = LocalContext.current
+    val allJobs by vm.jobs.jobs.collectAsStateWithLifecycle()
+    val readyAny by vm.exports.ready.collectAsStateWithLifecycle()
+    val exporting = ClipJobs(allJobs, clip.base, JobKind.EXPORT).active != null
+    val ready = readyAny?.takeIf { !exporting }?.let { vm.exports.readyFor(clip.base) }
+    val deletes = listOfNotNull(
+        ClipArtefact.AUDIO.takeIf { clip.hasAudio },
+        ClipArtefact.TRANSCRIPT.takeIf { clip.transcript != null },
+        ClipArtefact.SUMMARY.takeIf { clip.summary != null },
+    )
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(Icons.Filled.MoreHoriz, contentDescription = stringResource(R.string.clip_detail_more_actions), tint = MaterialTheme.colorScheme.primary)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            if (clip.hasAudio) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.clip_detail_export_audio)) },
+                    leadingIcon = { Icon(Icons.Filled.IosShare, null) },
+                    enabled = !exporting,
+                    onClick = { open = false; onExport() },
+                )
+            }
+            if (ready != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.clip_detail_export_ready)) },
+                    leadingIcon = { Icon(Icons.Filled.CheckCircle, null) },
+                    onClick = {
+                        open = false
+                        shareFile(context, vm.exports.fileOf(ready), if (ready.file.endsWith(".wav")) "audio/wav" else "audio/mp4")
                     },
                 )
             }
+            if (deletes.isNotEmpty()) HorizontalDivider()
+            deletes.forEach { what ->
+                val label = when (what) {
+                    ClipArtefact.AUDIO -> R.string.clip_detail_delete_audio
+                    ClipArtefact.TRANSCRIPT -> R.string.clip_detail_delete_transcript
+                    ClipArtefact.SUMMARY -> R.string.clip_detail_delete_summary
+                }
+                DropdownMenuItem(
+                    text = { Text(stringResource(label), color = MaterialTheme.colorScheme.error) },
+                    leadingIcon = { Icon(Icons.Filled.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                    onClick = { open = false; onDelete(what) },
+                )
+            }
+        }
+    }
+}
 
-            if (clip.hasAudio) ExportSection(clip, vm)
-            DestructiveSection(clip, vm, onDeletedEverything = onDismiss)
-            Spacer(Modifier.padding(bottom = 24.dp))
+// MARK: - Inline player
+
+private val PLAYBACK_SPEEDS = listOf(0.75f, 1f, 1.25f, 1.5f, 2f)
+
+/** `1×`, `1.25×` — no trailing `.0`. */
+private fun speedLabel(v: Float): String = if (v % 1f == 0f) "${v.toInt()}×" else "$v×"
+
+/**
+ * In-page transport, mirroring iOS `InlineAudioPlayer`: scrubber, −15 s / play / +15 s and a 0.75–2× speed
+ * menu. The clip is loaded paused when the page opens so the bar has a real range before the first tap.
+ */
+@Composable
+private fun InlineAudioPlayer(clip: LocalClip, ui: NomiViewModel.Ui, vm: NomiViewModel) {
+    val audio = clip.audio ?: return
+    LaunchedEffect(audio.name) { vm.load(audio) }
+    val loaded = ui.playing == audio.name
+    val playing = loaded && !ui.playPaused
+    ui.playError?.takeIf { it.first == audio.name }?.let { (_, reason) ->
+        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.Block, contentDescription = null, tint = Color(0xFFFF9500), modifier = Modifier.size(16.dp))
+            Text(
+                stringResource(R.string.clip_detail_playback_failed, reason),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFFFF9500),
+                modifier = Modifier.padding(start = 6.dp),
+            )
+        }
+        return
+    }
+
+    @Composable
+    fun Controls(shownMs: Int) {
+        val secondary = MaterialTheme.colorScheme.onSurfaceVariant
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                formatClipDuration(shownMs),
+                style = MaterialTheme.typography.labelSmall,
+                color = secondary,
+                modifier = Modifier.width(52.dp),
+            )
+            Spacer(Modifier.weight(1f))
+            SkipButton(back = true) { vm.skipBy(audio, -15_000) }
+            Spacer(Modifier.width(12.dp))
+            Box(
+                Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                    .clickable { vm.togglePlay(audio) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    contentDescription = stringResource(if (playing) R.string.live_pause else R.string.clip_play),
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            SkipButton(back = false) { vm.skipBy(audio, 15_000) }
+            Spacer(Modifier.weight(1f))
+            Box(Modifier.width(52.dp), contentAlignment = Alignment.CenterEnd) {
+                var speedMenu by remember { mutableStateOf(false) }
+                Text(
+                    speedLabel(ui.playRate),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                        .clickable { speedMenu = true }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+                DropdownMenu(expanded = speedMenu, onDismissRequest = { speedMenu = false }) {
+                    PLAYBACK_SPEEDS.forEach { speed ->
+                        DropdownMenuItem(
+                            text = { Text(speedLabel(speed)) },
+                            trailingIcon = { if (kotlin.math.abs(ui.playRate - speed) < 0.01f) Icon(Icons.Filled.Check, null) },
+                            onClick = { speedMenu = false; vm.setPlaybackRate(speed) },
+                        )
+                    }
+                }
+            }
+        }
+        Text(
+            formatClipDuration(clip.durationMs ?: ui.playDurationMs.takeIf { loaded } ?: 0),
+            style = MaterialTheme.typography.labelSmall,
+            color = secondary.copy(alpha = 0.7f),
+        )
+    }
+
+    if (loaded && ui.playDurationMs > 0) {
+        PlaybackScrubber(ui.playPositionMs, ui.playDurationMs, vm, totalMs = clip.durationMs, labels = { Controls(it) })
+    } else {
+        // Not loaded (another clip is playing): the bar sits at the start; the first tap loads this one.
+        Slider(value = 0f, onValueChange = {}, enabled = false)
+        Controls(0)
+    }
+}
+
+/** ±15 s: the circular-arrow glyph with "15" inside, like iOS `gobackward.15` / `goforward.15`. */
+@Composable
+private fun SkipButton(back: Boolean, onClick: () -> Unit) {
+    val label = stringResource(if (back) R.string.clip_detail_skip_back else R.string.clip_detail_skip_forward)
+    IconButton(onClick = onClick, modifier = Modifier.size(40.dp)) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                Icons.Filled.Replay,
+                contentDescription = label,
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(30.dp).then(if (back) Modifier else Modifier.scale(scaleX = -1f, scaleY = 1f)),
+            )
+            Text("15", fontSize = 8.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 3.dp))
+        }
+    }
+}
+
+// MARK: - Transcript rows
+
+/**
+ * One transcript line, mirroring iOS `TranscriptSegmentRow`: the time pill and the whole row jump the audio
+ * there; the playing line is tinted; [highlight] marks search hits in place.
+ */
+@Composable
+private fun TranscriptSegmentRow(seg: AsrSegment, active: Boolean, highlight: String? = null, onTap: () -> Unit) {
+    val accent = MaterialTheme.colorScheme.primary
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (active) accent.copy(alpha = 0.08f) else Color.Transparent)
+            .clickable(onClick = onTap)
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            ClockLabel.mmss(seg.start),
+            style = MaterialTheme.typography.labelSmall,
+            fontFamily = FontFamily.Monospace,
+            color = if (active) accent else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .padding(top = 2.dp)
+                .clip(RoundedCornerShape(50))
+                .background(accent.copy(alpha = if (active) 0.20f else 0.08f))
+                .padding(horizontal = 7.dp, vertical = 3.dp),
+        )
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            seg.speaker?.takeIf { it.isNotEmpty() }?.let {
+                Text(
+                    stringResource(R.string.clip_detail_speaker, it),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text(highlighted(seg.text, highlight), style = MaterialTheme.typography.bodyLarge, lineHeight = READER_LINE_HEIGHT)
+        }
+    }
+}
+
+/** Case-insensitive needle highlight over an otherwise plain line. */
+private fun highlighted(text: String, needle: String?): AnnotatedString = buildAnnotatedString {
+    append(text)
+    TranscriptNavigation.highlightRanges(text, needle).forEach {
+        addStyle(SpanStyle(background = Color(0xFFFFCC00).copy(alpha = 0.45f)), it.first, it.last + 1)
+    }
+}
+
+/** Seeks a line 0.3 s early so its first word isn't clipped, and keeps playing. */
+private fun seekToSegment(vm: NomiViewModel, clip: LocalClip, seg: AsrSegment) {
+    val audio = clip.audio ?: return
+    vm.seekAndPlay(audio, (maxOf(0.0, seg.start - 0.3) * 1000).toInt())
+}
+
+private fun positionSeconds(ui: NomiViewModel.Ui, clip: LocalClip): Double =
+    if (clip.audio != null && ui.playing == clip.audio.name) ui.playPositionMs / 1000.0 else 0.0
+
+/** Search field + speaker chips (iOS `transcriptSearchBar`); hidden for single-line transcripts. */
+@Composable
+private fun TranscriptSearchBar(doc: TranscriptDocument, query: String, onQuery: (String) -> Unit, speaker: String?, onSpeaker: (String?) -> Unit) {
+    if (doc.segments.size <= 1) return
+    val secondary = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = NomiDimens.rowInset, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Filled.Search, null, tint = secondary, modifier = Modifier.size(16.dp))
+        Box(Modifier.weight(1f).padding(horizontal = 6.dp)) {
+            if (query.isEmpty()) {
+                Text(stringResource(R.string.clip_detail_search_transcript), style = MaterialTheme.typography.bodyMedium, color = secondary)
+            }
+            BasicTextField(
+                value = query,
+                onValueChange = onQuery,
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, imeAction = ImeAction.Search),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (query.isNotEmpty()) {
+            Icon(Icons.Filled.Cancel, null, tint = secondary, modifier = Modifier.size(16.dp).clickable { onQuery("") })
+        }
+    }
+    val speakers = remember(doc) { TranscriptNavigation.distinctSpeakers(doc.segments) }
+    if (speakers.size > 1) {
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = NomiDimens.rowInset, end = NomiDimens.rowInset, bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SpeakerChip(stringResource(R.string.clip_detail_speaker_all), speaker == null) { onSpeaker(null) }
+            speakers.forEach { sp ->
+                SpeakerChip(stringResource(R.string.clip_detail_speaker, sp), speaker == sp) { onSpeaker(sp) }
+            }
+        }
+    }
+    RowDivider()
+}
+
+@Composable
+private fun SpeakerChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val accent = MaterialTheme.colorScheme.primary
+    Text(
+        label,
+        style = MaterialTheme.typography.labelMedium,
+        color = if (selected) accent else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (selected) accent.copy(alpha = 0.18f) else com.nomily.app.ui.theme.AppFillTertiary.copy(alpha = 0.6f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+    )
+}
+
+/**
+ * While searching or filtering: every matching line (highlighted, capped) with tap-to-seek; otherwise a
+ * four-line window that follows playback.
+ */
+@Composable
+private fun TranscriptRows(clip: LocalClip, doc: TranscriptDocument, ui: NomiViewModel.Ui, vm: NomiViewModel, query: String, speaker: String?) {
+    val active = TranscriptNavigation.activeIndex(doc.segments, positionSeconds(ui, clip))
+    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp)) {
+        if (query.isNotEmpty() || speaker != null) {
+            val matches = remember(doc, query, speaker) { TranscriptNavigation.matches(doc.segments, query, speaker) }
+            if (matches.isEmpty()) {
+                Text(
+                    stringResource(R.string.clip_detail_no_transcript_match),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(8.dp),
+                )
+            } else {
+                matches.take(TranscriptNavigation.MAX_MATCHES).forEach { i ->
+                    val seg = doc.segments[i]
+                    TranscriptSegmentRow(seg, active == i, highlight = query.ifEmpty { null }) { seekToSegment(vm, clip, seg) }
+                }
+                if (matches.size > TranscriptNavigation.MAX_MATCHES) {
+                    Text(
+                        "+${matches.size - TranscriptNavigation.MAX_MATCHES}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(8.dp),
+                    )
+                }
+            }
+        } else {
+            TranscriptNavigation.inlineWindow(doc.segments.size, active).forEach { i ->
+                val seg = doc.segments[i]
+                TranscriptSegmentRow(seg, active == i) { seekToSegment(vm, clip, seg) }
+            }
+        }
+    }
+    RowDivider()
+}
+
+// MARK: - Native Markdown blocks
+
+/** The summary / to-do blocks rendered natively (iOS `MarkdownBlocksView`). */
+@Composable
+private fun MarkdownBlocksView(blocks: List<MarkdownBlock>, modifier: Modifier = Modifier) {
+    val secondary = MaterialTheme.colorScheme.onSurfaceVariant
+    SelectionContainer(modifier) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            blocks.forEach { block ->
+                when (val kind = block.kind) {
+                    is MarkdownBlock.Kind.Heading -> Text(
+                        inlineMarkdown(block.text),
+                        style = when {
+                            kind.level <= 1 -> MaterialTheme.typography.titleMedium
+                            kind.level == 2 -> MaterialTheme.typography.titleSmall
+                            else -> MaterialTheme.typography.labelLarge
+                        },
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                    MarkdownBlock.Kind.Bullet -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("•", style = MaterialTheme.typography.bodyMedium, color = secondary)
+                        Text(inlineMarkdown(block.text), style = MaterialTheme.typography.bodyMedium)
+                    }
+                    is MarkdownBlock.Kind.Ordered -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("${kind.number}.", style = MaterialTheme.typography.bodyMedium, color = secondary)
+                        Text(inlineMarkdown(block.text), style = MaterialTheme.typography.bodyMedium)
+                    }
+                    MarkdownBlock.Kind.Quote -> Row(Modifier.heightIn(min = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(Modifier.width(3.dp).heightIn(min = 20.dp).clip(RoundedCornerShape(1.5.dp)).background(secondary.copy(alpha = 0.35f)))
+                        Text(inlineMarkdown(block.text), style = MaterialTheme.typography.bodyMedium, color = secondary)
+                    }
+                    MarkdownBlock.Kind.Rule -> HorizontalDivider()
+                    MarkdownBlock.Kind.Paragraph -> Text(
+                        inlineMarkdown(block.text),
+                        style = MaterialTheme.typography.bodyMedium,
+                        lineHeight = 22.sp,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private val INLINE_MARKUP = Regex("""\*\*(.+?)\*\*|`([^`]+)`|\*([^*\s][^*]*?)\*""")
+
+/** `**bold**` / `*italic*` / `` `code` `` without a Markdown engine; anything else stays literal. */
+private fun inlineMarkdown(text: String): AnnotatedString = buildAnnotatedString {
+    var at = 0
+    for (m in INLINE_MARKUP.findAll(text)) {
+        append(text, at, m.range.first)
+        val (bold, code, italic) = m.destructured
+        when {
+            bold.isNotEmpty() -> withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(bold) }
+            code.isNotEmpty() -> withStyle(SpanStyle(fontFamily = FontFamily.Monospace)) { append(code) }
+            else -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(italic) }
+        }
+        at = m.range.last + 1
+    }
+    append(text, at, text.length)
+}
+
+// MARK: - To-dos tab
+
+/** Action items lifted from the summary; an honest empty state when there are none — never invented content. */
+@Composable
+private fun TodosSection(summary: String?, hasTranscript: Boolean) {
+    val todos = remember(summary) { summary?.let(TodoExtract::fromSummary).orEmpty() }
+    Group {
+        when {
+            todos.isNotEmpty() -> MarkdownBlocksView(todos, Modifier.padding(horizontal = NomiDimens.rowInset, vertical = 12.dp))
+            summary != null -> EmptyRow(stringResource(R.string.clip_detail_todos_empty))
+            hasTranscript -> EmptyRow(stringResource(R.string.clip_detail_todos_need_summary))
+            else -> EmptyRow(stringResource(R.string.clip_detail_transcribe_first))
+        }
+    }
+}
+
+// MARK: - AI Q&A
+
+/**
+ * Q&A state for one clip, mirroring iOS `AIChatModel`. Held by the page (not persisted, as on iOS) so the
+ * pinned input bar and the scrolling answers share it.
+ */
+private class ClipChat {
+    val messages = mutableStateListOf<ClipQa.Message>()
+    var draft by mutableStateOf("")
+    var busy by mutableStateOf(false)
+    var error by mutableStateOf<String?>(null)
+    val canSend: Boolean get() = !busy && draft.isNotBlank()
+}
+
+/** The answers, scrolling with the page (iOS `AIChatSection`). */
+@Composable
+private fun AiChatSection(chat: ClipChat) {
+    Group(
+        title = stringResource(R.string.clip_detail_ai_ask_title),
+        trailing = if (chat.messages.isNotEmpty()) {
+            {
+                TextButton(onClick = { chat.messages.clear(); chat.error = null }) {
+                    Text(stringResource(R.string.clip_detail_ai_ask_clear), style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        } else {
+            null
+        },
+        footer = if (chat.messages.isEmpty()) stringResource(R.string.clip_detail_ai_ask_footer) else null,
+    ) {
+        chat.messages.forEachIndexed { i, message ->
+            Column(Modifier.fillMaxWidth().padding(horizontal = NomiDimens.rowInset, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    stringResource(if (message.isUser) R.string.clip_detail_ai_ask_you else R.string.clip_detail_ai_ask_assistant),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                SelectionContainer { Text(message.text, style = MaterialTheme.typography.bodyMedium, lineHeight = 21.sp) }
+            }
+            if (i < chat.messages.lastIndex || chat.busy || chat.error != null) RowDivider()
+        }
+        if (chat.busy) ProgressRow(stringResource(R.string.clip_detail_ai_ask_thinking))
+        chat.error?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(horizontal = NomiDimens.rowInset, vertical = 10.dp),
+            )
+        }
+    }
+}
+
+/** The pinned question bar (iOS `AIChatInputBar`): lives outside the scroll so it never scrolls away. */
+@Composable
+private fun AiChatInputBar(chat: ClipChat, vm: NomiViewModel, material: String) {
+    val scope = rememberCoroutineScope()
+    val send = send@{
+        if (!chat.canSend) return@send
+        val question = chat.draft.trim()
+        chat.draft = ""
+        chat.error = null
+        chat.messages += ClipQa.Message(isUser = true, text = question)
+        chat.busy = true
+        val history = chat.messages.toList()
+        scope.launch {
+            try {
+                val answer = vm.askAboutClip(material, history)
+                chat.messages += ClipQa.Message(isUser = false, text = answer)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                chat.error = e.message ?: e.javaClass.simpleName
+            } finally {
+                chat.busy = false
+            }
+        }
+        Unit
+    }
+    Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(
+                Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(com.nomily.app.ui.theme.AppFillTertiary.copy(alpha = 0.6f))
+                    .padding(horizontal = 12.dp, vertical = 9.dp),
+            ) {
+                if (chat.draft.isEmpty()) {
+                    Text(stringResource(R.string.clip_detail_ai_ask_placeholder), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                BasicTextField(
+                    value = chat.draft,
+                    onValueChange = { chat.draft = it },
+                    maxLines = 3,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(onSend = { send() }),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            IconButton(onClick = { send() }, enabled = chat.canSend) {
+                Icon(
+                    Icons.Filled.ArrowCircleUp,
+                    contentDescription = stringResource(R.string.clip_detail_ai_ask_title),
+                    tint = if (chat.canSend) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.size(30.dp),
+                )
+            }
         }
     }
 }
@@ -286,12 +931,22 @@ private fun JobNotes(job: WorkJob?) {
 private fun readText(f: java.io.File?): String? = f?.let { runCatching { it.readText() }.getOrNull() }?.takeIf { it.isNotBlank() }
 
 /**
- * Transcript + translation sections. The header carries translate / re-transcribe once a transcript
- * exists; a clip without one offers a single Transcribe row (auto-detect or pick languages).
+ * Transcript tab: the segment list (search, speaker filter, playback-following window) + translation. The
+ * header carries translate / re-transcribe once a transcript exists; a clip without one offers a single
+ * Transcribe row (auto-detect or pick languages).
  */
 @Composable
-private fun TranscriptSections(clip: LocalClip, ui: NomiViewModel.Ui, vm: NomiViewModel, onOpenSettings: () -> Unit) {
-    val doc = remember(clip.transcriptJson, clip.transcript) { loadTranscript(clip) }
+private fun TranscriptSections(
+    clip: LocalClip,
+    doc: TranscriptDocument?,
+    ui: NomiViewModel.Ui,
+    vm: NomiViewModel,
+    onOpenSettings: () -> Unit,
+    query: String,
+    onQuery: (String) -> Unit,
+    speaker: String?,
+    onSpeaker: (String?) -> Unit,
+) {
     val cfgNow by vm.config.collectAsStateWithLifecycle()
     val transcribing = clip.base in ui.transcribing
     val translating = "${clip.base}:${ClipArtefact.TRANSCRIPT.name}" in ui.translating
@@ -337,7 +992,12 @@ private fun TranscriptSections(clip: LocalClip, ui: NomiViewModel.Ui, vm: NomiVi
             ?: translateJobs.failed?.let { JobFailedRow(it, vm) }
         when {
             doc != null -> {
-                PreviewRow(transcriptPreview(doc))
+                if (doc.segments.isEmpty()) {
+                    PreviewRow(transcriptPreview(doc))
+                } else {
+                    TranscriptSearchBar(doc, query, onQuery, speaker, onSpeaker)
+                    TranscriptRows(clip, doc, ui, vm, query, speaker)
+                }
                 NavRow(stringResource(R.string.clip_detail_view_full_transcript)) { full = true }
             }
             clip.hasAudio && !transcribing -> ActionRow(
@@ -357,7 +1017,7 @@ private fun TranscriptSections(clip: LocalClip, ui: NomiViewModel.Ui, vm: NomiVi
         }
     }
 
-    if (full && doc != null) TranscriptFullDialog(doc) { full = false }
+    if (full && doc != null) TranscriptFullDialog(clip, doc, vm) { full = false }
     if (fullTranslation && translation != null) {
         FullTextDialog(stringResource(R.string.clip_detail_translation), translation, markdown = false) { fullTranslation = false }
     }
@@ -428,18 +1088,19 @@ private fun TranscriptSections(clip: LocalClip, ui: NomiViewModel.Ui, vm: NomiVi
 }
 
 /**
- * Summary + translated-summary sections. A summary offers its full view and, when it has headings or
- * lists to plot, the mind map; the header carries translate / re-summarize.
+ * AI Minutes tab: the whole summary rendered inline, its full view (with poster share) and, when it has
+ * headings or lists to plot, the mind map; then the translated summary. The header carries translate /
+ * re-summarize.
  */
 @Composable
 private fun SummarySections(
     clip: LocalClip,
+    summary: String?,
     ui: NomiViewModel.Ui,
     vm: NomiViewModel,
     clipTitle: String,
     onOpenSettings: () -> Unit,
 ) {
-    val summary = readText(clip.summary)
     val hasOutline = remember(summary) { summary != null && MarkdownOutline.parse(summary) != null }
     val translating = "${clip.base}:${ClipArtefact.SUMMARY.name}" in ui.translating
     val cfgNow by vm.config.collectAsStateWithLifecycle()
@@ -478,7 +1139,10 @@ private fun SummarySections(
             ?: translateJobs.failed?.let { JobFailedRow(it, vm) }
         when {
             summary != null -> {
-                PreviewRow(summary)
+                // The summary tab is the reading surface: the whole document inline, not a teaser behind a link.
+                val blocks = remember(summary) { MarkdownBlocks.parse(summary) }
+                MarkdownBlocksView(blocks, Modifier.padding(horizontal = NomiDimens.rowInset, vertical = 12.dp))
+                RowDivider()
                 NavRow(stringResource(R.string.clip_detail_view_full_summary), divider = hasOutline) {
                     fullSummary = R.string.clip_detail_summary to summary
                 }
@@ -513,7 +1177,7 @@ private fun SummarySections(
     }
 
     fullSummary?.let { (titleRes, body) ->
-        SummaryFullDialog(stringResource(titleRes), body) { fullSummary = null }
+        SummaryFullDialog(stringResource(titleRes), body, poster = clip) { fullSummary = null }
     }
     // Re-read on open rather than capture: the summary can be regenerated while the map is closed.
     if (mindMap && summary != null) MindMapScreen(summary, clipTitle) { mindMap = false }
@@ -620,11 +1284,15 @@ private fun FullTextDialog(title: String, body: String, markdown: Boolean, onDis
     }
 }
 
-/** Full-screen summary: rendered Markdown with mind map, raw-source toggle and share, as on iOS. */
+/**
+ * Full-screen summary: rendered Markdown with mind map, raw-source toggle, share as image (poster) and
+ * share text, as on iOS. [poster] supplies the poster header (title, date, duration).
+ */
 @Composable
-private fun SummaryFullDialog(title: String, body: String, onDismiss: () -> Unit) {
+private fun SummaryFullDialog(title: String, body: String, poster: LocalClip, onDismiss: () -> Unit) {
     var showRaw by remember { mutableStateOf(false) }
     var mindMap by remember { mutableStateOf(false) }
+    var showPoster by remember { mutableStateOf(false) }
     val hasOutline = remember(body) { MarkdownOutline.parse(body) != null }
     FullPage(
         title,
@@ -638,51 +1306,47 @@ private fun SummaryFullDialog(title: String, body: String, onDismiss: () -> Unit
             IconButton(onClick = { showRaw = !showRaw }) {
                 Icon(if (showRaw) Icons.AutoMirrored.Filled.Article else Icons.Filled.Code, contentDescription = null)
             }
+            IconButton(onClick = { showPoster = true }) {
+                Icon(Icons.Filled.Image, contentDescription = stringResource(R.string.clip_detail_share_as_image))
+            }
             ShareAction(body)
         },
     ) {
         if (showRaw) LongTextReader(body, Modifier.fillMaxSize(), monospace = true) else MarkdownView(body, Modifier.fillMaxSize())
     }
     if (mindMap) MindMapScreen(body, title) { mindMap = false }
+    if (showPoster) {
+        SummaryPosterDialog(body, title = poster.title ?: poster.name, date = poster.recordedAt, durationMs = poster.durationMs) { showPoster = false }
+    }
 }
 
-/** Full‑screen segmented reader — per segment: `[Speaker N]` + `m:ss–m:ss` + text. */
+/**
+ * Full-screen segmented reader, sharing the detail page's player: tap a line to jump there; the playing
+ * line is highlighted and kept in view while audio plays.
+ */
 @Composable
-private fun TranscriptFullDialog(doc: TranscriptDocument, onDismiss: () -> Unit) {
+private fun TranscriptFullDialog(clip: LocalClip, doc: TranscriptDocument, vm: NomiViewModel, onDismiss: () -> Unit) {
     val shareBody = remember(doc) { transcriptShareText(doc) }
+    val ui by vm.ui.collectAsStateWithLifecycle()
     FullPage(stringResource(R.string.clip_detail_transcript), onDismiss, actions = { ShareAction(shareBody) }) {
         if (doc.segments.isEmpty()) {
             LongTextReader(doc.text, Modifier.fillMaxSize())
         } else {
+            val active = TranscriptNavigation.activeIndex(doc.segments, positionSeconds(ui, clip))
+            val playing = clip.audio != null && ui.playing == clip.audio.name && !ui.playPaused
+            val list = rememberLazyListState()
+            // Follow the audio while it plays, so the page never drifts away from what the user is hearing.
+            LaunchedEffect(active) {
+                if (active != null && playing) list.animateScrollToItem(active, -list.layoutInfo.viewportSize.height / 3)
+            }
             // Lazy: a three‑hour segment contains thousands of pieces; combining them all at once would freeze the dialog for several seconds.
             LazyColumn(
-                Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                state = list,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                items(doc.segments) { seg ->
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            seg.speaker?.takeIf { it.isNotEmpty() }?.let { sp ->
-                                Text(
-                                    stringResource(R.string.clip_detail_speaker, sp),
-                                    style = MaterialTheme.typography.labelMedium,
-                                )
-                            }
-                            Spacer(Modifier.weight(1f))
-                            Text(
-                                stampLabel(seg),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontFamily = FontFamily.Monospace,
-                            )
-                        }
-                        SelectionContainer {
-                            Text(
-                                seg.text,
-                                style = MaterialTheme.typography.bodyMedium,
-                                lineHeight = READER_LINE_HEIGHT,
-                            )
-                        }
-                    }
+                itemsIndexed(doc.segments) { i, seg ->
+                    TranscriptSegmentRow(seg, active == i) { seekToSegment(vm, clip, seg) }
                 }
                 item { Spacer(Modifier.padding(bottom = 24.dp)) }
             }
@@ -750,54 +1414,30 @@ private class TranscriptDocument(val text: String, val segments: List<AsrSegment
 private enum class ExportFormat(val ext: String) { M4A("m4a"), WAV("wav") }
 
 /**
- * Export: re-encode to **M4A (AAC)** or decode to **WAV (PCM)** as a background task, then hand off to the share
- * sheet. Ogg‑Opus cannot be opened by most third‑party apps, so the original is never shared as-is. The finished
- * file stays on the page ("Exported — tap to share") so a long conversion isn't redone after leaving.
+ * Export status: re-encoding to **M4A (AAC)** or decoding to **WAV (PCM)** runs as a background task started
+ * from the top-right menu; this card only shows while one is running, gave up, or its result is ready
+ * ("Exported — tap to share", so a long conversion isn't redone after leaving). Ogg‑Opus cannot be opened
+ * by most third‑party apps, so the original is never shared as-is.
  */
 @Composable
-private fun ExportSection(clip: LocalClip, vm: NomiViewModel) {
+private fun ExportStatusSection(clip: LocalClip, vm: NomiViewModel, shareWhenReady: Boolean, onShared: () -> Unit) {
     val context = LocalContext.current
     val allJobs by vm.jobs.jobs.collectAsStateWithLifecycle()
     val readyAny by vm.exports.ready.collectAsStateWithLifecycle()
     val exportJobs = ClipJobs(allJobs, clip.base, JobKind.EXPORT)
-    var choose by remember { mutableStateOf(false) }
-    // Share automatically when the export the user just started finishes while they're still here.
-    var shareWhenReady by remember { mutableStateOf(false) }
     val ready = readyAny?.takeIf { exportJobs.active == null }?.let { vm.exports.readyFor(clip.base) }
     LaunchedEffect(ready, shareWhenReady) {
         if (shareWhenReady && ready != null) {
-            shareWhenReady = false
+            onShared()
             shareFile(context, vm.exports.fileOf(ready), if (ready.file.endsWith(".wav")) "audio/wav" else "audio/mp4")
         }
     }
+    if (exportJobs.active == null && exportJobs.failed == null && ready == null) return
 
     Group(title = stringResource(R.string.clip_detail_export), footer = stringResource(R.string.clip_detail_export_format_footer)) {
-        val busy = exportJobs.active != null
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clickable(enabled = !busy) { choose = true }
-                .heightIn(min = NomiDimens.rowMinHeight)
-                .padding(horizontal = NomiDimens.rowInset),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                Icons.Filled.IosShare,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(NomiDimens.actionIconSize),
-            )
-            Text(
-                stringResource(R.string.clip_detail_export_audio),
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (busy) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = NomiDimens.actionIconGap).weight(1f),
-            )
-        }
-        exportJobs.active?.let { RowDivider(); JobProgressRow(it, stringResource(R.string.clip_detail_exporting)) }
-            ?: exportJobs.failed?.let { RowDivider(); JobFailedRow(it, vm) }
+        exportJobs.active?.let { JobProgressRow(it, stringResource(R.string.clip_detail_exporting)) }
+            ?: exportJobs.failed?.let { JobFailedRow(it, vm) }
         if (ready != null) {
-            RowDivider()
             Row(
                 Modifier.fillMaxWidth().heightIn(min = NomiDimens.rowMinHeight).padding(start = NomiDimens.rowInset),
                 verticalAlignment = Alignment.CenterVertically,
@@ -824,17 +1464,6 @@ private fun ExportSection(clip: LocalClip, vm: NomiViewModel) {
             }
         }
     }
-
-    if (choose) {
-        ExportFormatDialog(
-            onPick = { format ->
-                choose = false
-                shareWhenReady = true
-                vm.enqueueExport(clip, format.ext)
-            },
-            onDismiss = { choose = false },
-        )
-    }
 }
 
 @Composable
@@ -857,53 +1486,13 @@ private fun ExportFormatDialog(onPick: (ExportFormat) -> Unit, onDismiss: () -> 
     )
 }
 
-/** Hero card: tapping anywhere opens the player sheet. Play icon · duration and size · date · file name. */
+/** Hero card: the inline player, then file name · size · date in one quiet line. */
 @Composable
-private fun HeroCard(clip: LocalClip, ui: NomiViewModel.Ui, onOpenPlayer: () -> Unit) {
-    val playing = ui.playing == clip.audio?.name && !ui.playPaused
+private fun HeroCard(clip: LocalClip, ui: NomiViewModel.Ui, vm: NomiViewModel) {
     Group {
-        Row(
-            // The whole card is the target, not just the artwork and the labels.
-            Modifier.fillMaxWidth().clickable(onClick = onOpenPlayer).padding(horizontal = NomiDimens.rowInset, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                modifier = Modifier.size(48.dp),
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = stringResource(if (playing) R.string.live_pause else R.string.clip_play),
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                }
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Unknown duration leaves the slot empty rather than implying the audio is gone.
-                    clip.durationMs?.let {
-                        Text(formatClipDuration(it), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                    }
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        formatClipBytes(clip.sizeBytes),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                clip.recordedAt?.let {
-                    Text(
-                        // Medium date + short time, localized through the current locale.
-                        java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM, Locale.getDefault()).format(it) +
-                            " " +
-                            java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT, Locale.getDefault()).format(it),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+        Column(Modifier.fillMaxWidth().padding(horizontal = NomiDimens.rowInset, vertical = 10.dp)) {
+            InlineAudioPlayer(clip, ui, vm)
+            Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     clip.name,
                     style = MaterialTheme.typography.labelSmall,
@@ -911,93 +1500,33 @@ private fun HeroCard(clip: LocalClip, ui: NomiViewModel.Ui, onOpenPlayer: () -> 
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.MiddleEllipsis,
+                    modifier = Modifier.weight(1f),
                 )
-            }
-        }
-    }
-}
-
-/** Player sheet: large play/pause circle and a scrubber, half-height, as on iOS. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun PlayerSheet(clip: LocalClip, ui: NomiViewModel.Ui, vm: NomiViewModel, title: String, onDismiss: () -> Unit) {
-    val audio = clip.audio ?: return
-    val loaded = ui.playing == audio.name
-    val playing = loaded && !ui.playPaused
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+                val date = clip.recordedAt?.let {
+                    // Medium date + short time, localized through the current locale.
+                    java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM, Locale.getDefault()).format(it) +
+                        " " +
+                        java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT, Locale.getDefault()).format(it)
+                }
                 Text(
-                    title,
-                    style = MaterialTheme.typography.titleMedium,
+                    listOfNotNull(formatClipBytes(clip.sizeBytes), date).joinToString(" · "),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.align(Alignment.Center).padding(horizontal = 72.dp),
+                    modifier = Modifier.padding(start = 6.dp),
                 )
-                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.CenterEnd)) {
-                    Text(stringResource(R.string.common_done), fontWeight = FontWeight.SemiBold)
-                }
-            }
-            Spacer(Modifier.padding(top = 24.dp))
-            // The file couldn't be loaded: say why instead of showing a play button that does nothing.
-            ui.playError?.takeIf { it.first == audio.name }?.let { (_, reason) ->
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 24.dp)) {
-                    Icon(androidx.compose.material.icons.Icons.Filled.Block, contentDescription = null, tint = androidx.compose.ui.graphics.Color(0xFFFF9500), modifier = Modifier.size(40.dp))
-                    Text(
-                        stringResource(R.string.clip_detail_playback_failed, reason),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        modifier = Modifier.padding(top = 12.dp),
-                    )
-                }
-                return@Column
-            }
-            // The hit area is larger than the drawn circle so the padding around it doesn't swallow taps.
-            Box(
-                Modifier.size(140.dp).clickable(onClick = { vm.togglePlay(audio) }),
-                contentAlignment = Alignment.Center,
-            ) {
-                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), modifier = Modifier.size(120.dp)) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                            contentDescription = stringResource(if (playing) R.string.live_pause else R.string.clip_play),
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(56.dp),
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.padding(top = 24.dp))
-            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                if (loaded && ui.playDurationMs > 0) {
-                    PlaybackScrubber(ui.playPositionMs, ui.playDurationMs, vm, totalMs = clip.durationMs, centered = false)
-                } else {
-                    // Not loaded yet: the bar sits at the start; the first play loads the player.
-                    Slider(value = 0f, onValueChange = {}, enabled = false)
-                    Row {
-                        Text(formatClipDuration(0), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            formatClipDuration(clip.durationMs ?: 0),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
             }
         }
     }
 }
 
 /**
- * Playback progress bar — shared among the player sheet and the library row; avoid duplicating code.
+ * Playback progress bar — shared among the detail page's inline player and the library row; avoid duplicating code.
  *
  * During dragging only update the **local** value, without feeding seek commands to the ViewModel each frame: previously `onValueChange` called `seekTo` every frame while a polling coroutine simultaneously wrote back `playPositionMs`, causing contention and the slider to bounce back.
  * Now pressing starts `beginScrub()` (muting during drag), releasing calls `endScrub()` to set the position and resume as needed.
  *
- * @param centered `true` shows "position / total" under the bar; `false` puts position and total at the two ends, as the player sheet does.
+ * @param centered `true` shows "position / total" under the bar; `false` puts position and total at the two ends.
  */
 @Composable
 internal fun PlaybackScrubber(
@@ -1011,6 +1540,8 @@ internal fun PlaybackScrubber(
      */
     totalMs: Int? = null,
     centered: Boolean = true,
+    /** Replaces the default time labels; receives the shown position (the drag value while scrubbing). */
+    labels: (@Composable (shownMs: Int) -> Unit)? = null,
 ) {
     var dragging by remember { mutableStateOf(false) }
     var dragValue by remember { mutableStateOf(0f) }
@@ -1027,7 +1558,9 @@ internal fun PlaybackScrubber(
         },
         valueRange = 0f..durationMs.toFloat(),
     )
-    if (centered) {
+    if (labels != null) {
+        labels(shown.toInt())
+    } else if (centered) {
         Text(
             "${formatClipDuration(shown.toInt())} / ${formatClipDuration(totalMs ?: durationMs)}",
             style = MaterialTheme.typography.labelSmall,
@@ -1057,62 +1590,43 @@ private fun EmptyRow(text: String) {
     )
 }
 
-/** Audio, transcript and summary delete independently — each row appears only while that artefact exists. */
+/**
+ * Confirms one of the independent deletes picked from the top-right menu — audio, transcript and summary
+ * go to Recently Deleted separately, nothing cascades.
+ */
 @Composable
-private fun DestructiveSection(clip: LocalClip, vm: NomiViewModel, onDeletedEverything: () -> Unit) {
-    var pending by remember { mutableStateOf<ClipArtefact?>(null) }
-    val rows = listOfNotNull(
-        ClipArtefact.AUDIO.takeIf { clip.hasAudio },
-        ClipArtefact.TRANSCRIPT.takeIf { clip.transcript != null },
-        ClipArtefact.SUMMARY.takeIf { clip.summary != null },
+private fun DeleteConfirmDialog(clip: LocalClip, what: ClipArtefact, vm: NomiViewModel, onDone: () -> Unit, onDeletedEverything: () -> Unit) {
+    val (title, message) = when (what) {
+        ClipArtefact.AUDIO ->
+            R.string.clip_detail_delete_audio to R.string.clip_detail_delete_audio_message
+        ClipArtefact.TRANSCRIPT ->
+            R.string.clip_detail_delete_transcript to R.string.clip_detail_delete_transcript_message
+        ClipArtefact.SUMMARY ->
+            R.string.clip_detail_delete_summary to R.string.clip_detail_delete_summary_message
+    }
+    AlertDialog(
+        onDismissRequest = onDone,
+        title = { Text(stringResource(title)) },
+        text = { Text(stringResource(message)) },
+        confirmButton = {
+            TextButton(onClick = {
+                if (what == ClipArtefact.AUDIO && vm.ui.value.playing == clip.audio?.name) vm.stopPlayback()
+                vm.deleteArtefact(clip, what)
+                onDone()
+                // Deleting the audio closes the page, as on iOS (the clip lives on as a text-only library entry);
+                // so does removing the last artefact — no empty shell.
+                val leftovers = listOfNotNull(
+                    clip.audio.takeIf { what != ClipArtefact.AUDIO },
+                    clip.transcript.takeIf { what != ClipArtefact.TRANSCRIPT },
+                    clip.summary.takeIf { what != ClipArtefact.SUMMARY },
+                )
+                if (what == ClipArtefact.AUDIO || leftovers.isEmpty()) onDeletedEverything()
+            }) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDone) { Text(stringResource(R.string.common_cancel)) }
+        },
     )
-
-    Group(footer = stringResource(R.string.clip_detail_delete_independent_footer)) {
-        rows.forEachIndexed { i, what ->
-            val label = when (what) {
-                ClipArtefact.AUDIO -> R.string.clip_detail_delete_audio
-                ClipArtefact.TRANSCRIPT -> R.string.clip_detail_delete_transcript
-                ClipArtefact.SUMMARY -> R.string.clip_detail_delete_summary
-            }
-            ActionRow(stringResource(label), icon = Icons.Filled.Delete, destructive = true, divider = i < rows.lastIndex) {
-                pending = what
-            }
-        }
-    }
-
-    pending?.let { what ->
-        val (title, message) = when (what) {
-            ClipArtefact.AUDIO ->
-                R.string.clip_detail_delete_audio to R.string.clip_detail_delete_audio_message
-            ClipArtefact.TRANSCRIPT ->
-                R.string.clip_detail_delete_transcript to R.string.clip_detail_delete_transcript_message
-            ClipArtefact.SUMMARY ->
-                R.string.clip_detail_delete_summary to R.string.clip_detail_delete_summary_message
-        }
-        AlertDialog(
-            onDismissRequest = { pending = null },
-            title = { Text(stringResource(title)) },
-            text = { Text(stringResource(message)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (what == ClipArtefact.AUDIO && vm.ui.value.playing == clip.audio?.name) vm.stopPlayback()
-                    vm.deleteArtefact(clip, what)
-                    pending = null
-                    // Deleting the audio closes the page, as on iOS (the clip lives on as a text-only library entry);
-                    // so does removing the last artefact — no empty shell.
-                    val leftovers = listOfNotNull(
-                        clip.audio.takeIf { what != ClipArtefact.AUDIO },
-                        clip.transcript.takeIf { what != ClipArtefact.TRANSCRIPT },
-                        clip.summary.takeIf { what != ClipArtefact.SUMMARY },
-                    )
-                    if (what == ClipArtefact.AUDIO || leftovers.isEmpty()) onDeletedEverything()
-                }) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(onClick = { pending = null }) { Text(stringResource(R.string.common_cancel)) }
-            },
-        )
-    }
 }
 
 internal fun formatClipDuration(ms: Int): String {

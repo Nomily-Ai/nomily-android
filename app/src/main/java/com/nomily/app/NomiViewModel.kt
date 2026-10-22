@@ -186,6 +186,8 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         val playPaused: Boolean = false,
         val playPositionMs: Int = 0,
         val playDurationMs: Int = 0,
+        /** Playback speed (detail page's 0.75–2× menu); applied whenever the player starts. */
+        val playRate: Float = 1f,
         /**
          * Recorded duration reported by the device during recording (milliseconds, 0x56's `recd`). **Not the app's stopwatch** ——
          * an app started via a physical key does not know the start point; only the device's timing is accurate.
@@ -3093,6 +3095,19 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
         reporter.notes(com.nomily.app.llm.LlmClient.resultNotes(localized(), outcome, cfg), outcome.completion.truncated)
     }
 
+    /**
+     * The detail page's AI Q&A: one answer grounded on [material] (summary + timestamped transcript), through the
+     * same fallback chain as summaries but never chunked — the user is waiting for an answer, not a merge pass.
+     */
+    suspend fun askAboutClip(material: String, messages: List<com.nomily.app.core.asr.ClipQa.Message>): String =
+        com.nomily.app.llm.LlmClient.completeResilient(
+            localized(),
+            str(R.string.clip_detail_ai_ask_system),
+            com.nomily.app.core.asr.ClipQa.userContent(material, messages),
+            configStore.config.value,
+            allowChunking = false,
+        ).completion.text
+
     private suspend fun runTranslate(job: com.nomily.app.jobs.WorkJob, reporter: com.nomily.app.jobs.JobQueue.Reporter) {
         val language = job.languageName ?: throw com.nomily.app.jobs.JobSourceMissing(str(R.string.jobs_source_missing, str(R.string.jobs_source_language)))
         val summary = job.translateTarget == "summary"
@@ -3594,6 +3609,51 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
     fun play(f: File) {
         // Recreate the player only when switching to a different file; the same file uses resume (preserves position and saves a prepare call)
         if (player != null && _ui.value.playing == f.name) { resume(); return }
+        if (open(f, reportError = true)) resume()
+    }
+
+    /**
+     * Load [f] paused at 0 so the detail page's inline player has a real duration before the first tap, as iOS
+     * `AudioPlaybackController.load`. Does nothing when this file is already loaded, or when another file is
+     * **playing** (opening a detail page must not cut off audio the user started elsewhere).
+     */
+    fun load(f: File) {
+        if (player != null && (_ui.value.playing == f.name || !_ui.value.playPaused)) return
+        open(f, reportError = false)
+    }
+
+    /** Jump [f] to [ms] and keep it playing — the transcript's tap-a-line gesture. Loads [f] first if needed. */
+    fun seekAndPlay(f: File, ms: Int) {
+        if (!(player != null && _ui.value.playing == f.name) && !open(f, reportError = true)) return
+        seekTo(ms)
+        if (_ui.value.playPaused) resume()
+    }
+
+    /** ±15 s buttons: relative seek that keeps the current play/pause state. */
+    fun skipBy(f: File, deltaMs: Int) {
+        if (!(player != null && _ui.value.playing == f.name) && !open(f, reportError = true)) return
+        seekTo(_ui.value.playPositionMs + deltaMs)
+    }
+
+    /**
+     * Sets the speed and keeps playing at it. `setPlaybackParams` on a paused player **starts** it, so while
+     * paused only the value is stored; [startPlayer] applies it on the next start.
+     */
+    fun setPlaybackRate(rate: Float) {
+        set { it.copy(playRate = rate) }
+        val p = player ?: return
+        if (!_ui.value.playPaused) runCatching { p.playbackParams = p.playbackParams.setSpeed(rate) }
+    }
+
+    /** `start()` + the user's speed. Every place that starts audio goes through here. */
+    private fun startPlayer(p: MediaPlayer) {
+        p.start()
+        val rate = _ui.value.playRate
+        runCatching { if (p.playbackParams.speed != rate) p.playbackParams = p.playbackParams.setSpeed(rate) }
+    }
+
+    /** Prepares [f] as the loaded file, paused at 0, with position polling running. False when it can't be opened. */
+    private fun open(f: File, reportError: Boolean): Boolean {
         stopPlayback()
         set { it.copy(playError = null) }
         try {
@@ -3609,12 +3669,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                 prepare()
             }
             player = mp
-            set { it.copy(playing = f.name, playPaused = false, playPositionMs = 0, playDurationMs = mp.duration) }
-            if (!requestAudioFocus()) {   // If we can’t acquire focus, don’t force audio out; the UI also shouldn’t falsely report playback
-                set { it.copy(playPaused = true) }
-                return
-            }
-            mp.start()
+            set { it.copy(playing = f.name, playPaused = true, playPositionMs = 0, playDurationMs = mp.duration) }
             // Poll playback position for the progress bar. **Liveness is determined by `player != null` rather than “producing sound”** —
             // The player remains during pause, so polling must not be casually stopped, otherwise the progress bar won’t move after resume.
             progressJob = viewModelScope.launch {
@@ -3628,12 +3683,19 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
                     kotlinx.coroutines.delay(200)
                 }
             }
+            return true
         } catch (e: Exception) {
             Log.e(TAG, "Playback failed", e)
             runCatching { player?.release() }
             player = null
-            // Inline in the player sheet; the library card covers playback started from a list row.
-            set { it.copy(playError = f.name to describe(e), error = failed(R.string.device_files_operation_failed, e)) }
+            // Inline in the player; the library card covers playback started from a list row.
+            set {
+                it.copy(
+                    playError = f.name to describe(e),
+                    error = if (reportError) failed(R.string.device_files_operation_failed, e) else it.error,
+                )
+            }
+            return false
         }
     }
 
@@ -3655,7 +3717,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
             runCatching { p.seekTo(0) }
             set { it.copy(playPositionMs = 0) }
         }
-        runCatching { p.start() }
+        runCatching { startPlayer(p) }
         set { it.copy(playPaused = false) }
     }
 
@@ -3695,7 +3757,7 @@ class NomiViewModel(app: Application) : AndroidViewModel(app) {
             val p = player ?: return
             if (!requestAudioFocus()) return
             // Intentionally avoid calling resume(): releasing the finger at the very end should leave playback stopped there, not restart from the beginning
-            runCatching { p.start() }
+            runCatching { startPlayer(p) }
             set { it.copy(playPaused = false) }
         }
     }
