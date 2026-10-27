@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Shared export files: cache/exports/ and the staged audio export in files/export-staging/.
+  The original recordings in filesDir/clips/ are not exposed.
+-->
+<paths>
+    <cache-path name="exports" path="exports/" />
+    <files-path name="export_staging" path="export-staging/" />
+</paths>

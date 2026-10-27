@@ -1,0 +1,116 @@
+package com.nomily.app.ui.theme
+
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
+import com.nomily.app.core.config.AppTheme
+
+// Neutral gray-white background; group cards use a gray one shade lighter/darker than the background.
+// The accent color comes from the user's theme ([AppTheme], default brand red #E41D25, not the default blue #007AFF).
+// Each theme has a lighter dark-mode variant so accent text and icons stay readable on #1C1C1E.
+/** The switch color is fixed to this green, independent of the accent color; Material defaults to using primary, so it must be explicitly overridden. */
+val AppSwitchGreen = Color(0xFF34C759)
+private val AppGroupedBg = Color(0xFFF2F2F7)     // Group page background
+private val AppGroupedBgDark = Color(0xFF000000)
+private val AppCard = Color(0xFFFFFFFF)          // Background color of the group card
+private val AppCardDark = Color(0xFF1C1C1E)
+// Semantic color light screenshot color sampling verification: separator line measured (196,199,200),
+// matches reference value (198,198,200), indicating no deviation in the screenshot color pipeline.
+private val AppLabel = Color(0xFF000000)             // Body text (pure black on light backgrounds, not #1C1C1E)
+private val AppLabelDark = Color(0xFFFFFFFF)
+private val AppSecondaryLabel = Color(0xFF8E8E93)    // Secondary text
+private val AppSecondaryLabelDark = Color(0xFF98989F)
+private val AppSeparator = Color(0xFFC6C6C8)         // Separator and trailing arrow
+private val AppSeparatorDark = Color(0xFF38383A)
+/** Background color of unselected segments in the segmented control: gray groove + white selected block. Material's default is exactly the opposite. */
+// Read it as `colorScheme.secondaryContainer`, which follows light/dark.
+private val AppFillTertiary = Color(0xFFE5E5EA)
+private val AppFillTertiaryDark = Color(0xFF2C2C2E)
+
+private fun rgb(value: Int) = Color(0xFF000000 or value.toLong())
+
+/** The theme's accent as a Compose colour — for previews of a theme other than the active one (the active one is `colorScheme.primary`). */
+fun AppTheme.accentColor(dark: Boolean): Color = rgb(accent(dark))
+
+/** Darker companion of [accentColor], for gradients only (contrast for text is not guaranteed). */
+fun AppTheme.deepColor(dark: Boolean): Color = rgb(deep(dark))
+
+private fun darkScheme(theme: AppTheme) = darkColorScheme(
+    primary = rgb(theme.accentDark),
+    onPrimary = if (theme.onAccentIsDark(dark = true)) Color.Black else Color.White,
+    secondary = rgb(theme.accentDark),
+    background = AppGroupedBgDark,
+    onBackground = AppLabelDark,
+    surface = AppCardDark,
+    onSurface = AppLabelDark,
+    surfaceVariant = AppCardDark,
+    onSurfaceVariant = AppSecondaryLabelDark,
+    outline = AppSeparatorDark,
+    error = Color(0xFFFF453A),
+    surfaceContainerLowest = AppCardDark,
+    surfaceContainerLow = AppCardDark,
+    surfaceContainer = AppCardDark,
+    surfaceContainerHigh = AppCardDark,
+    surfaceContainerHighest = AppCardDark,
+    secondaryContainer = AppFillTertiaryDark,
+    onSecondaryContainer = Color(0xFFF2F2F7),
+)
+
+private fun lightScheme(theme: AppTheme) = lightColorScheme(
+    primary = rgb(theme.accentLight),
+    onPrimary = if (theme.onAccentIsDark(dark = false)) Color.Black else Color.White,
+    secondary = rgb(theme.accentLight),
+    background = AppGroupedBg,
+    onBackground = AppLabel,
+    surface = AppCard,
+    onSurface = AppLabel,
+    surfaceVariant = AppCard,
+    onSurfaceVariant = AppSecondaryLabel,
+    outline = AppSeparator,
+    error = Color(0xFFFF3B30),
+    // M3's Card / NavigationBar indicator defaults to the surfaceContainer* color levels.
+    // If not overridden, it falls back to the baseline purple, resulting in light purple cards and tab indicators on the UI.
+    surfaceContainerLowest = AppCard,
+    surfaceContainerLow = AppCard,
+    surfaceContainer = AppCard,
+    surfaceContainerHigh = AppCard,
+    surfaceContainerHighest = AppCard,
+    secondaryContainer = AppFillTertiary,        // Gray slot of the segmented control
+    onSecondaryContainer = AppLabel,
+)
+
+/**
+ * ⚠️ **Do not use Material You dynamic color**: Dynamic color adapts to the user's wallpaper (on test devices, the entire UI appeared pink),
+ * so a fixed neutral color scheme is used; only the accent follows the user's [AppTheme] ([themeTag] = `config.json` `app_theme`). A `dynamicColor` toggle was previously left in place,
+ * but no callers ever enabled it, so it has been removed.
+ */
+@Composable
+fun NomilyTheme(
+    themeTag: String? = null,
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    content: @Composable () -> Unit
+) {
+    val theme = AppTheme.resolve(themeTag)
+    val colorScheme = remember(theme, darkTheme) { if (darkTheme) darkScheme(theme) else lightScheme(theme) }
+
+    MaterialTheme(
+        colorScheme = colorScheme,
+        typography = Typography,
+        content = content
+    )
+}
+
+/** Switch color scheme: selected state is green with a white slider, unselected state is a light gray track. */
+@Composable
+fun appSwitchColors() = androidx.compose.material3.SwitchDefaults.colors(
+    checkedThumbColor = Color.White,
+    checkedTrackColor = AppSwitchGreen,
+    checkedBorderColor = AppSwitchGreen,
+    uncheckedThumbColor = Color.White,
+    uncheckedTrackColor = Color(0xFFE9E9EA),
+    uncheckedBorderColor = Color(0xFFE9E9EA),
+)

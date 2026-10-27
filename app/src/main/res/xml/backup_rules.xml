@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+  Backup rules (API 30 and below use this file; API 31+ use data_extraction_rules.xml).
+
+  The sole purpose of this file is to satisfy **R3: Keys must not be included in cloud backups** from PLAN §3.5.
+  The approach is to exclude key files from backups here.
+
+  What is excluded is `dnote-keys.xml` — the location where KeyVault stores the "32-byte key wrapped by Keystore".
+
+  ⚠️ This is the **second** line of defense, not the only one: the AES key used for wrapping is generated within AndroidKeyStore,
+  is non-exportable, and is not included in any backup. Therefore, even if this ciphertext is backed up, it cannot be decrypted after a device change.
+  However, "cannot be decrypted after a device change" is not the same as "cannot be obtained after a device change" — the original text of R3 states that keys must not be included in cloud backups,
+  so we implement this literally here, without relying on inference to omit it.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="dnote-keys.xml" />
+    <exclude domain="sharedpref" path="dnote-secrets.xml" />
+</full-backup-content>
